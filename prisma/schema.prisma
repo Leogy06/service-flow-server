@@ -5,9 +5,117 @@
 
 generator client {
   provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "mysql"
+}
+
+model User {
+  id         String  @id @default(cuid())
+  email      String  @unique
+  password   String
+  firstName  String
+  lastName   String
+  middleName String?
+  suffix     String?
+  role       Role    @default(STAFF)
+
+  jobs Job[]
+}
+
+model Customer {
+  id          String  @id @default(cuid())
+  firstName   String
+  lastName    String
+  middleName  String?
+  suffix      String?
+  email       String  @unique
+  phoneNumber String  @unique
+
+  serviceRequests ServiceRequest[]
+}
+
+model ServiceType {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  duration    Int // in minutes
+
+  serviceRequests ServiceRequest[]
+}
+
+model ServiceRequest {
+  id            String               @id @default(cuid())
+  customerId    String
+  serviceTypeId String
+  requestedAt   DateTime             @default(now())
+  status        ServiceRequestStatus @default(PENDING)
+  notes         String?
+
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
+  jobs        Job[]
+}
+
+model Job {
+  id               String               @id @default(cuid())
+  serviceRequestId String
+  assignedStaffId  String
+  startedAt        DateTime?
+  completedAt      DateTime?
+  status           ServiceRequestStatus @default(PENDING)
+
+  // Relations
+  statusHistory  JobStatusHistory[]
+  assignedStaff  User               @relation(fields: [assignedStaffId], references: [id])
+  serviceRequest ServiceRequest     @relation(fields: [serviceRequestId], references: [id])
+  invoice        Invoice?
+}
+
+model JobStatusHistory {
+  id        String               @id @default(cuid())
+  jobId     String
+  status    ServiceRequestStatus
+  changedAt DateTime             @default(now())
+
+  job Job @relation(fields: [jobId], references: [id])
+}
+
+model Invoice {
+  id String @id @default(cuid())
+
+  jobId String @unique
+  job   Job    @relation(fields: [jobId], references: [id])
+
+  amount   Float
+  issuedAt DateTime  @default(now())
+  paidAt   DateTime?
+
+  items InvoiceItem[]
+}
+
+model InvoiceItem {
+  id          String @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Int
+  unitPrice   Float
+  amount      Float  @default(0)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+}
+
+enum ServiceRequestStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Role {
+  ADMIN
+  STAFF
 }
