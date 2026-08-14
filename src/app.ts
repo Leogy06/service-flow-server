@@ -4,10 +4,10 @@ import helmet from "helmet";
 import compression from "compression";
 import cookieParser from "cookie-parser";
 import { pinoHttp } from "pino-http";
-import { env } from "@/config/env.js";
-import { router } from "@/routes/index.js";
-import { errorHandler } from "@/middleware/errorHandler.js";
-import { notFound } from "@/middleware/notFound.js";
+import { env } from "./config/env.js";
+import { router } from "./routes/index.js";
+import { errorHandler } from "./middleware/errorHandler.js";
+import { notFound } from "./middleware/notFound.js";
 import { logger } from "./lib/logger.js";
 
 export const app = express();
