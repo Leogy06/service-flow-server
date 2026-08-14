@@ -1,0 +1,10 @@
+import { AppError } from "@/utils/AppError.js";
+import { logger } from "@/lib/logger.js";
+export const errorHandler = (err, _, res, _next) => {
+    if (err instanceof AppError) {
+        return res.status(err.statusCode).json({ error: err.message });
+    }
+    logger.error({ err }, "Unhandled error");
+    return res.status(500).json({ error: "Internal server error" });
+};
+//# sourceMappingURL=errorHandler.js.map

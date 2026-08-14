@@ -1,5 +1,5 @@
 {
-  "name": "my-app",
+  "name": "service_flow",
   "private": true,
   "workspaces": [
     "server",
@@ -36,5 +36,11 @@
     "prisma": "^7.9.1",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2"
-  }
+  },
+  "version": "1.0.0",
+  "description": "",
+  "main": "jest.config.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }
