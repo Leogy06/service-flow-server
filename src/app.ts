@@ -8,7 +8,7 @@ import { env } from "./config/env.js";
 import { router } from "./routes/index.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { notFound } from "./middleware/notFound.js";
-import { logger } from "./lib/logger.js";
+import { logger } from "@/lib/logger.js";
 
 export const app = express();
 
