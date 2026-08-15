@@ -5,107 +5,21 @@
 
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "mysql"
 }
 
-model User {
-  id         String  @id @default(cuid())
-  email      String  @unique
-  password   String
-  firstName  String
-  lastName   String
-  middleName String?
-  suffix     String?
-  role       Role    @default(STAFF)
-
-  jobs Job[]
+enum Role {
+  ADMIN
+  STAFF
 }
 
-model Customer {
-  id          String  @id @default(cuid())
-  firstName   String
-  lastName    String
-  middleName  String?
-  suffix      String?
-  email       String  @unique
-  phoneNumber String  @unique
-
-  serviceRequests ServiceRequest[]
-}
-
-model ServiceType {
-  id          String  @id @default(cuid())
-  name        String
-  description String?
-  price       Float
-  duration    Int // in minutes
-
-  serviceRequests ServiceRequest[]
-}
-
-model ServiceRequest {
-  id            String               @id @default(cuid())
-  customerId    String
-  serviceTypeId String
-  requestedAt   DateTime             @default(now())
-  status        ServiceRequestStatus @default(PENDING)
-  notes         String?
-
-  customer    Customer    @relation(fields: [customerId], references: [id])
-  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
-  jobs        Job[]
-}
-
-model Job {
-  id               String               @id @default(cuid())
-  serviceRequestId String
-  assignedStaffId  String
-  startedAt        DateTime?
-  completedAt      DateTime?
-  status           ServiceRequestStatus @default(PENDING)
-
-  // Relations
-  statusHistory  JobStatusHistory[]
-  assignedStaff  User               @relation(fields: [assignedStaffId], references: [id])
-  serviceRequest ServiceRequest     @relation(fields: [serviceRequestId], references: [id])
-  invoice        Invoice?
-}
-
-model JobStatusHistory {
-  id        String               @id @default(cuid())
-  jobId     String
-  status    ServiceRequestStatus
-  changedAt DateTime             @default(now())
-
-  job Job @relation(fields: [jobId], references: [id])
-}
-
-model Invoice {
-  id String @id @default(cuid())
-
-  jobId String @unique
-  job   Job    @relation(fields: [jobId], references: [id])
-
-  amount   Float
-  issuedAt DateTime  @default(now())
-  paidAt   DateTime?
-
-  items InvoiceItem[]
-}
-
-model InvoiceItem {
-  id          String @id @default(cuid())
-  invoiceId   String
-  description String
-  quantity    Int
-  unitPrice   Float
-  amount      Float  @default(0)
-
-  invoice Invoice @relation(fields: [invoiceId], references: [id])
+enum UserStatus {
+  ACTIVE
+  INACTIVE
 }
 
 enum ServiceRequestStatus {
@@ -115,7 +29,354 @@ enum ServiceRequestStatus {
   CANCELLED
 }
 
-enum Role {
-  ADMIN
-  STAFF
+enum JobStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  GCASH
+  CARD
+  OTHER
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  ASSIGN
+  STATUS_CHANGE
+  PAYMENT
+}
+
+// ─────────────────────────────────────────────
+// USER
+// ─────────────────────────────────────────────
+
+model User {
+  id String @id @default(cuid())
+
+  email      String  @unique
+  password   String
+  firstName  String
+  lastName   String
+  middleName String?
+  suffix     String?
+  phone      String? @unique
+
+  role   Role       @default(STAFF)
+  status UserStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs          AuditLog[]
+  jobs               Job[]
+  jobStatusHistories JobStatusHistory[]
+
+  @@index([role])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────
+// CUSTOMER
+// ─────────────────────────────────────────────
+
+model Customer {
+  id String @id @default(cuid())
+
+  firstName   String
+  lastName    String
+  middleName  String?
+  suffix      String?
+  email       String  @unique
+  phoneNumber String  @unique
+
+  address String?
+  notes   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  serviceRequests ServiceRequest[]
+  jobs            Job[]
+  invoices        Invoice[]
+
+  @@index([email])
+  @@index([phoneNumber])
+  @@index([lastName, firstName])
+}
+
+// ─────────────────────────────────────────────
+// SERVICE TYPE
+// ─────────────────────────────────────────────
+
+model ServiceType {
+  id String @id @default(cuid())
+
+  name        String
+  description String?
+
+  basePrice Decimal @db.Decimal(10, 2) // in php
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  serviceRequests ServiceRequest[]
+  jobs            Job[]
+
+  @@unique([name])
+  @@index([isActive])
+}
+
+// ─────────────────────────────────────────────
+// SERVICE REQUEST
+// ─────────────────────────────────────────────
+
+model ServiceRequest {
+  id String @id @default(cuid())
+
+  //human-readable unique identifier for the service request
+  referenceNumber String @unique
+  customerId      String
+  serviceTypeId   String
+
+  description String?
+  location    String?
+
+  preferredDate DateTime?
+
+  status ServiceRequestStatus @default(PENDING)
+
+  //public customer tracking
+  trackingToken String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
+
+  job Job?
+
+  @@index([customerId])
+  @@index([serviceTypeId])
+  @@index([status])
+  @@index([referenceNumber])
+}
+
+// ─────────────────────────────────────────────
+// JOB / WORK ORDER
+// ─────────────────────────────────────────────
+
+model Job {
+  id String @id @default(cuid())
+
+  referenceNumber String @unique
+
+  customerId    String
+  serviceTypeId String
+
+  // Service request that generated this job
+  serviceRequestId String? @unique
+
+  //assigned staff member for this job  
+  assignedStaffId String?
+
+  description String?
+  location    String?
+
+  scheduledStart DateTime?
+  scheduledEnd   DateTime?
+
+  status JobStatus @default(ASSIGNED)
+
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  internalNotes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
+
+  serviceRequest ServiceRequest? @relation(fields: [serviceRequestId], references: [id])
+
+  assignedStaff User? @relation(fields: [assignedStaffId], references: [id])
+
+  statusHistory JobStatusHistory[]
+
+  invoice Invoice?
+
+  @@index([customerId])
+  @@index([serviceTypeId])
+  @@index([serviceRequestId])
+  @@index([assignedStaffId])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────
+// JOB STATUS HISTORY
+// ─────────────────────────────────────────────
+
+model JobStatusHistory {
+  id    String @id @default(cuid())
+  jobId String
+
+  fromStatus JobStatus?
+  toStatus   JobStatus
+
+  note String?
+
+  changedById String?
+
+  createdAt DateTime @default(now())
+
+  job Job @relation(fields: [jobId], references: [id])
+
+  changedBy User? @relation(fields: [changedById], references: [id])
+
+  @@index([jobId])
+  @@index([changedById])
+  @@index([toStatus])
+}
+
+// ─────────────────────────────────────────────
+// INVOICE
+// ─────────────────────────────────────────────
+
+model Invoice {
+  id String @id @default(cuid())
+
+  //human-readable unique identifier for the invoice
+  invoiceNumber String @unique
+
+  customerId String
+
+  //a job should normally have one invoice
+  jobId String? @unique
+
+  status InvoiceStatus @default(UNPAID)
+
+  subtotal   Decimal @db.Decimal(10, 2) //before tax, discounts, vouchers, etc.
+  total      Decimal @db.Decimal(10, 2) //after tax, discounts, vouchers, etc.
+  amountPaid Decimal @default(0) @db.Decimal(10, 2) //total amount paid so far
+
+  issuedAt DateTime  @default(now())
+  dueAt    DateTime?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  job      Job?     @relation(fields: [jobId], references: [id])
+
+  items    InvoiceItem[]
+  payments Payment[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([issuedAt])
+}
+
+// ─────────────────────────────────────────────
+// INVOICE ITEM
+// ─────────────────────────────────────────────
+
+model InvoiceItem {
+  id String @id @default(cuid())
+
+  invoiceId String
+
+  description String
+
+  quantity  Decimal @db.Decimal(10, 2)
+  unitPrice Decimal @db.Decimal(10, 2)
+  amount    Decimal @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+}
+
+// ─────────────────────────────────────────────
+// PAYMENT
+// ─────────────────────────────────────────────
+
+model Payment {
+  id String @id @default(cuid())
+
+  invoiceId String // The invoice that this payment is for, could be the same as the job's invoice or a different one if the customer is paying for multiple jobs at once.
+
+  amount Decimal       @db.Decimal(10, 2)
+  method PaymentMethod
+
+  referenceNumber String?
+
+  notes String?
+
+  receivedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+  @@index([receivedAt])
+}
+
+// ─────────────────────────────────────────────
+// AUDIT LOG
+// ─────────────────────────────────────────────
+model AuditLog {
+  id String @id @default(cuid())
+
+  actorId String? //	Who did it — a User (staff/admin). Nullable because some actions are automated (system cron job, webhook, no human involved).
+
+  action AuditAction
+
+  entity   String //model 
+  entityId String //model instance id
+
+  //addtional contextual information 
+  //json
+  // e.g {
+  //   "oldStatus": "UNPAID",
+  //   "newStatus": "PAID",
+  //   "amount": 155.00
+  // }
+  //still flexible enough to store any other details about the action, e.g. which fields were changed, what the old and new values were, etc.
+  metadata Json? //	Extra details as flexible JSON — e.g. { "oldStatus": "UNPAID", "newStatus": "PAID" } or { "changedFields": ["email", "phone"] }
+
+  ipAddress String? //Where/how it happened — useful for security investigations ("was this really the staff member, or someone else logged in?")
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([entity, entityId])
+  @@index([action])
+  @@index([createdAt])
 }
