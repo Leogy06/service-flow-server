@@ -13,6 +13,10 @@ const envSchema = z.object({
   DATABASE_PASSWORD: z.string().min(1),
   DATABASE_NAME: z.string().min(1),
   CORS_ORIGIN: z.string().min(1),
+  JWT_ACCESS_SECRET: z.string().min(1),
+  JWT_REFRESH_SECRET: z.string().min(1),
+  ACCESS_TOKEN_EXPIRY: z.coerce.number().default(900),
+  REFRESH_TOKEN_EXPIRY: z.coerce.number().default(604800),
 });
 
 const parsed = envSchema.safeParse(process.env);
