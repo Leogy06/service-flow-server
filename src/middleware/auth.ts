@@ -1,40 +1,36 @@
-import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
-import { verifyAccessToken } from "@/utils/token.js";
+import { Request, Response, NextFunction } from 'express';
+import { Role } from '@/generated/prisma/client.js';
+import { verifyAccessToken } from '@/utils/tokens.js';
+import { TokenExpiredError, JsonWebTokenError } from 'jsonwebtoken';
+import { AppError } from '@/utils/AppError.js'; // adjust to your actual path
 
-export function authenticate(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
+export function authenticate(req: Request, _res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith("Bearer ")
-    ? authHeader.slice(7)
-    : null;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
 
   if (!token) {
-    res.status(401).json({ error: "No token provided" });
-    return;
+    return next(new AppError(401, 'No token provided'));
   }
 
   try {
     const payload = verifyAccessToken(token);
     req.user = { id: payload.sub, role: payload.role };
     next();
-  } catch (err) {
-    if (err instanceof jwt.TokenExpiredError) {
-      res.status(401).json({ error: "Token expired", code: "TOKEN_EXPIRED" });
-      return;
+  } catch (err: unknown) {
+    if (err instanceof TokenExpiredError) {
+      return next(new AppError(401, 'Token expired', 'TOKEN_EXPIRED'));
     }
-    res.status(401).json({ error: "Invalid token" });
+    if (err instanceof JsonWebTokenError) {
+      return next(new AppError(401, 'Invalid token', 'INVALID_TOKEN'));
+    }
+    next(err);
   }
 }
 
-export function requireRole(...roles: string[]) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+export function requireRole(...roles: Role[]) {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user || !roles.includes(req.user.role)) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
+      return next(new AppError(403, 'Forbidden'));
     }
     next();
   };

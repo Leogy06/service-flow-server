@@ -4,7 +4,10 @@ import { logger } from "@/lib/logger.js";
 
 export const errorHandler: ErrorRequestHandler = (err, _, res, __) => {
   if (err instanceof AppError) {
-    return res.status(err.statusCode).json({ error: err.message });
+    return res.status(err.statusCode).json({
+      error: err.message,
+      ...(err.code && { code: err.code }),
+    });
   }
 
   logger.error({ err }, "Unhandled error");
