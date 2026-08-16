@@ -86,6 +86,7 @@ model User {
   auditLogs          AuditLog[]
   jobs               Job[]
   jobStatusHistories JobStatusHistory[]
+  refreshTokens      RefreshToken[]
 
   @@index([role])
   @@index([status])
@@ -379,4 +380,21 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([action])
   @@index([createdAt])
+}
+
+model RefreshToken {
+  id String @id @default(cuid())
+
+  token String @unique
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
 }
