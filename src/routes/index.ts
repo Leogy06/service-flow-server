@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { userRoutes } from "@/routes/user.routes.js";
 import authRoutes from "@/routes/auth.routes.js";
+import { authenticate, requireRole } from "@/middleware/auth.js";
 
 export const router = Router();
 
 router.use("/auth", authRoutes);
-router.use("/users", userRoutes);
+router.use("/users", authenticate, requireRole("ADMIN"), userRoutes);
 router.get("/health", (_req, res) => res.json({ status: "ok" }));
