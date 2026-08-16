@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 // import { z } from "zod";
 import { userService } from "../services/user.service.js";
+import { sendResponse } from "@/utils/sendResponse.js";
 
 // const createUserSchema = z.object({
 //   email: z.string().email(),
@@ -8,10 +9,10 @@ import { userService } from "../services/user.service.js";
 // });
 
 export const userController = {
-  async list(_: Request, res: Response, next: NextFunction) {
+  async list(_req: Request, res: Response, next: NextFunction) {
     try {
       const users = await userService.list();
-      res.json(users);
+      sendResponse(res, 200, "OK", users);
     } catch (err) {
       next(err);
     }
@@ -20,7 +21,7 @@ export const userController = {
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
       const user = await userService.getById(req.params.id as string);
-      res.json(user);
+      sendResponse(res, 200, "OK", user);
     } catch (err) {
       next(err);
     }
