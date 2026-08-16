@@ -2,11 +2,15 @@ import jwt, { SignOptions } from "jsonwebtoken";
 import crypto from "crypto";
 import { User } from "@/generated/prisma/client.js";
 import { AccessTokenPayload } from "@/types/index.js";
+import { env } from "@/config/env.js";
 
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET as string;
-const ACCESS_EXPIRY = (process.env.ACCESS_TOKEN_EXPIRY ||
-  "15m") as SignOptions["expiresIn"];
-export const REFRESH_TOKEN_DAYS = Number(process.env.REFRESH_TOKEN_DAYS || 7);
+const ACCESS_SECRET = env.JWT_ACCESS_SECRET;
+const ACCESS_EXPIRY = env.ACCESS_TOKEN_EXPIRY;
+
+console.log("ACCESS_SECRET:", ACCESS_SECRET);
+console.log("ACCESS_EXPIRY:", ACCESS_EXPIRY);
+
+export const REFRESH_TOKEN_DAYS = env.REFRESH_TOKEN_DAYS;
 
 if (!ACCESS_SECRET) {
   throw new Error("JWT_ACCESS_SECRET is not set");

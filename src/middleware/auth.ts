@@ -1,15 +1,23 @@
-import { Request, Response, NextFunction } from 'express';
-import { Role } from '@/generated/prisma/client.js';
-import { verifyAccessToken } from '@/utils/tokens.js';
-import { TokenExpiredError, JsonWebTokenError } from 'jsonwebtoken';
-import { AppError } from '@/utils/AppError.js'; // adjust to your actual path
+import { Request, Response, NextFunction } from "express";
+import { Role } from "@/generated/prisma/client.js";
+import { verifyAccessToken } from "@/utils/tokens.js";
+import jwt from "jsonwebtoken";
+import { AppError } from "@/utils/AppError.js"; // adjust to your actual path
 
-export function authenticate(req: Request, _res: Response, next: NextFunction): void {
+const { TokenExpiredError, JsonWebTokenError } = jwt;
+
+export function authenticate(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): void {
   const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.split(" ")[1]
+    : null;
 
   if (!token) {
-    return next(new AppError(401, 'No token provided'));
+    return next(new AppError(401, "No token provided"));
   }
 
   try {
@@ -18,10 +26,10 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
     next();
   } catch (err: unknown) {
     if (err instanceof TokenExpiredError) {
-      return next(new AppError(401, 'Token expired', 'TOKEN_EXPIRED'));
+      return next(new AppError(401, "Token expired", "TOKEN_EXPIRED"));
     }
     if (err instanceof JsonWebTokenError) {
-      return next(new AppError(401, 'Invalid token', 'INVALID_TOKEN'));
+      return next(new AppError(401, "Invalid token", "INVALID_TOKEN"));
     }
     next(err);
   }
@@ -30,7 +38,7 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
 export function requireRole(...roles: Role[]) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user || !roles.includes(req.user.role)) {
-      return next(new AppError(403, 'Forbidden'));
+      return next(new AppError(403, "Forbidden"));
     }
     next();
   };

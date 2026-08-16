@@ -17,6 +17,9 @@
     "prod:build": "npm run generate && npm run build",
     "lint": "eslint ."
   },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "dependencies": {
     "@prisma/adapter-mariadb": "^7.9.1",
     "@prisma/client": "^7.9.1",
