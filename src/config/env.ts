@@ -17,6 +17,9 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(1),
   ACCESS_TOKEN_EXPIRY: z.coerce.number().default(900),
   REFRESH_TOKEN_DAYS: z.coerce.number().default(7),
+
+  //redis
+  REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
 });
 
 const parsed = envSchema.safeParse(process.env);
