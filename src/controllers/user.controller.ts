@@ -1,18 +1,15 @@
 import { Request, Response, NextFunction } from "express";
 // import { z } from "zod";
-import { userService } from "../services/user.service.js";
+import { userService } from "@/services/user.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
+import { Prisma } from "@/generated/prisma/client.js";
 
-// const createUserSchema = z.object({
-//   email: z.string().email(),
-//   name: z.string().min(1),
-// });
 
 export const userController = {
   async list(_req: Request, res: Response, next: NextFunction) {
     try {
       const users = await userService.list();
-      sendResponse(res, 200, "OK", users);
+      sendResponse(res, 200, "Users fetched successfully", users);
     } catch (err) {
       next(err);
     }
