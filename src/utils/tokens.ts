@@ -7,8 +7,8 @@ import { env } from "@/config/env.js";
 const ACCESS_SECRET = env.JWT_ACCESS_SECRET;
 const ACCESS_EXPIRY = env.ACCESS_TOKEN_EXPIRY;
 
-console.log("ACCESS_SECRET:", ACCESS_SECRET);
-console.log("ACCESS_EXPIRY:", ACCESS_EXPIRY);
+// console.log("ACCESS_SECRET:", ACCESS_SECRET);
+// console.log("ACCESS_EXPIRY:", ACCESS_EXPIRY);
 
 export const REFRESH_TOKEN_DAYS = env.REFRESH_TOKEN_DAYS;
 
