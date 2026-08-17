@@ -31,7 +31,7 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   store: redisStore("auth"),
   handler: limitReached,
-  keyGenerator: (req) => req.ip ?? "unknown",
+  keyGenerator: (req) => req.ip ?? ipKeyGenerator(req.ip ?? "unknown"),
 });
 
 // Looser — general authenticated API traffic
