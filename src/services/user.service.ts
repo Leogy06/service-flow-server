@@ -1,7 +1,11 @@
 import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../utils/AppError.js";
-import { DEFAULT_TTL_SECONDS, getOrSetCache } from "@/utils/cache.js";
+import {
+  DEFAULT_TTL_SECONDS,
+  getOrSetCache,
+  invalidateCache,
+} from "@/utils/cache.js";
 
 const DEFAULT_USER_SELECT = {
   id: true,
@@ -26,7 +30,7 @@ export const userService = {
   },
 
   async getById(id: string, select: Prisma.UserSelect = DEFAULT_USER_SELECT) {
-    const cacheKey = `cache:user:get:${id}:${JSON.stringify(select)}`;
+    const cacheKey = `cache:user:byId:${id}:${JSON.stringify(select)}`;
     const user = await getOrSetCache(cacheKey, DEFAULT_TTL_SECONDS, () =>
       prisma.user.findUnique({ where: { id }, select }),
     );
@@ -36,7 +40,28 @@ export const userService = {
     return user;
   },
 
-  // async create(data: { email: string; name: string }) {
-  //   return prisma.user.create({ data });
-  // },
+  async invalidateUserCache(userId?: string) {
+    await invalidateCache("cache:users:list*"); //invalidate all users list cache keys
+
+    if (userId) await invalidateCache(`cache:user:byId:${userId}*`); //invalidate specific user cache key
+  },
+
+  async create(input: Prisma.UserCreateInput) {
+    const user = await prisma.user.create({ data: input });
+    await this.invalidateUserCache()
+
+    return user;
+  },
+
+  async update(id: string, input: Prisma.UserUpdateInput) {
+    const user = await prisma.user.update({ where: { id }, data: input });
+    await this.invalidateUserCache(id)
+
+    return user;
+  },
+
+  async deleteUser(id: string) {
+    await prisma.user.delete({ where: { id } });
+    await this.invalidateUserCache(id)
+  }
 };
