@@ -21,6 +21,9 @@ export const userService = {
 
     return getOrSetCache(cacheKey, DEFAULT_TTL_SECONDS, () =>
       prisma.user.findMany({
+        where: {
+          deletedAt: null,
+        },
         select,
         orderBy: {
           createdAt: "desc",
@@ -48,20 +51,23 @@ export const userService = {
 
   async create(input: Prisma.UserCreateInput) {
     const user = await prisma.user.create({ data: input });
-    await this.invalidateUserCache()
+    await this.invalidateUserCache();
 
     return user;
   },
 
   async update(id: string, input: Prisma.UserUpdateInput) {
     const user = await prisma.user.update({ where: { id }, data: input });
-    await this.invalidateUserCache(id)
+    await this.invalidateUserCache(id);
 
     return user;
   },
 
   async deleteUser(id: string) {
-    await prisma.user.delete({ where: { id } });
-    await this.invalidateUserCache(id)
-  }
+    await prisma.user.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+    await this.invalidateUserCache(id);
+  },
 };
