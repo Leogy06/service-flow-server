@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from "express";
 // import { z } from "zod";
 import { userService } from "@/services/user.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
-import { Prisma } from "@/generated/prisma/client.js";
 
 
 export const userController = {
