@@ -35,7 +35,7 @@ export const userService = {
   async getById(id: string, select: Prisma.UserSelect = DEFAULT_USER_SELECT) {
     const cacheKey = `cache:user:byId:${id}:${JSON.stringify(select)}`;
     const user = await getOrSetCache(cacheKey, DEFAULT_TTL_SECONDS, () =>
-      prisma.user.findUnique({ where: { id }, select }),
+      prisma.user.findUnique({ where: { id, deletedAt: null }, select }),
     );
 
     if (!user) throw new AppError(404, "User not found");
@@ -63,11 +63,23 @@ export const userService = {
     return user;
   },
 
-  async deleteUser(id: string) {
-    await prisma.user.update({
+  async delete(id: string) {
+    const user = await prisma.user.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
     await this.invalidateUserCache(id);
+
+    return user;
+  },
+
+  async restore(id: string) {
+    const user = await prisma.user.update({
+      where: { id },
+      data: { deletedAt: null },
+    });
+    await this.invalidateUserCache(id);
+
+    return user;
   },
 };

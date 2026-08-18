@@ -3,7 +3,6 @@ import { Request, Response, NextFunction } from "express";
 import { userService } from "@/services/user.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 
-
 export const userController = {
   async list(_req: Request, res: Response, next: NextFunction) {
     try {
@@ -23,13 +22,41 @@ export const userController = {
     }
   },
 
-  // async create(req: Request, res: Response, next: NextFunction) {
-  //   try {
-  //     const parsed = createUserSchema.parse(req.body);
-  //     const user = await userService.create(parsed);
-  //     res.status(201).json(user);
-  //   } catch (err) {
-  //     next(err);
-  //   }
-  // },
+  async update(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = req.body;
+      const user = await userService.update(req.params.id as string, parsed);
+      sendResponse(res, 200, "User updated successfully", user);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async delete(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await userService.delete(req.params.id as string);
+      sendResponse(res, 200, "User deleted successfully", user);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async restore(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await userService.restore(req.params.id as string);
+      sendResponse(res, 200, "User restored successfully", user);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async create(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = req.body;
+      const user = await userService.create(parsed);
+      sendResponse(res, 201, "User created successfully", user);
+    } catch (err) {
+      next(err);
+    }
+  },
 };
