@@ -57,6 +57,11 @@ export const userService = {
   },
 
   async update(id: string, input: Prisma.UserUpdateInput) {
+    //check if already deleted
+    const existing = await this.getById(id);
+    if (!existing || existing.deletedAt)
+      throw new AppError(404, "User not found");
+
     const user = await prisma.user.update({ where: { id }, data: input });
     await this.invalidateUserCache(id);
 
@@ -64,6 +69,11 @@ export const userService = {
   },
 
   async delete(id: string) {
+    //check if existing and deleted
+    const existing = await this.getById(id);
+    if (!existing || existing.deletedAt)
+      throw new AppError(404, "User not found");
+
     const user = await prisma.user.update({
       where: { id },
       data: { deletedAt: new Date() },
@@ -74,6 +84,11 @@ export const userService = {
   },
 
   async restore(id: string) {
+    //check if existing and not deleted
+    const existing = await this.getById(id);
+    if (!existing || !existing.deletedAt) 
+      throw new AppError(404, "User not found");
+
     const user = await prisma.user.update({
       where: { id },
       data: { deletedAt: null },
