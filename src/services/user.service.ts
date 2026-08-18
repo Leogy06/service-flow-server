@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../utils/AppError.js";
+import { DEFAULT_TTL_SECONDS, getOrSetCache } from "@/utils/cache.js";
 
 const DEFAULT_USER_SELECT = {
   id: true,
@@ -12,18 +13,26 @@ const DEFAULT_USER_SELECT = {
 
 export const userService = {
   async list(select: Prisma.UserSelect = DEFAULT_USER_SELECT) {
-    return prisma.user.findMany({
-      select,
-      orderBy: { createdAt: "desc" },
-    });
+    const cacheKey = `cache:users:list${JSON.stringify(select)}`;
+
+    return getOrSetCache(cacheKey, DEFAULT_TTL_SECONDS, () =>
+      prisma.user.findMany({
+        select,
+        orderBy: {
+          createdAt: "desc",
+        },
+      }),
+    );
   },
 
   async getById(id: string, select: Prisma.UserSelect = DEFAULT_USER_SELECT) {
-    const user = await prisma.user.findUnique({
-      where: { id },
-      select,
-    });
+    const cacheKey = `cache:user:get:${id}:${JSON.stringify(select)}`;
+    const user = await getOrSetCache(cacheKey, DEFAULT_TTL_SECONDS, () =>
+      prisma.user.findUnique({ where: { id }, select }),
+    );
+
     if (!user) throw new AppError(404, "User not found");
+
     return user;
   },
 
