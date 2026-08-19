@@ -1,18 +1,6 @@
 services:
-  redis:
-    image: redis:7-alpine
-    container_name: service_flow_redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+  # redis is already running on the host (container: redis, port 6379) — reusing it
+  # See docker ps — no need to start our own
 
 volumes:
   redis_data:

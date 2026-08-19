@@ -10,13 +10,9 @@ if ! docker info > /dev/null 2>&1; then
   exit 1
 fi
 
-# --- Start Docker services (Redis, and DB if defined in compose) ---
-echo "🐳 Starting Docker services..."
-docker compose up -d
-
-# --- Wait for Redis to be healthy before continuing ---
+# --- Confirm Redis (external container "redis") is reachable ---
 echo "⏳ Waiting for Redis to be ready..."
-until docker compose exec -T redis redis-cli ping > /dev/null 2>&1; do
+until docker exec redis redis-cli ping > /dev/null 2>&1; do
   printf "."
   sleep 1
 done
