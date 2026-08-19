@@ -16,6 +16,9 @@ export function authenticate(
     ? authHeader.split(" ")[1]
     : null;
 
+  // console.log("authHeader:", req.headers);
+  // console.log("token:", token);
+
   if (!token) {
     return next(new AppError(401, "No token provided"));
   }

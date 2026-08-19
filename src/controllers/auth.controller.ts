@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { authService } from "@/services/auth.service.js";
 import { AppError } from "@/utils/AppError.js";
 import { REFRESH_TOKEN_DAYS } from "@/utils/tokens.js";
+import { sendResponse } from "@/utils/sendResponse.js";
 
 const refreshCookieOptions = {
   httpOnly: true,
@@ -26,6 +27,7 @@ export const authController = {
       const { email, password } = req.body;
       const result = await authService.login(email, password);
 
+    
       res.cookie("refreshToken", result.refreshToken, refreshCookieOptions);
       res.json({ accessToken: result.accessToken, user: result.user });
     } catch (err) {
@@ -63,6 +65,15 @@ export const authController = {
       await authService.logoutAll(req.user!.id);
       res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
       res.json({ message: "Logged out of all devices" });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async me(req: Request, res: Response, next: NextFunction) {
+    try {
+      
+      sendResponse(res, 200, "Current user fetched successfully", req.user!);
     } catch (err) {
       next(err);
     }
