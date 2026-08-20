@@ -26,7 +26,7 @@ function limitReached(_req: Request, _res: Response, next: NextFunction): void {
 // Strict — login/register/refresh: prevent brute force & credential stuffing
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 min
-  limit: 100, //change this to 10
+  limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
   store: redisStore("auth"),
