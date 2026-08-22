@@ -3,7 +3,7 @@ import { ZodObject, ZodError } from "zod";
 import { AppError } from "@/utils/AppError.js";
 
 export function validate(schema: ZodObject) {
-  return (req: Request, _: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     try {
       const parsed = schema.parse({
         body: req.body,
