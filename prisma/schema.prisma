@@ -12,6 +12,12 @@ datasource db {
   provider = "mysql"
 }
 
+enum OrganizationStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
 enum Role {
   ADMIN
   STAFF
@@ -62,6 +68,25 @@ enum AuditAction {
   PAYMENT
 }
 
+//ORGANIZATION
+model Organization {
+  id     String             @id @default(cuid())
+  name   String
+  slug   String             @unique
+  status OrganizationStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users           User[]
+  customers       Customer[]
+  serviceTypes    ServiceType[]
+  serviceRequests ServiceRequest[]
+  jobs            Job[]
+  invoices        Invoice[]
+  auditLogs       AuditLog[]
+}
+
 // ─────────────────────────────────────────────
 // USER
 // ─────────────────────────────────────────────
@@ -76,6 +101,11 @@ model User {
   middleName String?
   suffix     String?
   phone      String? @unique
+
+  organizationId String?
+
+  
+  organization   Organization? @relation(fields: [organizationId], references: [id])
 
   role   Role       @default(STAFF)
   status UserStatus @default(ACTIVE)
@@ -110,6 +140,9 @@ model Customer {
   address String?
   notes   String?
 
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -140,6 +173,8 @@ model ServiceType {
 
   serviceRequests ServiceRequest[]
   jobs            Job[]
+  organization    Organization?    @relation(fields: [organizationId], references: [id])
+  organizationId  String?
 
   @@unique([name])
   @@index([isActive])
@@ -173,7 +208,9 @@ model ServiceRequest {
   customer    Customer    @relation(fields: [customerId], references: [id])
   serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
 
-  job Job?
+  job            Job?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
 
   @@index([customerId])
   @@index([serviceTypeId])
@@ -224,7 +261,9 @@ model Job {
 
   statusHistory JobStatusHistory[]
 
-  invoice Invoice?
+  invoice        Invoice?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
 
   @@index([customerId])
   @@index([serviceTypeId])
@@ -291,8 +330,10 @@ model Invoice {
   customer Customer @relation(fields: [customerId], references: [id])
   job      Job?     @relation(fields: [jobId], references: [id])
 
-  items    InvoiceItem[]
-  payments Payment[]
+  items          InvoiceItem[]
+  payments       Payment[]
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  organizationId String
 
   @@index([customerId])
   @@index([status])
@@ -375,7 +416,9 @@ model AuditLog {
 
   createdAt DateTime @default(now())
 
-  actor User? @relation(fields: [actorId], references: [id])
+  actor          User?        @relation(fields: [actorId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
 
   @@index([actorId])
   @@index([entity, entityId])
