@@ -1,6 +1,6 @@
 // import { Role, UserStatus } from "../src/generated/prisma/client.js";
 // import bcrypt from "bcryptjs";
-// import {PrismaClient} from "../src/generated/prisma/client.js";
+// import { PrismaClient } from "../src/generated/prisma/client.js";
 // import "dotenv/config";
 // import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
@@ -15,8 +15,8 @@
 // });
 
 // const prisma = new PrismaClient({
-//   adapter
-// })
+//   adapter,
+// });
 
 // interface SeedUser {
 //   email: string;
@@ -36,7 +36,7 @@
 //     password: "Admin123!",
 //     firstName: "System",
 //     lastName: "Admin",
-//     role: "ADMIN",
+//     role: "TENANT_ADMIN",
 //     status: "ACTIVE",
 //   },
 //   {
@@ -67,6 +67,17 @@
 //   },
 // ];
 
+// const organizations = [
+//   {
+//     name: "Organization 1",
+//     slug: "org-1",
+//   },
+//   {
+//     name: "Organization 2",
+//     slug: "org-2",
+//   },
+// ];
+
 // async function main() {
 //   console.log("🌱 Seeding users...");
 
@@ -90,6 +101,21 @@
 //     });
 
 //     console.log(`  ✓ ${user.email} (${user.role})`);
+//   }
+
+//   console.log("🌱 Seeding organizations...");
+
+//   for (const o of organizations) {
+//     const organization = await prisma.organization.upsert({
+//       where: { slug: o.slug },
+//       update: {}, // no-op if it already exists — keeps seed idempotent
+//       create: {
+//         name: o.name,
+//         slug: o.slug,
+//       },
+//     });
+
+//     console.log(`  ✓ ${organization.name} (${organization.slug})`);
 //   }
 
 //   console.log("✅ Seeding complete.");

@@ -19,7 +19,8 @@ enum OrganizationStatus {
 }
 
 enum Role {
-  ADMIN
+  PLATFORM_ADMIN
+  TENANT_ADMIN
   STAFF
 }
 
@@ -85,6 +86,7 @@ model Organization {
   jobs            Job[]
   invoices        Invoice[]
   auditLogs       AuditLog[]
+  refreshTokens   RefreshToken[]
 }
 
 // ─────────────────────────────────────────────
@@ -104,8 +106,7 @@ model User {
 
   organizationId String?
 
-  
-  organization   Organization? @relation(fields: [organizationId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id])
 
   role   Role       @default(STAFF)
   status UserStatus @default(ACTIVE)
@@ -121,6 +122,7 @@ model User {
 
   @@index([role])
   @@index([status])
+  @@index([organizationId])
 }
 
 // ─────────────────────────────────────────────
@@ -173,11 +175,12 @@ model ServiceType {
 
   serviceRequests ServiceRequest[]
   jobs            Job[]
-  organization    Organization?    @relation(fields: [organizationId], references: [id])
-  organizationId  String?
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  organizationId  String
 
   @@unique([name])
   @@index([isActive])
+  @@index([organizationId])
 }
 
 // ─────────────────────────────────────────────
@@ -413,12 +416,13 @@ model AuditLog {
 
   ipAddress String? //Where/how it happened — useful for security investigations ("was this really the staff member, or someone else logged in?")
   userAgent String?
+  requestId String?
 
   createdAt DateTime @default(now())
 
-  actor          User?        @relation(fields: [actorId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
+  actor          User?         @relation(fields: [actorId], references: [id])
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  organizationId String?
 
   @@index([actorId])
   @@index([entity, entityId])
@@ -433,6 +437,9 @@ model RefreshToken {
 
   userId String
   user   User   @relation(fields: [userId], references: [id])
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
 
   expiresAt DateTime
 

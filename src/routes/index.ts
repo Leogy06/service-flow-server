@@ -7,11 +7,11 @@ import { authenticate, requireRole } from "@/middleware/auth.js";
 export const router = Router();
 
 router.use("/auth", authRoutes);
-router.use("/users", authenticate, requireRole("ADMIN"), userRoutes);
+router.use("/users", authenticate, requireRole("TENANT_ADMIN"), userRoutes);
 router.use(
   "/organization",
   authenticate,
-  requireRole("ADMIN"),
+  requireRole("TENANT_ADMIN"),
   organizationRoutes,
 );
 router.get("/health", (_req, res) => res.json({ status: "ok" }));

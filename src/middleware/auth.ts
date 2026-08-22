@@ -3,6 +3,7 @@ import { Role } from "@/generated/prisma/client.js";
 import { verifyAccessToken } from "@/utils/tokens.js";
 import jwt from "jsonwebtoken";
 import { AppError } from "@/utils/AppError.js"; // adjust to your actual path
+import { requestContext } from "@/lib/requestContext.js";
 
 const { TokenExpiredError, JsonWebTokenError } = jwt;
 
@@ -25,7 +26,15 @@ export function authenticate(
 
   try {
     const payload = verifyAccessToken(token);
-    req.user = { id: payload.sub, role: payload.role };
+    req.user = { id: payload.sub, role: payload.role, organizationId: payload.organizationId };
+    
+    const ctx = requestContext.get();
+    if(ctx) {
+      ctx.userId = payload.sub;
+      ctx.role = payload.role;
+      ctx.organizationId = payload.organizationId;
+    }
+    
     next();
   } catch (err: unknown) {
     if (err instanceof TokenExpiredError) {

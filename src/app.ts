@@ -10,6 +10,7 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { notFound } from "./middleware/notFound.js";
 import { logger } from "@/lib/logger.js";
 import { apiLimiter } from "./middleware/rateLimiter.js";
+import { withRequestContext } from "./middleware/requestContext.middleware.js";
 
 export const app = express();
 
@@ -20,7 +21,8 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(pinoHttp({ logger }));
 
-app.use("/api", apiLimiter)
+app.use("/api", apiLimiter);
+app.use("/api", withRequestContext);
 app.use("/api", router);
 
 app.use(notFound);

@@ -1,12 +1,13 @@
-import bcrypt from 'bcryptjs';
-import { prisma } from '@/lib/prisma.js';
-import { AppError } from '@/utils/AppError.js'; // adjust path to wherever yours lives
+import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma.js";
+import { AppError } from "@/utils/AppError.js"; // adjust path to wherever yours lives
 import {
   generateAccessToken,
   generateRefreshTokenValue,
   hashToken,
   getRefreshExpiry,
-} from '@/utils/tokens.js';
+} from "@/utils/tokens.js";
+import { auditService } from "./audit.service.js";
 
 interface RegisterInput {
   email: string;
@@ -20,8 +21,10 @@ interface RegisterInput {
 
 export const authService = {
   async register(input: RegisterInput) {
-    const existing = await prisma.user.findUnique({ where: { email: input.email } });
-    if (existing) throw new AppError(409, 'Email already in use');
+    const existing = await prisma.user.findUnique({
+      where: { email: input.email },
+    });
+    if (existing) throw new AppError(409, "Email already in use");
 
     const passwordHash = await bcrypt.hash(input.password, 12);
 
@@ -35,19 +38,37 @@ export const authService = {
         suffix: input.suffix,
         phone: input.phone,
       },
-      select: { id: true, email: true, firstName: true, lastName: true, role: true },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+      },
     });
   },
 
   async login(email: string, password: string) {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        status: true,
+        organizationId: true,
+        password: true,
+      },
+    });
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      throw new AppError(401, 'Invalid credentials');
+      throw new AppError(401, "Invalid credentials");
     }
 
-    if (user.status !== 'ACTIVE') {
-      throw new AppError(403, 'Account is inactive');
+    if (user.status !== "ACTIVE") {
+      throw new AppError(403, "Account is inactive");
     }
 
     const accessToken = generateAccessToken(user);
@@ -59,6 +80,14 @@ export const authService = {
         userId: user.id,
         expiresAt: getRefreshExpiry(),
       },
+    });
+
+    //audit log
+    void auditService.record({
+      action: "LOGIN",
+      entity: "User",
+      entityId: user.id,
+      after: JSON.stringify({ ...user, password: null }),
     });
 
     return {
@@ -82,15 +111,15 @@ export const authService = {
       include: { user: true },
     });
 
-    if (!stored) throw new AppError(401, 'Invalid refresh token');
+    if (!stored) throw new AppError(401, "Invalid refresh token");
 
     if (stored.expiresAt < new Date()) {
       await prisma.refreshToken.delete({ where: { id: stored.id } });
-      throw new AppError(401, 'Refresh token expired');
+      throw new AppError(401, "Refresh token expired");
     }
 
-    if (stored.user.status !== 'ACTIVE') {
-      throw new AppError(403, 'Account is inactive');
+    if (stored.user.status !== "ACTIVE") {
+      throw new AppError(403, "Account is inactive");
     }
 
     const newRawToken = generateRefreshTokenValue();

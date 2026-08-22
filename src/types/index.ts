@@ -2,6 +2,7 @@ import { Role } from "@/generated/prisma/client.js";
 export interface AccessTokenPayload {
   sub: string; // user id (cuid)
   role: Role;
+  organizationId?: string;
 }
 
 declare global {
@@ -11,6 +12,7 @@ declare global {
       user?: {
         id: string;
         role: Role;
+        organizationId?: string;
       };
     }
   }
