@@ -9,8 +9,7 @@ export const customerController = {
     logger.info("Create customer: ", req.user);
     try {
       const customer = await customerService.create(
-        req.body as CreateCustomerInput,
-        req.user?.organizationId as string,
+        req.body as CreateCustomerInput
       );
       sendResponse(res, 201, "Customer created successfully", customer);
     } catch (error) {

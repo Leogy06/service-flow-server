@@ -32,6 +32,7 @@ export const userController = {
     }
   },
 
+
   async delete(req: Request, res: Response, next: NextFunction) {
     try {
       const user = await userService.delete(req.params.id as string);
