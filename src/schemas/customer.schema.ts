@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { paginationSchema } from "./pagination.schema.js";
+import emptyToUndefined from "@/utils/emptyToUndefined.js";
 
 export const createCustomerSchema = z.object({
   body: z.object({
@@ -53,6 +55,19 @@ export const createCustomerSchema = z.object({
   }),
 });
 
+//separate schema because it is exclusive to specific model
+export const customerListQuerySchema = paginationSchema.extend({
+  sortBy: emptyToUndefined(
+    z
+      .enum(["firstName", "lastName", "email", "createdAt"])
+      .default("createdAt"),
+  ),
+});
 
+//query accessor in the schema valdiation
+export const customerListInput = z.object({
+  query: customerListQuerySchema,
+});
 
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>["body"];
+export type CustomerListInput = z.infer<typeof customerListInput>;

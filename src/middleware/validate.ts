@@ -10,15 +10,23 @@ export function validate(schema: ZodObject) {
         query: req.query,
         params: req.params,
       });
-      req.body = parsed.body ?? req.body;
+
+      req.validated = {
+        body: parsed.body ?? req.body,
+        query: parsed.query ?? req.query,
+        params: parsed.params ?? req.params,
+      };
+
       next();
     } catch (err) {
       if (err instanceof ZodError) {
         const message = err.issues
           .map((e) => `${e.path.join(".")}: ${e.message}`)
           .join(", ");
+
         return next(new AppError(400, message));
       }
+
       next(err);
     }
   };

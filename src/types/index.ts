@@ -14,6 +14,11 @@ declare global {
         role: Role;
         organizationId?: string;
       };
+      validated: {
+        body: unknown;
+        query: unknown;
+        params: unknown;
+      };
     }
   }
 }

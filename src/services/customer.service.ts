@@ -43,13 +43,85 @@ export const customerService = {
     return newCustomer;
   },
 
-  list: async (page = 1, pageSize = 10, search = "") => {
-    //pagination
-    
+  //TODO: add deletedAt and caching
+  list: async (
+    page = 1,
+    pageSize = 10,
+    search = "",
+    sortOrder = "asc",
+    sortBy = "createdAt",
+  ) => {
     const organizationId = requestContext.getValue("organizationId");
+
     if (!organizationId) {
-      return prisma.customer.findMany();
+      throw new Error("Organization context is required");
     }
-    return prisma.customer.findMany({ where: { organizationId } });
+
+    const skip = (page - 1) * pageSize;
+
+    const where = {
+      organizationId,
+
+      ...(search
+        ? {
+            OR: [
+              {
+                firstName: {
+                  contains: search,
+                },
+              },
+              {
+                lastName: {
+                  contains: search,
+                },
+              },
+              {
+                email: {
+                  contains: search,
+                },
+              },
+              {
+                phoneNumber: {
+                  contains: search,
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const [customers, total] = await Promise.all([
+      prisma.customer.findMany({
+        skip,
+        take: pageSize,
+        where,
+        orderBy: [
+          {
+            [sortBy]: sortOrder,
+          },
+          {
+            id: "asc",
+          },
+        ],
+      }),
+
+      prisma.customer.count({
+        where,
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / pageSize);
+
+    return {
+      customers,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   },
 };
