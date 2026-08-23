@@ -1,0 +1,20 @@
+import { logger } from "@/lib/logger.js";
+import { CreateCustomerInput } from "@/schemas/customer.schema.js";
+import { customerService } from "@/services/customer.service.js";
+import { sendResponse } from "@/utils/sendResponse.js";
+import { NextFunction, Request, Response } from "express";
+
+export const customerController = {
+  create: async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Create customer: ", req.user);
+    try {
+      const customer = await customerService.create(
+        req.body as CreateCustomerInput,
+        req.user?.organizationId as string,
+      );
+      sendResponse(res, 201, "Customer created successfully", customer);
+    } catch (error) {
+      next(error);
+    }
+  },
+};

@@ -1,13 +1,10 @@
 import { prisma } from "@/lib/prisma.js";
 import { auditService } from "./audit.service.js";
-import { requestContext } from "@/lib/requestContext.js";
 import { CreateCustomerInput } from "@/schemas/customer.schema.js";
 import { AppError } from "@/utils/AppError.js";
 
 export const customerService = {
-  create: async (data: CreateCustomerInput) => {
-    const organizationId = requestContext.getValue("organizationId");
-
+  create: async (data: CreateCustomerInput, organizationId: string) => {
     if (!organizationId) {
       throw new AppError(422, "Organization not found");
     }
