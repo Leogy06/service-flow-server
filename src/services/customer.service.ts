@@ -42,4 +42,14 @@ export const customerService = {
 
     return newCustomer;
   },
+
+  list: async (page = 1, pageSize = 10, search = "") => {
+    //pagination
+    
+    const organizationId = requestContext.getValue("organizationId");
+    if (!organizationId) {
+      return prisma.customer.findMany();
+    }
+    return prisma.customer.findMany({ where: { organizationId } });
+  },
 };
