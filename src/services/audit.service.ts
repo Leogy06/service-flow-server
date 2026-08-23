@@ -28,6 +28,7 @@ export const auditService = {
           ipAddress: ctx?.ip ?? null,
           userAgent: ctx?.userAgent ?? null,
           requestId: ctx?.requestId ?? null,
+          organizationId: ctx?.organizationId ?? null,
           metadata: {
             before: input.before,
             after: input.after,
