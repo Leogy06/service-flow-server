@@ -64,7 +64,7 @@ export const customerListQuerySchema = paginationSchema.extend({
   ),
 });
 
-//query accessor in the schema valdiation
+//query accessor in the schema vald   iation
 export const customerListInput = z.object({
   query: customerListQuerySchema,
 });
