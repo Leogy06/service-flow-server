@@ -14,6 +14,7 @@ export function withRequestContext(
       requestId,
       ip: req.ip,
       userAgent: req.headers["user-agent"],
+      organizationId: req.user?.organizationId,
       // userId/userEmail get filled in later once requireAuth runs
     },
     next,

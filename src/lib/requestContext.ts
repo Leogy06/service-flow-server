@@ -21,4 +21,10 @@ export const requestContext = {
   get(): RequestContext | undefined {
     return storage.getStore();
   },
+
+  getValue<K extends keyof RequestContext>(
+    key: K,
+  ): RequestContext[K] | undefined {
+    return storage.getStore()?.[key];
+  },
 };
