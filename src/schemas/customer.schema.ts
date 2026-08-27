@@ -24,7 +24,7 @@ export const createCustomerSchema = z.object({
 
     suffix: z
       .string()
-      .trim()
+      .trim()    
       .max(20, "Suffix must not exceed 20 characters")
       .optional(),
 
@@ -38,9 +38,10 @@ export const createCustomerSchema = z.object({
     phoneNumber: z
       .string()
       .trim()
-      .min(7, "Invalid phone number")
-      .max(20, "Phone number must not exceed 20 characters"),
-
+      .regex(
+        /^(?:\+63|63|0)9\d{9}$/,
+        "Please enter a valid Philippine mobile number",
+      ),
     address: z
       .string()
       .trim()
