@@ -20,6 +20,6 @@ echo ""
 echo "✅ Redis is ready."
 
 # --- Install deps, generate Prisma client, run dev server ---
-npm install
+# npm install
 npm run generate
 npm run dev
