@@ -1,11 +1,11 @@
-import { AuditAction } from "@/generated/prisma/enums.js";
+
 import { prisma } from "@/lib/prisma.js";
 import { requestContext } from "@/lib/requestContext.js";
 import type { Prisma } from "@/generated/prisma/client.js";
 import { logger } from "@/lib/logger.js";
 
 type RecordAuditInput = {
-  action: AuditAction;
+  action: string;
   entity: string;
   entityId: string;
   before?: Prisma.InputJsonValue;
@@ -13,6 +13,7 @@ type RecordAuditInput = {
 };
 
 export const auditService = {
+
   async record(input: RecordAuditInput) {
     const ctx = requestContext.get();
 

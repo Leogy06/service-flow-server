@@ -50,7 +50,7 @@ export const authService = {
 
   async login(email: string, password: string) {
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email, status: "ACTIVE" },
       select: {
         id: true,
         email: true,
@@ -60,6 +60,13 @@ export const authService = {
         status: true,
         organizationId: true,
         password: true,
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
       },
     });
 
@@ -78,13 +85,14 @@ export const authService = {
       data: {
         token: hashToken(rawRefreshToken),
         userId: user.id,
+        organizationId: user.organizationId,
         expiresAt: getRefreshExpiry(),
       },
     });
 
     //audit log
     void auditService.record({
-      action: "LOGIN",
+      action: "auth.login.success",
       entity: "User",
       entityId: user.id,
       after: JSON.stringify({ ...user, password: null }),
@@ -100,6 +108,7 @@ export const authService = {
         lastName: user.lastName,
         role: user.role,
       },
+      organization: user.organization ?? null,
     };
   },
 

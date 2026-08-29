@@ -399,7 +399,7 @@ model AuditLog {
 
   actorId String? //	Who did it — a User (staff/admin). Nullable because some actions are automated (system cron job, webhook, no human involved).
 
-  action AuditAction
+  action String
 
   entity   String //model 
   entityId String //model instance id
