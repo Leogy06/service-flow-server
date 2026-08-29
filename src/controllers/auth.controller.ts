@@ -27,9 +27,8 @@ export const authController = {
       const { email, password } = req.body;
       const result = await authService.login(email, password);
 
-    
       res.cookie("refreshToken", result.refreshToken, refreshCookieOptions);
-      res.json({ accessToken: result.accessToken, user: result.user });
+      sendResponse(res, 200, "User logged in successfully", result);
     } catch (err) {
       next(err);
     }
@@ -72,7 +71,6 @@ export const authController = {
 
   async me(req: Request, res: Response, next: NextFunction) {
     try {
-      
       sendResponse(res, 200, "Current user fetched successfully", req.user!);
     } catch (err) {
       next(err);
