@@ -14,3 +14,4 @@ organizationRoutes.post(
   organizationController.create,
 );
 organizationRoutes.get("/by-id/:id", organizationController.getById);
+organizationRoutes.get("/check-slug/:slug", organizationController.checkSlug);

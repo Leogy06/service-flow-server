@@ -34,4 +34,18 @@ export const organizationService = {
     if (!organization) throw new AppError(404, "Organization not found");
     return organization;
   },
+
+  async checkSlug(slug: string) {
+    const cleanSlug = slug?.trim().toLowerCase();
+    if (!cleanSlug) throw new AppError(422, "Organization slug is missing");
+
+    console.log("Slug: ", cleanSlug);
+
+    const organization = await prisma.organization.findUnique({
+      where: { slug: cleanSlug },
+    });
+    if (!organization) throw new AppError(404, "Organization not found");
+
+    return organization;
+  },
 };

@@ -36,4 +36,15 @@ export const organizationController = {
       next(err);
     }
   },
+
+  async checkSlug(req: Request, res: Response, next: NextFunction) {
+    try {
+      const organization = await organizationService.checkSlug(
+        req.params.slug as string,
+      );
+      sendResponse(res, 200, "Organization fetched successfully", organization);
+    } catch (err) {
+      next(err);
+    }
+  },
 };
