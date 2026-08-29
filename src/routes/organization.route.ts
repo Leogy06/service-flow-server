@@ -7,4 +7,10 @@ import { writeLimmiter } from "@/middleware/rateLimiter.js";
 export const organizationRoutes = Router();
 
 organizationRoutes.get("/", organizationController.list);
-organizationRoutes.post("/", writeLimmiter, validate(organizationSchema) , organizationController.create);
+organizationRoutes.post(
+  "/",
+  writeLimmiter,
+  validate(organizationSchema),
+  organizationController.create,
+);
+organizationRoutes.get("/by-id/:id", organizationController.getById);

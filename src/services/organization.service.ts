@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma.js";
 import { Prisma } from "@/generated/prisma/client.js";
 import { auditService } from "./audit.service.js";
+import { AppError } from "@/utils/AppError.js";
 
 export const organizationService = {
   async create(data: Prisma.OrganizationCreateInput) {
@@ -16,9 +17,21 @@ export const organizationService = {
     return newOrg;
   },
 
-
-
   async list() {
     return await prisma.organization.findMany();
+  },
+
+  async getById(organizationId: string) {
+    if (!organizationId) throw new AppError(422, "Organization id is missing");
+
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        name: true,
+        slug: true,
+      },
+    });
+    if (!organization) throw new AppError(404, "Organization not found");
+    return organization;
   },
 };

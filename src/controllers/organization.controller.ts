@@ -25,4 +25,15 @@ export const organizationController = {
       next(err);
     }
   },
+
+  async getById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const organization = await organizationService.getById(
+        req.params.id as string,
+      );
+      sendResponse(res, 200, "Organization fetched successfully", organization);
+    } catch (err) {
+      next(err);
+    }
+  },
 };
