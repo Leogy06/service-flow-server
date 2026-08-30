@@ -3,6 +3,12 @@ export interface AccessTokenPayload {
   sub: string; // user id (cuid)
   role: Role;
   organizationId?: string;
+  firstName: string;
+  lastName: string;
+  middleName?: string | null;
+  suffix?: string | null;
+  email: string;
+  slug?: string | null;
 }
 
 declare global {
@@ -13,6 +19,12 @@ declare global {
         id: string;
         role: Role;
         organizationId?: string;
+        firstName: string;
+        lastName: string;
+        middleName?: string | null;
+        suffix?: string | null;
+        email: string;
+        slug?:string | null;
       };
       validated: {
         body: unknown;

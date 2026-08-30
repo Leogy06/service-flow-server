@@ -26,15 +26,25 @@ export function authenticate(
 
   try {
     const payload = verifyAccessToken(token);
-    req.user = { id: payload.sub, role: payload.role, organizationId: payload.organizationId };
-    
+    req.user = {
+      id: payload.sub,
+      role: payload.role,
+      organizationId: payload.organizationId,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      middleName: payload?.middleName,
+      suffix: payload?.suffix,
+      email: payload.email,
+      slug: payload.slug,
+    };
+
     const ctx = requestContext.get();
-    if(ctx) {
+    if (ctx) {
       ctx.userId = payload.sub;
       ctx.role = payload.role;
       ctx.organizationId = payload.organizationId;
     }
-    
+
     next();
   } catch (err: unknown) {
     if (err instanceof TokenExpiredError) {

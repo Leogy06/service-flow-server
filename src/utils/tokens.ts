@@ -16,12 +16,36 @@ if (!ACCESS_SECRET) {
   throw new Error("JWT_ACCESS_SECRET is not set");
 }
 
-export function generateAccessToken(user: Pick<User, "id" | "role" | "organizationId">): string {
-  const payload: AccessTokenPayload = { sub: user.id, role: user.role, organizationId: user.organizationId };
+export function generateAccessToken(
+  user: Pick<
+    User,
+    | "id"
+    | "role"
+    | "organizationId"
+    | "firstName"
+    | "lastName"
+    | "middleName"
+    | "suffix"
+    | "email"
+    
+  > & {
+    organization?: {slug:string} | null;
+  },
+): string {
+  const payload: AccessTokenPayload = {
+    sub: user.id,
+    role: user.role,
+    organizationId: user.organizationId ?? undefined,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    middleName: user.middleName,
+    suffix: user.suffix,
+    email: user.email,
+    slug: user.organization?.slug,
+  };
   const options: SignOptions = { expiresIn: ACCESS_EXPIRY };
   return jwt.sign(payload, ACCESS_SECRET, options);
 }
-
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
   return jwt.verify(token, ACCESS_SECRET) as AccessTokenPayload;
