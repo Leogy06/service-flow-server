@@ -56,8 +56,8 @@ export const authService = {
         email: true,
         firstName: true,
         lastName: true,
-        middleName:true,
-        suffix:true,
+        middleName: true,
+        suffix: true,
         role: true,
         status: true,
         organizationId: true,
@@ -122,7 +122,26 @@ export const authService = {
 
     const stored = await prisma.refreshToken.findUnique({
       where: { token: hashed },
-      include: { user: true },
+      include: {
+        user: {
+          select: {
+            id: true,
+            role: true,
+            status: true,
+            organizationId: true,
+            firstName: true,
+            lastName: true,
+            middleName: true,
+            suffix: true,
+            email: true,
+            organization: {
+              select: {
+                slug: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!stored) throw new AppError(401, "Invalid refresh token");
