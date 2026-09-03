@@ -18,11 +18,6 @@ enum OrganizationStatus {
   SUSPENDED
 }
 
-enum Role {
-  PLATFORM_ADMIN
-  TENANT_ADMIN
-  STAFF
-}
 
 enum UserStatus {
   ACTIVE
@@ -87,6 +82,9 @@ model Organization {
   invoices        Invoice[]
   auditLogs       AuditLog[]
   refreshTokens   RefreshToken[]
+
+  roles       Role[]
+  permissions Permission[]
 }
 
 // ─────────────────────────────────────────────
@@ -108,7 +106,7 @@ model User {
 
   organization Organization? @relation(fields: [organizationId], references: [id])
 
-  role   Role       @default(STAFF)
+  roleId   String 
   status UserStatus @default(ACTIVE)
 
   createdAt DateTime  @default(now())
@@ -119,11 +117,51 @@ model User {
   jobs               Job[]
   jobStatusHistories JobStatusHistory[]
   refreshTokens      RefreshToken[]
+  role Role @relation(fields: [roleId], references: [id])
 
-  @@index([role])
+  @@index([roleId])
   @@index([status])
   @@index([organizationId])
 }
+
+//role
+
+model Role {
+  id String @id @default(cuid())
+  name String @unique
+  organizationId String?
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  users User[]
+  permissions RolePermission[]
+
+  @@unique([name, organizationId])
+}
+
+//permission
+model Permission {
+  id String @id @default(cuid())
+  name String @unique
+  description String?
+  organizationId String?
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  roles RolePermission[]
+}
+
+//join table
+model RolePermission {
+  roleId String
+  permissionId String
+
+  role Role @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+
+@@id([roleId, permissionId])
+}
+
+
 
 // ─────────────────────────────────────────────
 // CUSTOMER

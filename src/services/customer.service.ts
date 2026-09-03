@@ -38,7 +38,7 @@ export const customerService = {
       entityId: newCustomer.id,
       // before: null,
       after: JSON.stringify(newCustomer),
-    });``
+    });
 
     return newCustomer;
   },
