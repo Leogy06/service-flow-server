@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma.js";
-import { AppError } from "@/utils/AppError.js"; // adjust path to wherever yours lives
+import { AppError } from "@/utils/AppError.js";
 import {
   generateAccessToken,
   generateRefreshTokenValue,
@@ -18,6 +18,26 @@ interface RegisterInput {
   suffix?: string;
   phone?: string;
   role?: string;
+}
+
+type TokenPayloadUser = {
+  id: string;
+  email: string;
+  role: string;
+  organizationId: string | null;
+  firstName: string;
+  lastName: string;
+  middleName?: string | null;
+  suffix?: string | null;
+  slug?: string;
+  permissions: string[];
+};
+
+function extractRoleName(role: unknown): string {
+  if (role && typeof role === "object" && "name" in role) {
+    return (role as { name: string }).name;
+  }
+  return role as string;
 }
 
 export const authService = {
@@ -38,7 +58,7 @@ export const authService = {
         middleName: input.middleName,
         suffix: input.suffix,
         phone: input.phone,
-        role: input.role,
+        roleId: input.role as string,
       },
       select: {
         id: true,
@@ -66,7 +86,7 @@ export const authService = {
         status: true,
         organizationId: true,
         password: true,
-
+        role: true,
         organization: {
           select: {
             id: true,
@@ -74,7 +94,6 @@ export const authService = {
             slug: true,
           },
         },
-
         userPermissions: {
           select: {
             permission: {
@@ -83,7 +102,7 @@ export const authService = {
               },
             },
           },
-        }
+        },
       },
     });
 
@@ -95,16 +114,24 @@ export const authService = {
       throw new AppError(403, "Account is inactive");
     }
 
-    //get permissions
-    const permissions = user.userPermissions?.map((up) => up.permission.name) || [];
+    const permissions =
+      user.userPermissions?.map((up) => up.permission.name) || [];
+    const roleName = extractRoleName(user.role);
 
-    // returns:     [
-    //   "customer:read",
-    //   "customer:create",
-    //   "customer:update",
-    // ]
+    const tokenPayload: TokenPayloadUser = {
+      id: user.id,
+      email: user.email,
+      role: roleName,
+      organizationId: user.organizationId,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      middleName: user.middleName,
+      suffix: user.suffix,
+      slug: user.organization?.slug,
+      permissions,
+    };
 
-    const accessToken = generateAccessToken(user);
+    const accessToken = generateAccessToken(tokenPayload);
     const rawRefreshToken = generateRefreshTokenValue();
 
     await prisma.refreshToken.create({
@@ -116,7 +143,6 @@ export const authService = {
       },
     });
 
-    //audit log
     void auditService.record({
       action: "auth.login.success",
       entity: "User",
@@ -134,7 +160,7 @@ export const authService = {
         lastName: user.lastName,
         middleName: user?.middleName,
         suffix: user?.suffix,
-        role: user.role,
+        role: roleName,
         slug: user.organization?.slug,
       },
       organization: user.organization ?? null,
@@ -193,7 +219,40 @@ export const authService = {
       }),
     ]);
 
-    const accessToken = generateAccessToken(stored.user);
+    const userWithPermissions = await prisma.user.findUnique({
+      where: { id: stored.userId },
+      select: {
+        userPermissions: {
+          select: {
+            permission: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    const permissions =
+      userWithPermissions?.userPermissions?.map((up) => up.permission.name) ||
+      [];
+
+    const roleName = extractRoleName(stored.user.role);
+
+    const tokenPayload: TokenPayloadUser = {
+      id: stored.user.id,
+      email: stored.user.email,
+      role: roleName,
+      organizationId: stored.user.organizationId,
+      firstName: stored.user.firstName,
+      lastName: stored.user.lastName,
+      middleName: stored.user.middleName,
+      suffix: stored.user.suffix,
+      slug: stored.user.organization?.slug,
+      permissions,
+    };
+
+    const accessToken = generateAccessToken(tokenPayload);
 
     return { accessToken, refreshToken: newRawToken };
   },

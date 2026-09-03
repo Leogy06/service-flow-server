@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import { Role } from "@/generated/prisma/client.js";
 import { verifyAccessToken } from "@/utils/tokens.js";
 import jwt from "jsonwebtoken";
 import { AppError } from "@/utils/AppError.js"; // adjust to your actual path
@@ -28,7 +27,7 @@ export function authenticate(
     const payload = verifyAccessToken(token);
     req.user = {
       id: payload.sub,
-      role: payload.role,
+      role: payload.role as string,
       organizationId: payload.organizationId,
       firstName: payload.firstName,
       lastName: payload.lastName,
@@ -42,7 +41,7 @@ export function authenticate(
     const ctx = requestContext.get();
     if (ctx) {
       ctx.userId = payload.sub;
-      ctx.role = payload.role;
+      ctx.role = payload.role as string;
       ctx.organizationId = payload.organizationId;
       ctx.permissions = payload.permissions;
     }
@@ -59,9 +58,9 @@ export function authenticate(
   }
 }
 
-export function requireRole(...roles: Role[]) {
+export function requireRole(roles: string) {
   return (req: Request, _res: Response, next: NextFunction): void => {
-    if (!req.user || !roles.includes(req.user.role)) {
+    if (!req.user || roles !== (req.user.role)) {
       return next(new AppError(403, "Forbidden"));
     }
     next();

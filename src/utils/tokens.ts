@@ -1,6 +1,5 @@
 import jwt, { SignOptions } from "jsonwebtoken";
 import crypto from "crypto";
-import { User } from "@/generated/prisma/client.js";
 import { AccessTokenPayload } from "@/types/index.js";
 import { env } from "@/config/env.js";
 
@@ -17,20 +16,17 @@ if (!ACCESS_SECRET) {
 }
 
 export function generateAccessToken(
-  user: Pick<
-    User,
-    | "id"
-    | "role"
-    | "organizationId"
-    | "firstName"
-    | "lastName"
-    | "middleName"
-    | "suffix"
-    | "email"
-    | "permissions"
-    
-  > & {
-    organization?: {slug:string} | null;
+  user: {
+    id: string;
+    role: string;
+    organizationId?: string | null;
+    firstName: string;
+    lastName: string;
+    middleName?: string | null;
+    suffix?: string | null;
+    email: string;
+    permissions?: string[];
+    organization?: { slug: string } | null;
   },
 ): string {
   const payload: AccessTokenPayload = {

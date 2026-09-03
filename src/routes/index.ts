@@ -2,7 +2,7 @@ import { Router } from "express";
 import { userRoutes } from "./user.routes.js";
 import { organizationRoutes } from "./organization.route.js";
 import authRoutes from "./auth.routes.js";
-import { authenticate, requireRole } from "@/middleware/auth.js";
+import { authenticate } from "@/middleware/auth.js";
 import { customerRoutes } from "./customer.routes.js";
 
 export const router = Router();

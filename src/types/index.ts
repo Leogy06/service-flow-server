@@ -1,7 +1,6 @@
-import { Role } from "@/generated/prisma/client.js";
 export interface AccessTokenPayload {
   sub: string; // user id (cuid)
-  role: Role;
+  role: string;
   organizationId?: string;
   firstName: string;
   lastName: string;
@@ -9,6 +8,7 @@ export interface AccessTokenPayload {
   suffix?: string | null;
   email: string;
   slug?: string | null;
+  permissions?: string[];
 }
 
 declare global {
@@ -17,7 +17,7 @@ declare global {
     interface Request {
       user?: {
         id: string;
-        role: Role;
+        role: string;
         organizationId?: string;
         firstName: string;
         lastName: string;
