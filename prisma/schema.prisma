@@ -128,14 +128,12 @@ model User {
 
 model Role {
   id String @id @default(cuid())
-  name String @unique
+  name String
   organizationId String?
 
   organization Organization? @relation(fields: [organizationId], references: [id])
   users User[]
   permissions RolePermission[]
-
-  @@unique([name, organizationId])
 }
 
 //permission
