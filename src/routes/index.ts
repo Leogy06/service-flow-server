@@ -12,7 +12,6 @@ router.use("/users", authenticate, requireRole("TENANT_ADMIN"), userRoutes);
 router.use(
   "/organization",
   authenticate,
-  requireRole("TENANT_ADMIN"),
   organizationRoutes,
 );
 router.use(

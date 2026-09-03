@@ -33,12 +33,12 @@ export const customerService = {
     });
 
     void auditService.record({
-      action: "CREATE",
+      action: "create.customer.success",
       entity: "Customer",
       entityId: newCustomer.id,
       // before: null,
-      after: newCustomer,
-    });
+      after: JSON.stringify(newCustomer),
+    });``
 
     return newCustomer;
   },
