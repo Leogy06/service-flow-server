@@ -25,6 +25,7 @@ declare global {
         suffix?: string | null;
         email: string;
         slug?:string | null;
+        permissions?: string[];
       };
       validated: {
         body: unknown;

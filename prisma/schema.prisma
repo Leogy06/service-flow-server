@@ -118,6 +118,7 @@ model User {
   jobStatusHistories JobStatusHistory[]
   refreshTokens      RefreshToken[]
   role Role @relation(fields: [roleId], references: [id])
+  userPermissions UserPermission[]
 
   @@index([roleId])
   @@index([status])
@@ -145,6 +146,7 @@ model Permission {
 
   organization Organization? @relation(fields: [organizationId], references: [id])
   roles RolePermission[]
+  users UserPermission[]
 }
 
 //join table
@@ -159,6 +161,16 @@ model RolePermission {
 @@id([roleId, permissionId])
 }
 
+//user permission
+model UserPermission {
+  userId String
+  permissionId String
+
+  user User @relation(fields: [userId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([userId, permissionId])
+}
 
 
 // ─────────────────────────────────────────────

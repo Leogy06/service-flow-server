@@ -1,4 +1,4 @@
-import { Role } from "@/generated/prisma/enums.js";
+
 import { AsyncLocalStorage } from "async_hooks";
 
 export type RequestContext = {
@@ -7,8 +7,9 @@ export type RequestContext = {
   userEmail?: string;
   ip?: string;
   userAgent?: string;
-  role?: Role;
+  role?: string;
   organizationId?: string;
+  permissions?: string[];
 };
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -18,9 +19,11 @@ export const requestContext = {
     return storage.run(context, fn);
   },
 
+
   get(): RequestContext | undefined {
     return storage.getStore();
   },
+
 
   getValue<K extends keyof RequestContext>(
     key: K,

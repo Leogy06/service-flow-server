@@ -17,6 +17,7 @@ interface RegisterInput {
   middleName?: string;
   suffix?: string;
   phone?: string;
+  role?: string;
 }
 
 export const authService = {
@@ -37,6 +38,7 @@ export const authService = {
         middleName: input.middleName,
         suffix: input.suffix,
         phone: input.phone,
+        role: input.role,
       },
       select: {
         id: true,
@@ -49,8 +51,11 @@ export const authService = {
   },
 
   async login(email: string, password: string) {
-    const user = await prisma.user.findUnique({
-      where: { email, status: "ACTIVE" },
+    const user = await prisma.user.findFirst({
+      where: {
+        email,
+        status: "ACTIVE",
+      },
       select: {
         id: true,
         email: true,
@@ -58,10 +63,10 @@ export const authService = {
         lastName: true,
         middleName: true,
         suffix: true,
-        role: true,
         status: true,
         organizationId: true,
         password: true,
+
         organization: {
           select: {
             id: true,
@@ -69,6 +74,16 @@ export const authService = {
             slug: true,
           },
         },
+
+        userPermissions: {
+          select: {
+            permission: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        }
       },
     });
 
@@ -79,6 +94,15 @@ export const authService = {
     if (user.status !== "ACTIVE") {
       throw new AppError(403, "Account is inactive");
     }
+
+    //get permissions
+    const permissions = user.userPermissions?.map((up) => up.permission.name) || [];
+
+    // returns:     [
+    //   "customer:read",
+    //   "customer:create",
+    //   "customer:update",
+    // ]
 
     const accessToken = generateAccessToken(user);
     const rawRefreshToken = generateRefreshTokenValue();
@@ -114,6 +138,7 @@ export const authService = {
         slug: user.organization?.slug,
       },
       organization: user.organization ?? null,
+      permissions,
     };
   },
 

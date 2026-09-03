@@ -1,5 +1,6 @@
 import { customerController } from "@/controllers/customer.controller.js";
 import { writeLimmiter } from "@/middleware/rateLimiter.js";
+import { requirePermission } from "@/middleware/require-permission.js";
 import { validate } from "@/middleware/validate.js";
 import {
   createCustomerSchema,
@@ -16,4 +17,9 @@ customerRoutes.post(
   customerController.create,
 );
 
-customerRoutes.get("/", validate(customerListInput), customerController.list);
+customerRoutes.get(
+  "/",
+  validate(customerListInput),
+  requirePermission("customer:read"),
+  customerController.list,
+);

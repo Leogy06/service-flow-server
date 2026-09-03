@@ -36,6 +36,7 @@ export function authenticate(
       suffix: payload?.suffix,
       email: payload.email,
       slug: payload.slug,
+      permissions: payload.permissions,
     };
 
     const ctx = requestContext.get();
@@ -43,6 +44,7 @@ export function authenticate(
       ctx.userId = payload.sub;
       ctx.role = payload.role;
       ctx.organizationId = payload.organizationId;
+      ctx.permissions = payload.permissions;
     }
 
     next();
