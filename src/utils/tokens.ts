@@ -26,6 +26,7 @@ export function generateAccessToken(
     suffix?: string | null;
     email: string;
     permissions?: string[];
+    slug?: string | null;
     organization?: { slug: string } | null;
   },
 ): string {
@@ -38,9 +39,9 @@ export function generateAccessToken(
     middleName: user.middleName,
     suffix: user.suffix,
     email: user.email,
-    slug: user.organization?.slug,
+    slug: user.slug ?? user.organization?.slug,
     permissions: user.permissions || [],
- };
+  };
   const options: SignOptions = { expiresIn: ACCESS_EXPIRY };
   return jwt.sign(payload, ACCESS_SECRET, options);
 }
