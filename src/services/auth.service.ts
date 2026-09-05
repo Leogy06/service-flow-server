@@ -86,7 +86,21 @@ export const authService = {
         status: true,
         organizationId: true,
         password: true,
-        role: true,
+        role: {
+          select: {
+            id: true,
+            name: true,
+            permissions: {
+              select: {
+                permission: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
         organization: {
           select: {
             id: true,
@@ -114,9 +128,14 @@ export const authService = {
       throw new AppError(403, "Account is inactive");
     }
 
-    const permissions =
-      user.userPermissions?.map((up) => up.permission.name) || [];
     const roleName = extractRoleName(user.role);
+
+    const rolePermission = user.role.permissions.map((p) => p.permission.name);
+    const userPermission = user.userPermissions.map((p) => p.permission.name);
+
+    const permissions = Array.from(
+      new Set([...rolePermission, ...userPermission]),
+    ); //new set prevent duplication
 
     const tokenPayload: TokenPayloadUser = {
       id: user.id,
