@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { permissionController } from "@/controllers/permission.controller.js";
+import { permissionController } from "@/controllers/role.permission.controller.js";
 import { createRolePermissionSchema } from "@/schemas/role.permission.schema.js";
 import { validate } from "@/middleware/validate.js";
 import { authenticate } from "@/middleware/auth.js";

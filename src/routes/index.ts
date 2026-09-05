@@ -5,6 +5,7 @@ import authRoutes from "./auth.routes.js";
 import { authenticate } from "@/middleware/auth.js";
 import { customerRoutes } from "./customer.routes.js";
 import { rolePermissionRoutes } from "./role.permission.routes.js";
+import permissionRoutes from "./permission.route.js";
 
 export const router = Router();
 
@@ -13,4 +14,6 @@ router.use("/users", authenticate, userRoutes);
 router.use("/organization", authenticate, organizationRoutes);
 router.use("/customers", authenticate, customerRoutes);
 router.use("/role-permission", rolePermissionRoutes);
+router.use("permission", permissionRoutes);
+
 router.get("/health", (_req, res) => res.json({ status: "ok" }));
