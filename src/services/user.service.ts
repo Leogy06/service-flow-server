@@ -99,13 +99,14 @@ export const userService = {
   },
 
   async listForPermissionManagement(organizationId: string) {
-    return prisma.user.findMany({
+    if (!organizationId) throw new AppError(400, "Organization ID is required");
+
+    const users = await prisma.user.findMany({
       where: {
         deletedAt: null,
         organizationId,
       },
       select: {
-        // permission-management fields
         id: true,
         email: true,
         firstName: true,
@@ -113,17 +114,49 @@ export const userService = {
         role: {
           select: {
             name: true,
+            permissions: {
+              select: {
+                permission: {
+                  select: { name: true },
+                },
+              },
+            },
+          },
+        },
+        userPermissions: {
+          select: {
+            permission: {
+              select: { name: true },
+            },
           },
         },
         organization: {
-          select: {
-            name: true,
-          },
+          select: { name: true },
         },
       },
       orderBy: {
         createdAt: "desc",
       },
+    });
+
+    return users.map((user) => {
+      const rolePermissions =
+        user.role?.permissions?.map((rp) => rp.permission.name) || [];
+      const extraPermissions =
+        user.userPermissions?.map((up) => up.permission.name) || [];
+      const permissions = Array.from(
+        new Set([...rolePermissions, ...extraPermissions]),
+      );
+
+      return {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        roleName: user.role?.name ?? null,
+        organizationName: user.organization?.name ?? null,
+        permissions,
+      };
     });
   },
 };
