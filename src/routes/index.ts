@@ -13,7 +13,7 @@ router.use("/auth", authRoutes);
 router.use("/users", authenticate, userRoutes);
 router.use("/organization", authenticate, organizationRoutes);
 router.use("/customers", authenticate, customerRoutes);
+router.use("/permission", permissionRoutes);
 router.use("/role-permission", rolePermissionRoutes);
-router.use("permission", permissionRoutes);
 
 router.get("/health", (_req, res) => res.json({ status: "ok" }));

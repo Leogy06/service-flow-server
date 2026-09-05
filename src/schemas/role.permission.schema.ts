@@ -7,7 +7,6 @@ export const createRolePermissionSchema = z.object({
   }),
 });
 
-export type CreatePermissionSchema = z.infer<
+export type CreateRolePermissionSchema = z.infer<
   typeof createRolePermissionSchema
 >["body"];
-

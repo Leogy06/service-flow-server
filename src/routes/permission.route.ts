@@ -1,4 +1,4 @@
-import { permissionController } from "@/controllers/role.permission.controller.js";
+import { permissionController } from "@/controllers/permission.controller.js";
 import { validate } from "@/middleware/validate.js";
 import { createPermissionSchema } from "@/schemas/permission.schema.js";
 import { Router } from "express";

@@ -2,7 +2,14 @@ export const seedPermissions = async (prisma) => {
   console.log("Seeding permissions...");
 
   const actions = ["create", "read", "update", "delete"];
-  const resources = ["customer", "job", "invoice", "serviceRequest", "user"];
+  const resources = [
+    "customer",
+    "job",
+    "invoice",
+    "serviceRequest",
+    "user",
+    "dashboard",
+  ];
 
   const data = [];
   for (const resource of resources) {
@@ -20,8 +27,8 @@ export const seedPermissions = async (prisma) => {
         where: { name: perm.name },
         update: {},
         create: perm,
-      })
-    )
+      }),
+    ),
   );
 
   console.log(`Seeded ${permissions.length} permissions`);

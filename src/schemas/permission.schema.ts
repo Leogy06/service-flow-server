@@ -16,3 +16,5 @@ export const createPermissionSchema = z.object({
 export type CreatePermissionSchema = z.infer<
   typeof createPermissionSchema
 >["body"];
+
+export type CreatePermissionInput = z.infer<typeof createPermissionSchema>;

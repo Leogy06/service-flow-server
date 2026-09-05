@@ -2,13 +2,12 @@ import { NextFunction, Request, Response } from "express";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { rolePermissionService } from "@/services/role.permission.service.js";
 
-
 type CreatePermissionInput = {
   roleId: string;
   permissionId: string;
-}
+};
 
-export const permissionController = {
+export const rolePermissionController = {
   list: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const permissions = await rolePermissionService.list(
@@ -20,7 +19,7 @@ export const permissionController = {
     }
   },
 
-  create:async(req:Request, res:Response, next:NextFunction) => {
+  create: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = req.validated.body as CreatePermissionInput;
       const permission = await rolePermissionService.create(validated);
@@ -28,5 +27,5 @@ export const permissionController = {
     } catch (err) {
       next(err);
     }
-  }
+  },
 };
