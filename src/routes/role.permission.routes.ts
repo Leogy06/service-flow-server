@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { rolePermissionController } from "@/controllers/role.permission.controller.js";
-import { createRolePermissionSchema } from "@/schemas/role.permission.schema.js";
+import {
+  createRolePermissionSchema,
+  updateRolePermission,
+} from "@/schemas/role.permission.schema.js";
 import { validate } from "@/middleware/validate.js";
 import { authenticate } from "@/middleware/auth.js";
 
@@ -18,4 +21,9 @@ rolePermissionRoutes.post(
   rolePermissionController.create,
 );
 
-
+rolePermissionRoutes.patch(
+  "/:roleId/:organizationId",
+  authenticate,
+  validate(updateRolePermission),
+  rolePermissionController.update,
+);

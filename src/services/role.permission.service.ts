@@ -80,15 +80,18 @@ export const rolePermissionService = {
           id: {
             in: permissionIds,
           },
-          select: {
-            id: true,
-            name: true,
-          },
+        },
+        select: {
+          id: true,
+          name: true,
         },
       });
 
       if (permissions.length !== permissionIds.length) {
-        throw new AppError(400, "One or more permissions not found");
+        throw new AppError(
+          400,
+          `One or more permissions not found ids: ${permissionIds.length} perms: ${permissions.length}`,
+        );
       }
 
       const existing = await tx.rolePermission.findMany({
@@ -134,15 +137,15 @@ export const rolePermissionService = {
                 isActive: true,
               },
             });
-          } else {
-            await tx.rolePermission.create({
-              data: {
-                roleId,
-                permissionId,
-                isActive: true,
-              },
-            });
           }
+        } else {
+          await tx.rolePermission.create({
+            data: {
+              roleId,
+              permissionId,
+              isActive: true,
+            },
+          });
         }
       }
 

@@ -7,6 +7,22 @@ export const createRolePermissionSchema = z.object({
   }),
 });
 
+export const updateRolePermission = z.object({
+  body: z.object({
+    permissions: z
+      .array(z.cuid2())
+      .default([])
+      .refine(
+        (ids) => new Set(ids).size === ids.length,
+        "Duplicate permission IDs are not allowed",
+      ),
+  }),
+});
+
 export type CreateRolePermissionSchema = z.infer<
   typeof createRolePermissionSchema
+>["body"];
+
+export type UpdateRolePermissionSchema = z.infer<
+  typeof updateRolePermission
 >["body"];
