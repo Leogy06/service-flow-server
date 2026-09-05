@@ -91,9 +91,6 @@ export const authService = {
             id: true,
             name: true,
             permissions: {
-              where: {
-                isActive: true,
-              },
               select: {
                 permission: {
                   select: {
@@ -253,11 +250,32 @@ export const authService = {
             },
           },
         },
+        role: {
+          select: {
+            permissions: {
+              select: {
+                permission: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
-    const permissions =
-      userWithPermissions?.userPermissions?.map((up) => up.permission.name) ||
+
+    const rolePermission =
+      userWithPermissions?.role.permissions.map((up) => up.permission.name) ||
       [];
+    const userPermission =
+      userWithPermissions?.userPermissions.map((up) => up.permission.name) ||
+      [];
+
+    const permissions = Array.from(
+      new Set([...rolePermission, ...userPermission]),
+    );
 
     const roleName = extractRoleName(stored.user.role);
 
