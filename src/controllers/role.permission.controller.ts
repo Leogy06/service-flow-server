@@ -32,7 +32,7 @@ export const rolePermissionController = {
 
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      const validated = req.validated.body as UpdateRolePermissionSchema[];
+      const validated = req.validated.body as UpdateRolePermissionSchema;
       const permissions = await rolePermissionService.update(
         req.params.roleId as string,
         validated.permissions,
