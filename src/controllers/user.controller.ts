@@ -32,7 +32,6 @@ export const userController = {
     }
   },
 
-
   async delete(req: Request, res: Response, next: NextFunction) {
     try {
       const user = await userService.delete(req.params.id as string);
@@ -58,6 +57,22 @@ export const userController = {
       sendResponse(res, 201, "User created successfully", user);
     } catch (err) {
       next(err);
+    }
+  },
+
+  async listForPermissionManagement(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const users = await userService.listForPermissionManagement(
+        req.params.organizationId as string,
+      );
+      sendResponse(res, 200, "Users fetched successfully", users);
+    } catch (e) {
+      console.dir(e);
+      next(e);
     }
   },
 };

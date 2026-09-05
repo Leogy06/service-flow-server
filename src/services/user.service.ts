@@ -38,7 +38,7 @@ export const userService = {
       prisma.user.findUnique({ where: { id, deletedAt: null }, select }),
     );
 
-    if (!user) throw new AppError(404, "User not found");
+    if (!user) throw new AppError(404, "User not founddd");
 
     return user;
   },
@@ -86,7 +86,7 @@ export const userService = {
   async restore(id: string) {
     //check if existing and not deleted
     const existing = await this.getById(id);
-    if (!existing || !existing.deletedAt) 
+    if (!existing || !existing.deletedAt)
       throw new AppError(404, "User not found");
 
     const user = await prisma.user.update({
@@ -96,5 +96,34 @@ export const userService = {
     await this.invalidateUserCache(id);
 
     return user;
+  },
+
+  async listForPermissionManagement(organizationId: string) {
+    return prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        organizationId,
+      },
+      select: {
+        // permission-management fields
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: {
+          select: {
+            name: true,
+          },
+        },
+        organization: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
   },
 };
