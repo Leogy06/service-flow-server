@@ -17,3 +17,5 @@ rolePermissionRoutes.post(
   validate(createRolePermissionSchema),
   rolePermissionController.create,
 );
+
+

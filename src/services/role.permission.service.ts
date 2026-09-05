@@ -53,4 +53,8 @@ export const rolePermissionService = {
 
     return response;
   },
+
+  async update() {
+    
+  }
 };

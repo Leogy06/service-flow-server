@@ -150,14 +150,16 @@ model Permission {
 
 //join table
 model RolePermission {
+  id           String @id @default(cuid())
   roleId       String
   permissionId String
-  isActive     Boolean @default(true)
+
+  isActive Boolean @default(true)
 
   role       Role       @relation(fields: [roleId], references: [id])
   permission Permission @relation(fields: [permissionId], references: [id])
 
-  @@id([roleId, permissionId])
+  @@unique([roleId, permissionId])
 }
 
 //user permission
