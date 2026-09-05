@@ -134,6 +134,8 @@ model Role {
   organization Organization?    @relation(fields: [organizationId], references: [id])
   users        User[]
   permissions  RolePermission[]
+
+  @@unique([name, organizationId])
 }
 
 //permission
