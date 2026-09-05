@@ -21,12 +21,9 @@ export const permissionService = {
       },
     });
 
-    const formattedResponse = response.map((rp) => ({
+    return response.map((rp) => ({
       roleName: rp.role.name,
       permissionName: rp.permission.name,
     }));
-
-    const length = formattedResponse.length;
-    return { length, formattedResponse };
   },
 };
