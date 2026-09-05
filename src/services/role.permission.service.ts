@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma.js";
 import { AppError } from "@/utils/AppError.js";
 
-export const permissionService = {
+export const rolePermissionService = {
   list: async (roleId: string) => {
     const response = await prisma.rolePermission.findMany({
       where: {

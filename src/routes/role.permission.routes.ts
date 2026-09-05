@@ -1,15 +1,15 @@
 import { Router } from "express";
 import { permissionController } from "@/controllers/permission.controller.js";
-import { createPermissionSchema } from "@/schemas/permission.schema.js";
+import { createRolePermissionSchema } from "@/schemas/role.permission.schema.js";
 import { validate } from "@/middleware/validate.js";
 import { authenticate } from "@/middleware/auth.js";
 
-export const permissionRoutes = Router();
+export const rolePermissionRoutes = Router();
 
-permissionRoutes.get("/:roleId", authenticate, permissionController.list);
-permissionRoutes.post(
+rolePermissionRoutes.get("/:roleId", authenticate, permissionController.list);
+rolePermissionRoutes.post(
   "/",
   authenticate,
-  validate(createPermissionSchema),
+  validate(createRolePermissionSchema),
   permissionController.create,
 );
