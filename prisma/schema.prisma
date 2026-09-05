@@ -18,7 +18,6 @@ enum OrganizationStatus {
   SUSPENDED
 }
 
-
 enum UserStatus {
   ACTIVE
   INACTIVE
@@ -106,7 +105,7 @@ model User {
 
   organization Organization? @relation(fields: [organizationId], references: [id])
 
-  roleId   String 
+  roleId String
   status UserStatus @default(ACTIVE)
 
   createdAt DateTime  @default(now())
@@ -117,8 +116,8 @@ model User {
   jobs               Job[]
   jobStatusHistories JobStatusHistory[]
   refreshTokens      RefreshToken[]
-  role Role @relation(fields: [roleId], references: [id])
-  userPermissions UserPermission[]
+  role               Role               @relation(fields: [roleId], references: [id])
+  userPermissions    UserPermission[]
 
   @@index([roleId])
   @@index([status])
@@ -128,50 +127,49 @@ model User {
 //role
 
 model Role {
-  id String @id @default(cuid())
-  name String
+  id             String  @id @default(cuid())
+  name           String
   organizationId String?
 
-  organization Organization? @relation(fields: [organizationId], references: [id])
-  users User[]
-  permissions RolePermission[]
+  organization Organization?    @relation(fields: [organizationId], references: [id])
+  users        User[]
+  permissions  RolePermission[]
 }
 
 //permission
 model Permission {
-  id String @id @default(cuid())
-  name String @unique
-  description String?
+  id             String  @id @default(cuid())
+  name           String  @unique
+  description    String?
   organizationId String?
 
-  organization Organization? @relation(fields: [organizationId], references: [id])
-  roles RolePermission[]
-  users UserPermission[]
+  organization Organization?    @relation(fields: [organizationId], references: [id])
+  roles        RolePermission[]
+  users        UserPermission[]
 }
 
 //join table
 model RolePermission {
-  roleId String
+  roleId       String
   permissionId String
+  isActive     Boolean @default(true)
 
-  role Role @relation(fields: [roleId], references: [id])
+  role       Role       @relation(fields: [roleId], references: [id])
   permission Permission @relation(fields: [permissionId], references: [id])
 
-
-@@id([roleId, permissionId])
+  @@id([roleId, permissionId])
 }
 
 //user permission
 model UserPermission {
-  userId String
+  userId       String
   permissionId String
 
-  user User @relation(fields: [userId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
   permission Permission @relation(fields: [permissionId], references: [id])
 
   @@id([userId, permissionId])
 }
-
 
 // ─────────────────────────────────────────────
 // CUSTOMER
