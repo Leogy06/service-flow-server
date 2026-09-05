@@ -5,6 +5,7 @@ export const permissionService = {
     const response = await prisma.rolePermission.findMany({
       where: {
         roleId,
+        isActive: true,
       },
       select: {
         role: {
@@ -20,9 +21,12 @@ export const permissionService = {
       },
     });
 
-    return response.map((rp) => ({
+    const formattedResponse = response.map((rp) => ({
       roleName: rp.role.name,
       permissionName: rp.permission.name,
     }));
+
+    const length = formattedResponse.length;
+    return { length, formattedResponse };
   },
 };

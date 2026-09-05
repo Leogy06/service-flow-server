@@ -91,6 +91,9 @@ export const authService = {
             id: true,
             name: true,
             permissions: {
+              where: {
+                isActive: true,
+              },
               select: {
                 permission: {
                   select: {
