@@ -24,7 +24,7 @@ export const createCustomerSchema = z.object({
 
     suffix: z
       .string()
-      .trim()    
+      .trim()
       .max(20, "Suffix must not exceed 20 characters")
       .optional(),
 
