@@ -256,6 +256,9 @@ export const authService = {
         role: {
           select: {
             permissions: {
+              where:{
+                isActive: true
+              },
               select: {
                 permission: {
                   select: {
