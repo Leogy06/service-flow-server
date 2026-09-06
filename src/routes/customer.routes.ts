@@ -14,14 +14,14 @@ export const customerRoutes = Router();
 customerRoutes.post(
   "/",
   writeLimmiter,
-  validate(createCustomerSchema),
   requirePermission(PERMISSIONS.CUSTOMER_CREATE),
+  validate(createCustomerSchema),
   customerController.create,
 );
 
 customerRoutes.get(
   "/",
-  validate(customerListInput),
   requirePermission(PERMISSIONS.CUSTOMER_READ),
+  validate(customerListInput),
   customerController.list,
 );

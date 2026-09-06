@@ -9,6 +9,7 @@ export function requirePermission(permission: string) {
     console.dir(context, { depth: null });
     if (!permissions || !permissions.includes(permission)) {
       sendResponse(res, 403, "Forbidden", permissions);
+      return; //necessary do not remove to stop
     }
 
     next();
