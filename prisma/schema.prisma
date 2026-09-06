@@ -166,13 +166,16 @@ model RolePermission {
 
 //user permission
 model UserPermission {
+  id           String @id @default(cuid())
   userId       String
   permissionId String
+
+  isActive Boolean @default(true)
 
   user       User       @relation(fields: [userId], references: [id])
   permission Permission @relation(fields: [permissionId], references: [id])
 
-  @@id([userId, permissionId])
+  @@unique([userId, permissionId])
 }
 
 // ─────────────────────────────────────────────
