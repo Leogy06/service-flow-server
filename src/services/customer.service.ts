@@ -3,6 +3,7 @@ import { auditService } from "./audit.service.js";
 import { CreateCustomerInput } from "@/schemas/customer.schema.js";
 import { AppError } from "@/utils/AppError.js";
 import { requestContext } from "@/lib/requestContext.js";
+import { DEFAULT_TTL_SECONDS, getOrSetCache, invalidateCache } from "@/utils/cache.js";
 
 export const customerService = {
   create: async (data: CreateCustomerInput) => {
@@ -39,6 +40,9 @@ export const customerService = {
       // before: null,
       after: JSON.stringify(newCustomer),
     });
+
+
+  await invalidateCache(`cache:customers:list:${organizationId}:*`);
 
     return newCustomer;
   },
@@ -90,25 +94,20 @@ export const customerService = {
         : {}),
     };
 
+  const cacheKey = `cache:customers:list:${organizationId}:${page}:${pageSize}:${sortBy}:${sortOrder}:${search}`;
+
+  const { customers, total } = await getOrSetCache(cacheKey, DEFAULT_TTL_SECONDS, async () => {
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
         skip,
         take: pageSize,
         where,
-        orderBy: [
-          {
-            [sortBy]: sortOrder,
-          },
-          {
-            id: "asc",
-          },
-        ],
+        orderBy: [{ [sortBy]: sortOrder }, { id: "asc" }],
       }),
-
-      prisma.customer.count({
-        where,
-      }),
+      prisma.customer.count({ where }),
     ]);
+    return { customers, total };
+  });
 
     const totalPages = Math.ceil(total / pageSize);
 
