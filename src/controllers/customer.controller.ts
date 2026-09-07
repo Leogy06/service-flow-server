@@ -1,4 +1,4 @@
-import { CreateCustomerInput } from "@/schemas/customer.schema.js";
+import { CreateCustomerInput, UpdateCustomerInput } from "@/schemas/customer.schema.js";
 import { CustomerListInput } from "@/schemas/customer.schema.js";
 import { customerService } from "@/services/customer.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
@@ -38,7 +38,7 @@ export const customerController = {
 
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      const validated = req.validated.body;
+      const validated = req.validated.body as UpdateCustomerInput;
       const customer = await customerService.update(
         req.params.id as string,
         validated,
