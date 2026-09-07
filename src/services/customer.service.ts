@@ -3,7 +3,11 @@ import { auditService } from "./audit.service.js";
 import { CreateCustomerInput } from "@/schemas/customer.schema.js";
 import { AppError } from "@/utils/AppError.js";
 import { requestContext } from "@/lib/requestContext.js";
-import { DEFAULT_TTL_SECONDS, getOrSetCache, invalidateCache } from "@/utils/cache.js";
+import {
+  DEFAULT_TTL_SECONDS,
+  getOrSetCache,
+  invalidateCache,
+} from "@/utils/cache.js";
 
 export const customerService = {
   create: async (data: CreateCustomerInput) => {
@@ -41,8 +45,7 @@ export const customerService = {
       after: JSON.stringify(newCustomer),
     });
 
-
-  await invalidateCache(`cache:customers:list:${organizationId}:*`);
+    await invalidateCache(`cache:customers:list:${organizationId}:*`);
 
     return newCustomer;
   },
@@ -94,20 +97,24 @@ export const customerService = {
         : {}),
     };
 
-  const cacheKey = `cache:customers:list:${organizationId}:${page}:${pageSize}:${sortBy}:${sortOrder}:${search}`;
+    const cacheKey = `cache:customers:list:${organizationId}:${page}:${pageSize}:${sortBy}:${sortOrder}:${search}`;
 
-  const { customers, total } = await getOrSetCache(cacheKey, DEFAULT_TTL_SECONDS, async () => {
-    const [customers, total] = await Promise.all([
-      prisma.customer.findMany({
-        skip,
-        take: pageSize,
-        where,
-        orderBy: [{ [sortBy]: sortOrder }, { id: "asc" }],
-      }),
-      prisma.customer.count({ where }),
-    ]);
-    return { customers, total };
-  });
+    const { customers, total } = await getOrSetCache(
+      cacheKey,
+      DEFAULT_TTL_SECONDS,
+      async () => {
+        const [customers, total] = await Promise.all([
+          prisma.customer.findMany({
+            skip,
+            take: pageSize,
+            where,
+            orderBy: [{ [sortBy]: sortOrder }, { id: "asc" }],
+          }),
+          prisma.customer.count({ where }),
+        ]);
+        return { customers, total };
+      },
+    );
 
     const totalPages = Math.ceil(total / pageSize);
 
@@ -122,5 +129,53 @@ export const customerService = {
         hasPreviousPage: page > 1,
       },
     };
+  },
+
+  update: async (id: string, data) => {
+    const existingCustomer = await prisma.customer.findUnique({
+      where: { id },
+    });
+
+    if (!existingCustomer) throw new AppError(404, "Customer not found");
+
+    //check any duplications - email, phone number
+
+    const [existingEmail, existingMobileNumber] = await Promise.all([
+      prisma.customer.findUnique({
+        where: {
+          email: data.email,
+        },
+      }),
+      prisma.customer.findUnique({
+        where: {
+          phoneNumber: data.phoneNumber,
+        },
+      }),
+    ]);
+
+    if (existingEmail && existingEmail.id !== id)
+      throw new AppError(409, "Email already in use");
+
+    if (existingMobileNumber && existingMobileNumber.id !== id)
+      throw new AppError(409, "Mobile number already in use");
+
+    const updatedCustomer = await prisma.customer.update({
+      where: { id },
+      data,
+    });
+
+    void auditService.record({
+      action: "update.customer.success",
+      entity: "Customer",
+      entityId: id,
+      before: JSON.stringify(existingCustomer),
+      after: JSON.stringify(updatedCustomer),
+    });
+
+    await invalidateCache(
+      `cache:customers:list:${existingCustomer.organizationId}:*`,
+    );
+
+    return updatedCustomer;
   },
 };

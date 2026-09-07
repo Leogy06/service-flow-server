@@ -70,5 +70,27 @@ export const customerListInput = z.object({
   query: customerListQuerySchema,
 });
 
+export const updateCustomerSchema = z.object({
+  body: createCustomerSchema.shape.body
+    .partial()
+    .refine((data) => Object.keys(data).length > 0, {
+      message: "At least one field must be provided",
+    }),
+});
+
+export const updateCustomerParamsSchema = z.object({
+  params: z.object({
+    id: z.string().min(1, "Customer id is required"),
+  }),
+});
+
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>["body"];
 export type CustomerListInput = z.infer<typeof customerListInput>;
+
+//update custoemr chema
+export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>["body"];
+
+//update customer params schema
+export type UpdateCustomerParamsInput = z.infer<
+  typeof updateCustomerParamsSchema
+>["params"];

@@ -35,4 +35,17 @@ export const customerController = {
       next(error);
     }
   },
+
+  async update(req: Request, res: Response, next: NextFunction) {
+    try {
+      const validated = req.validated.body;
+      const customer = await customerService.update(
+        req.params.id as string,
+        validated,
+      );
+      sendResponse(res, 200, "Customer updated successfully", customer);
+    } catch (err) {
+      next(err);
+    }
+  },
 };
