@@ -13,7 +13,7 @@ import {
 } from "@/utils/cache.js";
 
 export const customerService = {
-  create: async (data: CreateCustomerInput) => {
+  async create(data: CreateCustomerInput) {
     const organizationId = requestContext.getValue("organizationId");
     if (!organizationId) {
       throw new AppError(422, "Organization not found");
@@ -54,13 +54,13 @@ export const customerService = {
   },
 
   //TODO: add deletedAt and caching
-  list: async (
+  async list(
     page = 1,
     pageSize = 10,
     search = "",
     sortOrder = "asc",
     sortBy = "createdAt",
-  ) => {
+  ) {
     const organizationId = requestContext.getValue("organizationId");
 
     if (!organizationId) {
@@ -134,14 +134,14 @@ export const customerService = {
     };
   },
 
-  get: async (id: string) => {
+  async get(id: string) {
     const customer = await prisma.customer.findUnique({
       where: { id },
     });
     return customer;
   },
 
-  update: async (id: string, data: UpdateCustomerInput) => {
+  async update(id: string, data: UpdateCustomerInput) {
     const existingCustomer = await prisma.customer.findUnique({
       where: { id },
     });
@@ -190,7 +190,6 @@ export const customerService = {
   },
 
   async delete(id: string) {
-
     const existingCustomer = await prisma.customer.findUnique({
       where: { id },
     });
