@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma.js";
 import { auditService } from "./audit.service.js";
-import { CreateCustomerInput, UpdateCustomerInput } from "@/schemas/customer.schema.js";
+import {
+  CreateCustomerInput,
+  UpdateCustomerInput,
+} from "@/schemas/customer.schema.js";
 import { AppError } from "@/utils/AppError.js";
 import { requestContext } from "@/lib/requestContext.js";
 import {
@@ -131,6 +134,13 @@ export const customerService = {
     };
   },
 
+  get: async (id: string) => {
+    const customer = await prisma.customer.findUnique({
+      where: { id },
+    });
+    return customer;
+  },
+
   update: async (id: string, data: UpdateCustomerInput) => {
     const existingCustomer = await prisma.customer.findUnique({
       where: { id },
@@ -179,3 +189,4 @@ export const customerService = {
     return updatedCustomer;
   },
 };
+ 
