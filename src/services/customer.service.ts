@@ -188,5 +188,32 @@ export const customerService = {
 
     return updatedCustomer;
   },
+
+  async delete(id: string) {
+
+    const existingCustomer = await prisma.customer.findUnique({
+      where: { id },
+    });
+
+    if (!existingCustomer) throw new AppError(404, "Customer not found");
+
+    const deletedCustomer = await prisma.customer.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+
+    void auditService.record({
+      action: "delete.customer.success",
+      entity: "Customer",
+      entityId: id,
+      before: JSON.stringify(existingCustomer),
+      after: JSON.stringify(deletedCustomer),
+    });
+
+    await invalidateCache(
+      `cache:customers:list:${existingCustomer.organizationId}:*`,
+    );
+
+    return deletedCustomer;
+  },
 };
- 

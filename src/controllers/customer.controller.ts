@@ -1,4 +1,7 @@
-import { CreateCustomerInput, UpdateCustomerInput } from "@/schemas/customer.schema.js";
+import {
+  CreateCustomerInput,
+  UpdateCustomerInput,
+} from "@/schemas/customer.schema.js";
 import { CustomerListInput } from "@/schemas/customer.schema.js";
 import { customerService } from "@/services/customer.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
@@ -48,4 +51,15 @@ export const customerController = {
       next(err);
     }
   },
+
+  async delete(req: Request, res: Response, next: NextFunction) {
+    try {
+      const customer = await customerService.delete(req.params.id as string);
+      sendResponse(res, 200, "Customer deleted successfully", customer);
+    } catch (err) {
+      next(err);
+    }
+  },
 };
+
+export default customerController;

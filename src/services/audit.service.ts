@@ -1,4 +1,3 @@
-
 import { prisma } from "@/lib/prisma.js";
 import { requestContext } from "@/lib/requestContext.js";
 import type { Prisma } from "@/generated/prisma/client.js";
@@ -13,7 +12,6 @@ type RecordAuditInput = {
 };
 
 export const auditService = {
-
   async record(input: RecordAuditInput) {
     const ctx = requestContext.get();
 
@@ -22,7 +20,7 @@ export const auditService = {
     prisma.auditLog
       .create({
         data: {
-          actorId: ctx?.userId,
+          actorId: ctx?.userId, //the one who did the action
           action: input.action,
           entity: input.entity,
           entityId: input.entityId,

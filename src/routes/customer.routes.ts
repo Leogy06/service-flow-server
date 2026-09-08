@@ -36,3 +36,9 @@ customerRoutes.put(
   validate(updateCustomerSchema),
   customerController.update,
 );
+
+customerRoutes.delete(
+  "/:id",
+  requirePermission(PERMISSIONS.CUSTOMER_DELETE),
+  customerController.delete,
+);
