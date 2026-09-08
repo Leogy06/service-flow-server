@@ -70,6 +70,7 @@ export const customerService = {
     const skip = (page - 1) * pageSize;
 
     const where = {
+      deletedAt: null,
       organizationId,
 
       ...(search
@@ -136,14 +137,14 @@ export const customerService = {
 
   async get(id: string) {
     const customer = await prisma.customer.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
     });
     return customer;
   },
 
   async update(id: string, data: UpdateCustomerInput) {
     const existingCustomer = await prisma.customer.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
     });
 
     if (!existingCustomer) throw new AppError(404, "Customer not found");
@@ -191,7 +192,7 @@ export const customerService = {
 
   async delete(id: string) {
     const existingCustomer = await prisma.customer.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
     });
 
     if (!existingCustomer) throw new AppError(404, "Customer not found");
