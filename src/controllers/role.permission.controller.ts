@@ -34,9 +34,9 @@ export const rolePermissionController = {
     try {
       const validated = req.validated.body as UpdateRolePermissionSchema;
       const permissions = await rolePermissionService.update(
-        req.params.roleId as string,
-        validated.permissions,
-        req.params.organizationId as string,
+        req.params.roleId as string, // role
+        validated.permissions, // permissions
+        req.params.organizationId as string, // organization
       );
 
       sendResponse(res, 200, "Permissions updated successfully", permissions);
