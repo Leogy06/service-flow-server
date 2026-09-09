@@ -58,7 +58,7 @@ export const customerService = {
     page = 1,
     pageSize = 10,
     search = "",
-    sortOrder = "asc",
+    sortOrder = "desc",
     sortBy = "createdAt",
   ) {
     const organizationId = requestContext.getValue("organizationId");

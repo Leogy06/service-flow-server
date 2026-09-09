@@ -2,11 +2,24 @@ import { Request, Response, NextFunction } from "express";
 // import { z } from "zod";
 import { userService } from "@/services/user.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
+import { requestContext } from "@/lib/requestContext.js";
+import { Prisma } from "@/generated/prisma/client.js";
 
 export const userController = {
-  async list(_req: Request, res: Response, next: NextFunction) {
+  async list(req: Request, res: Response, next: NextFunction) {
+    const organizationId = requestContext.getValue("organizationId") as string;
+    const select = req.query.select as Prisma.UserSelect;
+
     try {
-      const users = await userService.list();
+      const users = await userService.list({
+        organizationId,
+        select,
+        page: Number(req.query.page) || 1,
+        pageSize: Number(req.query.pageSize) || 10,
+        search: req.query.search as string,
+        sortOrder: req.query.sortOrder as "asc" | "desc",
+        sortBy: req.query.sortBy as string,
+      });
       sendResponse(res, 200, "Users fetched successfully", users);
     } catch (err) {
       next(err);

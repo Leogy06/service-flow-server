@@ -15,21 +15,77 @@ const DEFAULT_USER_SELECT = {
   role: true,
 } satisfies Prisma.UserSelect;
 
-export const userService = {
-  async list(select: Prisma.UserSelect = DEFAULT_USER_SELECT) {
-    const cacheKey = `cache:users:list${JSON.stringify(select)}`;
+interface ListProps {
+  select?: Prisma.UserSelect;
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  sortOrder?: "asc" | "desc";
+  sortBy?: string;
+  organizationId: string;
+}
 
-    return getOrSetCache(cacheKey, DEFAULT_TTL_SECONDS, () =>
-      prisma.user.findMany({
-        where: {
-          deletedAt: null,
-        },
-        select,
-        orderBy: {
-          createdAt: "desc",
-        },
-      }),
+const ALLOWED_SORT_FIELDS = ["createdAt", "firstName", "lastName", "email"];
+
+export const userService = {
+  async list({
+    select = DEFAULT_USER_SELECT,
+    page = 1,
+    pageSize = 10,
+    search = "",
+    sortOrder = "desc",
+    sortBy = "createdAt",
+    organizationId,
+  }: ListProps) {
+    if (!ALLOWED_SORT_FIELDS.includes(sortBy)) sortBy = "createdAt";
+
+    const cacheKey = `cache:users:list:${organizationId}:${JSON.stringify(select)}:${page}:${pageSize}:${search}:${sortOrder}:${sortBy}`;
+
+    const where = {
+      deletedAt: null,
+      organizationId,
+      OR: search
+        ? [
+            { firstName: { contains: search, mode: "insensitive" } },
+            { lastName: { contains: search, mode: "insensitive" } },
+            { email: { contains: search, mode: "insensitive" } },
+          ]
+        : undefined,
+    };
+
+    const { users, total } = await getOrSetCache(
+      cacheKey,
+      DEFAULT_TTL_SECONDS,
+      async () => {
+        const [users, total] = await Promise.all([
+          prisma.user.findMany({
+            where,
+            select,
+            orderBy: [{ [sortBy]: sortOrder }, { id: "asc" }],
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+          }),
+          prisma.user.count({
+            where,
+          }),
+        ]);
+        return { users, total };
+      },
     );
+
+    const totalPages = Math.ceil(total / pageSize);
+
+    return {
+      users,
+      pagination: {
+        total,
+        totalPages,
+        page,
+        pageSize,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   },
 
   async getById(id: string, select: Prisma.UserSelect = DEFAULT_USER_SELECT) {
