@@ -6,7 +6,7 @@ export const userRoutes = Router();
 
 userRoutes.get("/", userController.list);
 userRoutes.get(
-  "/list-for-permission-management/:organizationId",
+  "/list-for-permission-management",
   userController.listForPermissionManagement,
 );
 userRoutes.get("/by-id/:id", userController.getById);

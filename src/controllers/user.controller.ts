@@ -74,14 +74,16 @@ export const userController = {
   },
 
   async listForPermissionManagement(
-    req: Request,
+    _req: Request,
     res: Response,
     next: NextFunction,
   ) {
     try {
-      const users = await userService.listForPermissionManagement(
-        req.params.organizationId as string,
-      );
+      const organizationId = requestContext.getValue(
+        "organizationId",
+      ) as string;
+      const users =
+        await userService.listForPermissionManagement(organizationId);
       sendResponse(res, 200, "Users fetched successfully", users);
     } catch (e) {
       console.dir(e);

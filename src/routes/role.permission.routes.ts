@@ -22,7 +22,7 @@ rolePermissionRoutes.post(
 );
 
 rolePermissionRoutes.patch(
-  "/:roleId/:organizationId",
+  "/:roleId",
   authenticate,
   validate(updateRolePermission),
   rolePermissionController.update,
