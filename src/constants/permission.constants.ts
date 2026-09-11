@@ -20,4 +20,6 @@ export const PERMISSIONS = {
   INVOICE_DELETE: "invoice:delete",
 
   DASHBOARD_READ: "dashboard:read",
+  
+  USER_CREATE: "user:create",
 } as const;

@@ -24,7 +24,7 @@ export function validate(schema: ZodObject) {
           .map((e) => `${e.path.join(".")}: ${e.message}`)
           .join(", ");
 
-        return next(new AppError(400, message));
+        return next(new AppError(400  , message));
       }
 
       next(err);

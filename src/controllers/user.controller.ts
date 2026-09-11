@@ -65,8 +65,8 @@ export const userController = {
 
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const parsed = req.body;
-      const user = await userService.create(parsed);
+      const validated = req.validated.body as Prisma.UserCreateInput;
+      const user = await userService.create(validated);
       sendResponse(res, 201, "User created successfully", user);
     } catch (err) {
       next(err);
