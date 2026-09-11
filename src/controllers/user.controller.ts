@@ -4,6 +4,7 @@ import { userService } from "@/services/user.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { requestContext } from "@/lib/requestContext.js";
 import { Prisma } from "@/generated/prisma/client.js";
+import { CreateUserSchema } from "@/schemas/user.schema.js";
 
 export const userController = {
   async list(req: Request, res: Response, next: NextFunction) {
@@ -65,8 +66,17 @@ export const userController = {
 
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const validated = req.validated.body as Prisma.UserCreateInput;
-      const user = await userService.create(validated);
+      const validated = req.validated.body as CreateUserSchema;
+
+      const organizationId = requestContext.getValue(
+        "organizationId",
+      ) as string;
+      validated.organizationId = organizationId;
+
+      const user = await userService.create({
+        ...validated,
+        role: { connect: { id: validated.roleId } },
+      });
       sendResponse(res, 201, "User created successfully", user);
     } catch (err) {
       next(err);

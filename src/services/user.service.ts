@@ -6,6 +6,8 @@ import {
   getOrSetCache,
   invalidateCache,
 } from "@/utils/cache.js";
+import bcrypt from "bcryptjs";
+import { hashedPassword } from "@/utils/bcrypPassword.js";
 
 const DEFAULT_USER_SELECT = {
   id: true,
@@ -106,6 +108,18 @@ export const userService = {
   },
 
   async create(input: Prisma.UserCreateInput) {
+    //check email duplication and phone
+    const [isEmailExist, isPhoneExist] = await Promise.all([
+      prisma.user.findUnique({ where: { email: input.email } }),
+      prisma.user.findUnique({ where: { phone: input.phone as string } }),
+    ])
+
+    if(isEmailExist) throw new AppError(409, "Email already in use");
+    if(isPhoneExist) throw new AppError(409, "Phone already in use");
+
+    //hash
+    input.password = await hashedPassword(input.password);
+   
     const user = await prisma.user.create({ data: input });
     await this.invalidateUserCache();
 

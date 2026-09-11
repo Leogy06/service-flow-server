@@ -3,7 +3,7 @@ import { userController } from "../controllers/user.controller.js";
 import { requirePermission } from "@/middleware/require-permission.js";
 import { PERMISSIONS } from "@/constants/permission.constants.js";
 import { validate } from "@/middleware/validate.js";
-import { userSchema } from "@/schemas/user.schema.js";
+import { createUserSchema } from "@/schemas/user.schema.js";
 import { writeLimmiter } from "@/middleware/rateLimiter.js";
 
 //already authenticate in index route
@@ -19,7 +19,7 @@ userRoutes.post(
   "/",
   writeLimmiter,
   requirePermission(PERMISSIONS.USER_CREATE),
-  validate(userSchema),
+  validate(createUserSchema),
   userController.create,
 );
 userRoutes.put("/:id", userController.update);

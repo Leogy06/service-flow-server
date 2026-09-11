@@ -18,6 +18,9 @@ const envSchema = z.object({
   ACCESS_TOKEN_EXPIRY: z.coerce.number().default(900),
   REFRESH_TOKEN_DAYS: z.coerce.number().default(7),
 
+  //bcrypt
+  SALT_ROUNDS: z.coerce.number().default(10),
+
   //redis
   REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
 });
