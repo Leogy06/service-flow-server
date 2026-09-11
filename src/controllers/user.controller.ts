@@ -71,12 +71,9 @@ export const userController = {
       const organizationId = requestContext.getValue(
         "organizationId",
       ) as string;
-      validated.organizationId = organizationId;
 
-      const user = await userService.create({
-        ...validated,
-        role: { connect: { id: validated.roleId } },
-      });
+      const user = await userService.create({ ...validated, organizationId });
+
       sendResponse(res, 201, "User created successfully", user);
     } catch (err) {
       next(err);

@@ -24,7 +24,7 @@ declare global {
         middleName?: string | null;
         suffix?: string | null;
         email: string;
-        slug?:string | null;
+        slug?: string | null;
         permissions?: string[];
       };
       validated: {
@@ -35,3 +35,16 @@ declare global {
     }
   }
 }
+
+export type CreateUserInput = {
+  firstName: string;
+  lastName: string;
+  middleName?: string;
+  suffix?: string;
+  email: string;
+  phone?: string;
+  password: string;
+  roleId: string;
+  organizationId: string;
+  
+};

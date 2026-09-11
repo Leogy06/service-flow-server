@@ -6,8 +6,8 @@ import {
   getOrSetCache,
   invalidateCache,
 } from "@/utils/cache.js";
-import bcrypt from "bcryptjs";
 import { hashedPassword } from "@/utils/bcrypPassword.js";
+import { CreateUserInput } from "@/types/index.js";
 
 const DEFAULT_USER_SELECT = {
   id: true,
@@ -107,20 +107,52 @@ export const userService = {
     if (userId) await invalidateCache(`cache:user:byId:${userId}*`); //invalidate specific user cache key
   },
 
-  async create(input: Prisma.UserCreateInput) {
+  async create(input: CreateUserInput) {
     //check email duplication and phone
     const [isEmailExist, isPhoneExist] = await Promise.all([
       prisma.user.findUnique({ where: { email: input.email } }),
       prisma.user.findUnique({ where: { phone: input.phone as string } }),
-    ])
+    ]);
 
-    if(isEmailExist) throw new AppError(409, "Email already in use");
-    if(isPhoneExist) throw new AppError(409, "Phone already in use");
+    if (isEmailExist) throw new AppError(409, "Email already in use");
+    if (isPhoneExist) throw new AppError(409, "Phone already in use");
 
-    //hash
-    input.password = await hashedPassword(input.password);
-   
-    const user = await prisma.user.create({ data: input });
+    const [organization, role] = await Promise.all([
+      prisma.organization.findUnique({
+        where: { id: input.organizationId },
+      }),
+      prisma.role.findFirst({
+        where: {
+          id: input.roleId,
+          organizationId: input.organizationId,
+        },
+      }),
+    ]);
+
+    if (!organization) throw new AppError(404, "Organization not found");
+    if (!role) throw new AppError(404, "Role not found");
+
+    const password = await hashedPassword(input.password);
+
+    const user = await prisma.user.create({ data: {
+      firstName: input.firstName,
+      lastName: input.lastName,
+      middleName: input.middleName,
+      suffix: input.suffix,
+      email: input.email,
+      phone: input.phone,
+      password,
+      role:{ 
+        connect: {
+          id: input.roleId
+        }
+      },
+      organization:{
+        connect:{
+          id: input.organizationId
+        }
+      }
+    } });
     await this.invalidateUserCache();
 
     return user;
