@@ -23,6 +23,10 @@ const envSchema = z.object({
 
   //redis
   REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
+
+  //resend
+  RESEND_API_KEY: z.string().min(1),
+  EMAIL_FROM: z.string().min(1),
 });
 
 const parsed = envSchema.safeParse(process.env);
