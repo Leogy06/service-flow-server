@@ -6,6 +6,11 @@ import { Router } from "express";
 
 const roleRoutes = Router();
 
-roleRoutes.get("/", authenticate, requirePermission(PERMISSIONS.ROLE_READ), roleController.list);
+roleRoutes.get(
+  "/",
+  authenticate,
+  requirePermission(PERMISSIONS.USER_ASSIGN_ROLE),
+  roleController.list,
+);
 
 export default roleRoutes;

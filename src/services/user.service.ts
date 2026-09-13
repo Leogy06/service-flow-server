@@ -10,6 +10,7 @@ import { hashedPassword } from "@/utils/bcrypPassword.js";
 import { CreateUserInput } from "@/types/index.js";
 import crypto from "node:crypto";
 import { sendInviteEmail } from "@/lib/email/send-invite.js";
+import { auditService } from "./audit.service.js";
 
 const DEFAULT_USER_SELECT = {
   id: true,
@@ -200,6 +201,13 @@ export const userService = {
           },
         },
       },
+    });
+
+    void auditService.record({
+      action: "create.user.success",
+      entity: "User",
+      entityId: user.id,
+      after: user,
     });
 
     await this.invalidateUserCache();

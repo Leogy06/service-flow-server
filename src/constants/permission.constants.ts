@@ -24,4 +24,6 @@ export const PERMISSIONS = {
   USER_CREATE: "user:create",
 
   ROLE_READ: "role:read",
+
+  USER_ASSIGN_ROLE: "user:assign-role",
 } as const;
