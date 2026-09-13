@@ -90,6 +90,7 @@ export const userService = {
     };
   },
 
+
   async getById(id: string, select: Prisma.UserSelect = DEFAULT_USER_SELECT) {
     const cacheKey = `cache:user:byId:${id}:${JSON.stringify(select)}`;
     const user = await getOrSetCache(cacheKey, DEFAULT_TTL_SECONDS, () =>

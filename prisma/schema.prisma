@@ -20,7 +20,7 @@ enum OrganizationStatus {
 
 enum UserStatus {
   ACTIVE
-  INACTIVE
+  PENDING
 }
 
 enum ServiceRequestStatus {
@@ -94,7 +94,7 @@ model User {
   id String @id @default(cuid())
 
   email      String  @unique
-  password   String
+  password   String?
   firstName  String
   lastName   String
   middleName String?
@@ -106,11 +106,13 @@ model User {
   organization Organization? @relation(fields: [organizationId], references: [id])
 
   roleId String
-  status UserStatus @default(ACTIVE)
+  status UserStatus @default(PENDING)
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  inviteToken       String?   @unique
+  inviteTokenExpiry DateTime?
+  createdAt         DateTime  @default(now())
 
   auditLogs          AuditLog[]
   jobs               Job[]

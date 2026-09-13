@@ -74,7 +74,7 @@ export const authService = {
     const user = await prisma.user.findFirst({
       where: {
         email,
-        status: "ACTIVE",
+        deletedAt: null,
       },
       select: {
         id: true,
