@@ -3,15 +3,17 @@ import { userController } from "../controllers/user.controller.js";
 import { requirePermission } from "@/middleware/require-permission.js";
 import { PERMISSIONS } from "@/constants/permission.constants.js";
 import { validate } from "@/middleware/validate.js";
-import { createUserSchema } from "@/schemas/user.schema.js";
+import { createUserInviteSchema, createUserSchema } from "@/schemas/user.schema.js";
 import { writeLimmiter } from "@/middleware/rateLimiter.js";
+import { authenticate } from "@/middleware/auth.js";
 
 //already authenticate in index route
 export const userRoutes = Router();
 
-userRoutes.get("/", userController.list);
+userRoutes.get("/", authenticate, userController.list);
 userRoutes.get(
   "/list-for-permission-management",
+  authenticate,
   userController.listForPermissionManagement,
 );
 userRoutes.get("/by-id/:id", userController.getById);
@@ -22,6 +24,14 @@ userRoutes.post(
   validate(createUserSchema),
   userController.create,
 );
-userRoutes.put("/:id", userController.update);
-userRoutes.delete("/:id", userController.delete);
-userRoutes.patch("/:id/restore", userController.restore);
+userRoutes.post(
+  "/invite-email",
+  authenticate,
+  writeLimmiter,
+  requirePermission(PERMISSIONS.USER_CREATE),
+  validate(createUserInviteSchema),
+  userController.createWithInvite,
+);
+userRoutes.put("/:id", authenticate, userController.update);
+userRoutes.delete("/:id", authenticate, userController.delete);
+userRoutes.patch("/:id/restore", authenticate, userController.restore);

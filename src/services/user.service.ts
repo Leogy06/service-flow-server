@@ -8,6 +8,8 @@ import {
 } from "@/utils/cache.js";
 import { hashedPassword } from "@/utils/bcrypPassword.js";
 import { CreateUserInput } from "@/types/index.js";
+import crypto from "node:crypto";
+import { sendInviteEmail } from "@/lib/email/send-invite.js";
 
 const DEFAULT_USER_SELECT = {
   id: true,
@@ -107,7 +109,7 @@ export const userService = {
     if (userId) await invalidateCache(`cache:user:byId:${userId}*`); //invalidate specific user cache key
   },
 
-  async validateCreateInput(input:CreateUserInput) {
+  async validateCreateInput(input: CreateUserInput) {
     const [isEmailExist, isPhoneExist] = await Promise.all([
       prisma.user.findUnique({ where: { email: input.email } }),
       prisma.user.findUnique({ where: { phone: input.phone as string } }),
@@ -136,22 +138,7 @@ export const userService = {
     //check email duplication and phone
     await this.validateCreateInput(input);
 
-    const [organization, role] = await Promise.all([
-      prisma.organization.findUnique({
-        where: { id: input.organizationId },
-      }),
-      prisma.role.findFirst({
-        where: {
-          id: input.roleId,
-          organizationId: input.organizationId,
-        },
-      }),
-    ]);
-
-    if (!organization) throw new AppError(404, "Organization not found");
-    if (!role) throw new AppError(404, "Role not found");
-
-    const password = await hashedPassword(input.password);
+    const password = await hashedPassword(input.password!);
 
     const user = await prisma.user.create({
       data: {
@@ -174,12 +161,62 @@ export const userService = {
         },
       },
     });
+
     await this.invalidateUserCache();
 
     return user;
   },
 
-  
+  async createWithInvite(input: CreateUserInput) {
+    await this.validateCreateInput(input);
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(rawToken)
+      .digest("hex");
+    const inviteTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+    const user = await prisma.user.create({
+      data: {
+        firstName: input.firstName,
+        lastName: input.lastName,
+        middleName: input.middleName,
+        suffix: input.suffix,
+        email: input.email,
+        phone: input.phone,
+        password: null,
+        status: "PENDING",
+        inviteToken: hashedToken,
+        inviteTokenExpiry,
+        role: {
+          connect: {
+            id: input.roleId,
+          },
+        },
+        organization: {
+          connect: {
+            id: input.organizationId,
+          },
+        },
+      },
+    });
+
+    await this.invalidateUserCache();
+
+    try {
+      await sendInviteEmail({
+        to: user.email,
+        firstName: user.firstName,
+        token: rawToken,
+      });
+    } catch (err) {
+      console.error("Failed to send invite email for user", user.id, err);
+      // don't throw — user already created, admin can resend invite later
+    }
+
+    return user;
+  },
 
   async update(id: string, input: Prisma.UserUpdateInput) {
     //check if already deleted

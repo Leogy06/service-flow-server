@@ -4,7 +4,10 @@ import { userService } from "@/services/user.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { requestContext } from "@/lib/requestContext.js";
 import { Prisma } from "@/generated/prisma/client.js";
-import { CreateUserSchema } from "@/schemas/user.schema.js";
+import {
+  CreateUserInviteSchema,
+  CreateUserSchema,
+} from "@/schemas/user.schema.js";
 
 export const userController = {
   async list(req: Request, res: Response, next: NextFunction) {
@@ -78,6 +81,22 @@ export const userController = {
       });
 
       sendResponse(res, 201, "User created successfully", user);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async createWithInvite(req: Request, res: Response, next: NextFunction) {
+    try {
+      const organizationId = requestContext.getValue(
+        "organizationId",
+      ) as string;
+      const validated = req.validated.body as CreateUserInviteSchema;
+      const response = await userService.createWithInvite({
+        ...validated,
+        organizationId,
+      });
+      sendResponse(res, 201, "User created successfully", response);
     } catch (err) {
       next(err);
     }

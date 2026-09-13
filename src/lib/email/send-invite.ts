@@ -4,7 +4,7 @@ import { resend } from "./client.js";
 import { inviteUserHtml } from "./templates/invite-user.js";
 
 interface SendInviteEmailProps {
-  to: string;
+  to: string; //email to be sent the invite
   firstName: string;
   token: string;
 }

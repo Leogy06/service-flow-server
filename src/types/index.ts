@@ -43,8 +43,8 @@ export type CreateUserInput = {
   suffix?: string;
   email: string;
   phone?: string;
-  password: string;
+  password?: string;
   roleId: string;
   organizationId: string;
-  
 };
+
