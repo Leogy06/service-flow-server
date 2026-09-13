@@ -7,6 +7,7 @@ import { customerRoutes } from "./customer.routes.js";
 import { rolePermissionRoutes } from "./role.permission.routes.js";
 import permissionRoutes from "./permission.route.js";
 import userPermissionRoutes from "./user.permission.routes.js";
+import roleRoutes from "./role.routes.js";
 
 export const router = Router();
 
@@ -17,5 +18,6 @@ router.use("/customers", authenticate, customerRoutes);
 router.use("/permission", permissionRoutes);
 router.use("/role-permission", rolePermissionRoutes);
 router.use("/user-permission", userPermissionRoutes);
+router.use("role", roleRoutes);
 
 router.get("/health", (_req, res) => res.json({ status: "ok" }));
