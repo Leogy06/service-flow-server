@@ -36,6 +36,7 @@
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
     "rate-limit-redis": "^6.0.1",
+    "resend": "^6.28.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

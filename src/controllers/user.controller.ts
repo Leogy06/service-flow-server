@@ -72,7 +72,10 @@ export const userController = {
         "organizationId",
       ) as string;
 
-      const user = await userService.create({ ...validated, organizationId });
+      const user = await userService.createDirect({
+        ...validated,
+        organizationId,
+      });
 
       sendResponse(res, 201, "User created successfully", user);
     } catch (err) {

@@ -90,7 +90,6 @@ export const userService = {
     };
   },
 
-
   async getById(id: string, select: Prisma.UserSelect = DEFAULT_USER_SELECT) {
     const cacheKey = `cache:user:byId:${id}:${JSON.stringify(select)}`;
     const user = await getOrSetCache(cacheKey, DEFAULT_TTL_SECONDS, () =>
@@ -108,15 +107,34 @@ export const userService = {
     if (userId) await invalidateCache(`cache:user:byId:${userId}*`); //invalidate specific user cache key
   },
 
-  async create(input: CreateUserInput) {
-    //check email duplication and phone
+  async validateCreateInput(input:CreateUserInput) {
     const [isEmailExist, isPhoneExist] = await Promise.all([
       prisma.user.findUnique({ where: { email: input.email } }),
       prisma.user.findUnique({ where: { phone: input.phone as string } }),
     ]);
-
     if (isEmailExist) throw new AppError(409, "Email already in use");
     if (isPhoneExist) throw new AppError(409, "Phone already in use");
+
+    const [organization, role] = await Promise.all([
+      prisma.organization.findUnique({
+        where: { id: input.organizationId },
+      }),
+      prisma.role.findFirst({
+        where: {
+          id: input.roleId,
+          organizationId: input.organizationId,
+        },
+      }),
+    ]);
+    if (!organization) throw new AppError(404, "Organization not found");
+    if (!role) throw new AppError(404, "Role not found");
+
+    return { organization, role };
+  },
+
+  async createDirect(input: CreateUserInput) {
+    //check email duplication and phone
+    await this.validateCreateInput(input);
 
     const [organization, role] = await Promise.all([
       prisma.organization.findUnique({
@@ -135,29 +153,33 @@ export const userService = {
 
     const password = await hashedPassword(input.password);
 
-    const user = await prisma.user.create({ data: {
-      firstName: input.firstName,
-      lastName: input.lastName,
-      middleName: input.middleName,
-      suffix: input.suffix,
-      email: input.email,
-      phone: input.phone,
-      password,
-      role:{ 
-        connect: {
-          id: input.roleId
-        }
+    const user = await prisma.user.create({
+      data: {
+        firstName: input.firstName,
+        lastName: input.lastName,
+        middleName: input.middleName,
+        suffix: input.suffix,
+        email: input.email,
+        phone: input.phone,
+        password,
+        role: {
+          connect: {
+            id: input.roleId,
+          },
+        },
+        organization: {
+          connect: {
+            id: input.organizationId,
+          },
+        },
       },
-      organization:{
-        connect:{
-          id: input.organizationId
-        }
-      }
-    } });
+    });
     await this.invalidateUserCache();
 
     return user;
   },
+
+  
 
   async update(id: string, input: Prisma.UserUpdateInput) {
     //check if already deleted

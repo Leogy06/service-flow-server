@@ -123,7 +123,7 @@ export const authService = {
       },
     });
 
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    if (!user || !(await bcrypt.compare(password, user.password!))) {
       throw new AppError(401, "Invalid credentials");
     }
 
