@@ -102,6 +102,21 @@ export const userController = {
     }
   },
 
+  async setPassword(req:Request,res:Response,next:NextFunction){
+    try {
+      const organizationId = requestContext.getValue(
+        "organizationId",
+      ) as string;
+      const response = await userService.setPassword({
+        ...req.body,
+        organizationId,
+      });
+      sendResponse(res, 200, "User created successfully", response);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async listForPermissionManagement(
     _req: Request,
     res: Response,

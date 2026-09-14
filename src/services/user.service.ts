@@ -226,6 +226,29 @@ export const userService = {
     return user;
   },
 
+  async setPassword(input: SetPasswordInput) {
+    const user = await prisma.user.findUnique({
+      where: { email: input.email },
+    });
+    if (!user) throw new AppError(404, "User not found");
+
+    const password = await hashedPassword(input.password!);
+
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: { password },
+    });
+
+    void auditService.record({
+      action: "set.password.success",
+      entity: "User",
+      entityId: user.id,
+      after: updatedUser,
+    });
+
+    return updatedUser;
+  },
+
   async update(id: string, input: Prisma.UserUpdateInput) {
     //check if already deleted
     const existing = await this.getById(id);
@@ -330,3 +353,5 @@ export const userService = {
     });
   },
 };
+
+//work on user updating their password...

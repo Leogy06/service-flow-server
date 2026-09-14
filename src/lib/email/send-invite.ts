@@ -19,7 +19,7 @@ export async function sendInviteEmail({
   const { data, error } = await resend.emails.send({
     from: env.EMAIL_FROM,
     to,
-    subject: "You’re invited to join YourApp",
+    subject: "You’re invited to join ServiceFlow",
     html: inviteUserHtml({ firstName, inviteUrl }),
   });
 

@@ -4,7 +4,7 @@ import { sendResponse } from "@/utils/sendResponse.js";
 import { NextFunction, Response, Request } from "express";
 
 export const roleController = {
-  async list(req: Request, res: Response, next: NextFunction) {
+  async list(_req: Request, res: Response, next: NextFunction) {
     try {
       const organizationId = requestContext.getValue(
         "organizationId",
