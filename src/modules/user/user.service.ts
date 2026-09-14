@@ -1,6 +1,6 @@
 import { Prisma } from "@/generated/prisma/client.js";
-import { prisma } from "../lib/prisma.js";
-import { AppError } from "../utils/AppError.js";
+import { prisma } from "@/lib/prisma.js";
+import { AppError } from "@/utils/AppError.js";
 import {
   DEFAULT_TTL_SECONDS,
   getOrSetCache,
@@ -10,7 +10,8 @@ import { hashedPassword } from "@/utils/bcrypPassword.js";
 import { CreateUserInput } from "@/types/index.js";
 import crypto from "node:crypto";
 import { sendInviteEmail } from "@/lib/email/send-invite.js";
-import { auditService } from "../modules/audit/audit.service.js";
+import { auditService } from "@/modules/audit/audit.service.js";
+import { SetPasswordParams, SetPasswordSchema } from "./user.schema.js";
 
 const DEFAULT_USER_SELECT = {
   id: true,
@@ -226,11 +227,22 @@ export const userService = {
     return user;
   },
 
-  async setPassword(input: SetPasswordInput) {
+  async setPassword(input: SetPasswordSchema, params: SetPasswordParams) {
+    //find user by email
+    //check status if still pending - not set password
+    //check token if expired - not set password
     const user = await prisma.user.findUnique({
-      where: { email: input.email },
+      where: {
+        email: params.email,
+        inviteToken: params.token,
+      },
     });
+
     if (!user) throw new AppError(404, "User not found");
+    if (user.status !== "PENDING")
+      throw new AppError(400, "User is not pending");
+    if (user.inviteTokenExpiry === null || user.inviteTokenExpiry < new Date())
+      throw new AppError(400, "Invite token is expired or invalid");
 
     const password = await hashedPassword(input.password!);
 

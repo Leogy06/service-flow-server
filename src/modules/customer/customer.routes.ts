@@ -11,7 +11,7 @@ import {
 import { Router } from "express";
 import { PERMISSIONS } from "@/constants/permission.constants.js";
 
-export const customerRoutes = Router();
+ const customerRoutes = Router();
 
 customerRoutes.post(
   "/",
@@ -42,3 +42,4 @@ customerRoutes.delete(
   requirePermission(PERMISSIONS.CUSTOMER_DELETE),
   customerController.delete,
 );
+export default customerRoutes;

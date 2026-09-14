@@ -1,13 +1,13 @@
 import { Router } from "express";
-import { userRoutes } from "./user.routes.js";
-import { organizationRoutes } from "./organization.route.js";
 import authRoutes from "../modules/auth/auth.routes.js";
 import { authenticate } from "@/middleware/auth.js";
-import { customerRoutes } from "./customer.routes.js";
-import { rolePermissionRoutes } from "./role.permission.routes.js";
 import permissionRoutes from "./permission.route.js";
 import userPermissionRoutes from "./user.permission.routes.js";
-import roleRoutes from "./role.routes.js";
+import roleRoutes from "@/modules/role/role.routes.js";
+import customerRoutes from "@/modules/customer/customer.routes.js";
+import rolePermissionRoutes from "@/modules/role-permission/role.permission.routes.js";
+import userRoutes from "@/modules/user/user.routes.js";
+import organizationRoutes from "@/modules/organization/organization.route.js";
 
 export const router = Router();
 

@@ -39,7 +39,22 @@ export const createUserInviteSchema = z.object({
   }),
 });
 
+export const setPasswordSchema = z.object({
+  body: z.object({
+    password: z.string().min(1, "Password is required"),
+    confirmPassword: z.string().min(1, "Confirm password is required"),
+  }),
+});
+export const setPasswordParams = z.object({
+  params: z.object({
+    email: z.email("Invalid email").min(1, "Email is required"),
+    token: z.string().min(1, "Token is required"),
+  }),
+});
+
 export type CreateUserSchema = z.infer<typeof createUserSchema>["body"];
 export type CreateUserInviteSchema = z.infer<
   typeof createUserInviteSchema
 >["body"];
+export type SetPasswordSchema = z.infer<typeof setPasswordSchema>["body"];
+export type SetPasswordParams = z.infer<typeof setPasswordParams>["params"];

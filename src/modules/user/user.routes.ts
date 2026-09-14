@@ -1,17 +1,14 @@
 import { Router } from "express";
-import { userController } from "../controllers/user.controller.js";
+import { userController } from "./user.controller.js";
 import { requirePermission } from "@/middleware/require-permission.js";
 import { PERMISSIONS } from "@/constants/permission.constants.js";
 import { validate } from "@/middleware/validate.js";
-import {
-  createUserInviteSchema,
-  createUserSchema,
-} from "@/schemas/user.schema.js";
+import { createUserInviteSchema, createUserSchema } from "./user.schema.js";
 import { writeLimmiter } from "@/middleware/rateLimiter.js";
 import { authenticate } from "@/middleware/auth.js";
 
 //already authenticate in index route
-export const userRoutes = Router();
+const userRoutes = Router();
 
 userRoutes.get("/", authenticate, userController.list);
 userRoutes.get(
@@ -37,5 +34,12 @@ userRoutes.post(
 );
 
 userRoutes.put("/:id", authenticate, userController.update);
+userRoutes.put(
+  "/set-password/:token/:email",
+  authenticate,
+  userController.setPassword,
+);
 userRoutes.delete("/:id", authenticate, userController.delete);
 userRoutes.patch("/:id/restore", authenticate, userController.restore);
+
+export default userRoutes;

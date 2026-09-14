@@ -7,7 +7,7 @@ import {
 import { validate } from "@/middleware/validate.js";
 import { authenticate } from "@/middleware/auth.js";
 
-export const rolePermissionRoutes = Router();
+ const rolePermissionRoutes = Router();
 
 rolePermissionRoutes.get(
   "/:roleId",
@@ -27,3 +27,5 @@ rolePermissionRoutes.patch(
   validate(updateRolePermission),
   rolePermissionController.update,
 );
+
+export default rolePermissionRoutes

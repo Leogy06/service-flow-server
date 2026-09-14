@@ -1,13 +1,15 @@
 import { Request, Response, NextFunction } from "express";
 // import { z } from "zod";
-import { userService } from "@/services/user.service.js";
+import { userService } from "./user.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { requestContext } from "@/lib/requestContext.js";
 import { Prisma } from "@/generated/prisma/client.js";
 import {
   CreateUserInviteSchema,
   CreateUserSchema,
-} from "@/schemas/user.schema.js";
+  SetPasswordParams,
+  SetPasswordSchema,
+} from "./user.schema.js";
 
 export const userController = {
   async list(req: Request, res: Response, next: NextFunction) {
@@ -102,15 +104,14 @@ export const userController = {
     }
   },
 
-  async setPassword(req:Request,res:Response,next:NextFunction){
+  async setPassword(req: Request, res: Response, next: NextFunction) {
     try {
-      const organizationId = requestContext.getValue(
-        "organizationId",
-      ) as string;
-      const response = await userService.setPassword({
-        ...req.body,
-        organizationId,
-      });
+      const validated = req.validated.body as SetPasswordSchema;
+      const validatedParams = req.validated.params as SetPasswordParams;
+      const response = await userService.setPassword(
+        validated,
+        validatedParams,
+      );
       sendResponse(res, 200, "User created successfully", response);
     } catch (err) {
       next(err);
