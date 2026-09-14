@@ -1,5 +1,5 @@
 import { requestContext } from "@/lib/requestContext.js";
-import { roleService } from "@/services/role.service.js";
+import { roleService } from "./role.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { NextFunction, Response, Request } from "express";
 

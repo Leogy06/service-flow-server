@@ -1,5 +1,5 @@
 import { PERMISSIONS } from "@/constants/permission.constants.js";
-import { roleController } from "@/controllers/role.controller.js";
+import { roleController } from "./role.controller.js";
 import { authenticate } from "@/middleware/auth.js";
 import { requirePermission } from "@/middleware/require-permission.js";
 import { Router } from "express";
