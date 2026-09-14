@@ -1,4 +1,4 @@
-import { userPermissionService } from "@/services/user.permission.service.js";
+import { userPermissionService } from "./user.permission.service.js";
 import { AppError } from "@/utils/AppError.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { NextFunction, Request, Response } from "express";
