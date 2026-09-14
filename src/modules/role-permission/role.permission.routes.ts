@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { rolePermissionController } from "@/controllers/role.permission.controller.js";
+import { rolePermissionController } from "./role.permission.controller.js";
 import {
   createRolePermissionSchema,
   updateRolePermission,
-} from "@/schemas/role.permission.schema.js";
+} from "./role.permission.schema.js";
 import { validate } from "@/middleware/validate.js";
 import { authenticate } from "@/middleware/auth.js";
 

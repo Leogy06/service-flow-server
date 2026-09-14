@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { sendResponse } from "@/utils/sendResponse.js";
-import { rolePermissionService } from "@/services/role.permission.service.js";
-import { UpdateRolePermissionSchema } from "@/schemas/role.permission.schema.js";
+import { rolePermissionService } from "./role.permission.service.js";
+import { UpdateRolePermissionSchema } from "./role.permission.schema.js";
 import { requestContext } from "@/lib/requestContext.js";
 
 type CreatePermissionInput = {
