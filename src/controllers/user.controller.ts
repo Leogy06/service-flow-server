@@ -115,7 +115,7 @@ export const userController = {
     } catch (err) {
       next(err);
     }
-  }
+  },
 
   async listForPermissionManagement(
     _req: Request,

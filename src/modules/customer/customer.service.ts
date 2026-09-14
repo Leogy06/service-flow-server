@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma.js";
-import { auditService } from "./audit.service.js";
+import { auditService } from "@/modules/audit/audit.service.js";
 import {
   CreateCustomerInput,
   UpdateCustomerInput,
-} from "@/schemas/customer.schema.js";
+} from "./customer.schema.js";
 import { AppError } from "@/utils/AppError.js";
 import { requestContext } from "@/lib/requestContext.js";
 import {

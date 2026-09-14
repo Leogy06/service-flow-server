@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { authService } from "@/services/auth.service.js";
+import { authService } from "./auth.service.js";
 import { AppError } from "@/utils/AppError.js";
 import { REFRESH_TOKEN_DAYS } from "@/utils/tokens.js";
 import { sendResponse } from "@/utils/sendResponse.js";

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { paginationSchema } from "./pagination.schema.js";
+import { paginationSchema } from "@/schemas/pagination.schema.js";
 import emptyToUndefined from "@/utils/emptyToUndefined.js";
 
 export const createCustomerSchema = z.object({

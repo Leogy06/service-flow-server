@@ -1,4 +1,4 @@
-import { customerController } from "@/controllers/customer.controller.js";
+import { customerController } from "./customer.controller.js";
 import { writeLimmiter } from "@/middleware/rateLimiter.js";
 import { requirePermission } from "@/middleware/require-permission.js";
 import { validate } from "@/middleware/validate.js";
@@ -7,7 +7,7 @@ import {
   customerListInput,
   updateCustomerParamsSchema,
   updateCustomerSchema,
-} from "@/schemas/customer.schema.js";
+} from "./customer.schema.js";
 import { Router } from "express";
 import { PERMISSIONS } from "@/constants/permission.constants.js";
 

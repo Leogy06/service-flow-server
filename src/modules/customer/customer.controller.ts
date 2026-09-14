@@ -1,9 +1,9 @@
 import {
   CreateCustomerInput,
   UpdateCustomerInput,
-} from "@/schemas/customer.schema.js";
-import { CustomerListInput } from "@/schemas/customer.schema.js";
-import { customerService } from "@/services/customer.service.js";
+} from "./customer.schema.js";
+import { CustomerListInput } from "./customer.schema.js";
+import { customerService } from "./customer.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { NextFunction, Request, Response } from "express";
 

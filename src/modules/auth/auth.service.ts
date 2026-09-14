@@ -7,7 +7,7 @@ import {
   hashToken,
   getRefreshExpiry,
 } from "@/utils/tokens.js";
-import { auditService } from "./audit.service.js";
+import { auditService } from "@/modules/audit/audit.service.js";
 
 interface RegisterInput {
   email: string;

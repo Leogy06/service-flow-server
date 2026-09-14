@@ -10,7 +10,7 @@ import { hashedPassword } from "@/utils/bcrypPassword.js";
 import { CreateUserInput } from "@/types/index.js";
 import crypto from "node:crypto";
 import { sendInviteEmail } from "@/lib/email/send-invite.js";
-import { auditService } from "./audit.service.js";
+import { auditService } from "../modules/audit/audit.service.js";
 
 const DEFAULT_USER_SELECT = {
   id: true,

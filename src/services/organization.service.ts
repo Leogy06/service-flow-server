@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma.js";
 import { Prisma } from "@/generated/prisma/client.js";
-import { auditService } from "./audit.service.js";
+import { auditService } from "../modules/audit/audit.service.js";
 import { AppError } from "@/utils/AppError.js";
 
 export const organizationService = {
