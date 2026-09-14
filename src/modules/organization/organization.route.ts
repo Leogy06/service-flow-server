@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { organizationController } from "@/controllers/organization.controller.js";
+import { organizationController } from "./organization.controller.js";
 import { validate } from "@/middleware/validate.js";
-import { organizationSchema } from "@/schemas/organization.schema.js";
+import { organizationSchema } from "./organization.schema.js";
 import { writeLimmiter } from "@/middleware/rateLimiter.js";
 
 export const organizationRoutes = Router();

@@ -1,4 +1,4 @@
-import { organizationService } from "@/services/organization.service.js";
+import { organizationService } from "./organization.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { NextFunction, Request, Response } from "express";
 
