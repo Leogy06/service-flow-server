@@ -2,7 +2,7 @@ import { Router } from "express";
 import authRoutes from "../modules/auth/auth.routes.js";
 import { authenticate } from "@/middleware/auth.js";
 import permissionRoutes from "@/modules/permission/permission.route.js";
-import userPermissionRoutes from "./user.permission.routes.js";
+import userPermissionRoutes from "@/modules/user-permission/user.permission.routes.js";
 import roleRoutes from "@/modules/role/role.routes.js";
 import customerRoutes from "@/modules/customer/customer.routes.js";
 import rolePermissionRoutes from "@/modules/role-permission/role.permission.routes.js";

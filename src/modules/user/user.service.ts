@@ -244,6 +244,10 @@ export const userService = {
     if (user.inviteTokenExpiry === null || user.inviteTokenExpiry < new Date())
       throw new AppError(400, "Invite token is expired or invalid");
 
+    //check if password and confirm password match
+    if (input.password !== input.confirmPassword)
+      throw new AppError(400, "Password and confirm password do not match");
+
     const password = await hashedPassword(input.password!);
 
     const updatedUser = await prisma.user.update({
