@@ -1,5 +1,5 @@
-import { CreatePermissionSchema } from "@/schemas/permission.schema.js";
-import { permissionService } from "@/services/permission.service.js";
+import { CreatePermissionSchema } from "./permission.schema.js";
+import { permissionService } from "./permission.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import {NextFunction, Request, Response} from "express";
 

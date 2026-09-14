@@ -1,6 +1,6 @@
-import { permissionController } from "@/controllers/permission.controller.js";
+import { permissionController } from "./permission.controller.js";
 import { validate } from "@/middleware/validate.js";
-import { createPermissionSchema } from "@/schemas/permission.schema.js";
+import { createPermissionSchema } from "./permission.schema.js";
 import { Router } from "express";
 
 const permissionRoutes = Router();
