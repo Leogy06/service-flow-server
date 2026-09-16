@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE `customer` ADD COLUMN `customerType` ENUM('INDIVIDUAL', 'ORGANIZATION') NOT NULL DEFAULT 'INDIVIDUAL',
+    ADD COLUMN `organizationName` VARCHAR(191) NULL,
+    MODIFY `firstName` VARCHAR(191) NULL,
+    MODIFY `lastName` VARCHAR(191) NULL;

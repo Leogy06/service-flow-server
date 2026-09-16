@@ -63,6 +63,11 @@ enum AuditAction {
   PAYMENT
 }
 
+enum CustomerType {
+  INDIVIDUAL
+  ORGANIZATION
+}
+
 //ORGANIZATION
 model Organization {
   id     String             @id @default(cuid())
@@ -187,8 +192,10 @@ model UserPermission {
 model Customer {
   id String @id @default(cuid())
 
-  firstName   String
-  lastName    String
+  customerType CustomerType @default(INDIVIDUAL)
+
+  firstName   String?
+  lastName    String?
   middleName  String?
   suffix      String?
   email       String  @unique
@@ -196,6 +203,8 @@ model Customer {
 
   address String?
   notes   String?
+
+  organizationName String?
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
