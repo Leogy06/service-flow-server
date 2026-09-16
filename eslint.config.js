@@ -2,7 +2,7 @@ import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
-export default tseslint.config(
+export default [
   {
     ignores: ["dist/**", "generated/**", "node_modules/**"],
   },
@@ -29,4 +29,14 @@ export default tseslint.config(
       ],
     },
   },
-);
+
+  {
+    files: ["**/*.cjs"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+];
