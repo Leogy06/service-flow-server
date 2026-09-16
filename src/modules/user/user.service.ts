@@ -228,6 +228,50 @@ export const userService = {
     return user;
   },
 
+  async resetTokenExpirationDateInvitation(token: string, email: string) {
+    if (!token || !email) {
+      throw new AppError(400, "Token and email are required");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: {
+        email: email,
+        inviteToken: token,
+      },
+    });
+
+    if (!user) {
+      throw new AppError(404, "User not found");
+    }
+
+    //check if active status still pending
+    if (user?.status !== "PENDING") {
+      throw new AppError(400, "User is not pending");
+    }
+
+    //check if user has already a password
+    if (user?.password) {
+      throw new AppError(400, "User already has a password");
+    }
+
+    //add another 24h to the expiration date
+    const inviteTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+    const updatedUser = await prisma.user.update({
+      where: { id: user?.id },
+      data: { inviteTokenExpiry },
+    });
+
+    void auditService.record({
+      action: "reset.token.expiration.date.success",
+      entity: "User",
+      entityId: updatedUser.id,
+      after: updatedUser,
+    });
+
+    return updatedUser;
+  },
+
   async setPassword(input: SetPasswordSchema, params: SetPasswordParams) {
     //find user by email
     //check status if still pending - not set password

@@ -118,6 +118,19 @@ export const userController = {
     }
   },
 
+  async resetTokenExpirationDateInvitation(req: Request, res: Response, next:NextFunction) {
+    try{
+      const validated = req.validated.body;
+      const response = await userService.resetTokenExpirationDateInvitation(
+        validated.token,
+        validated.email
+      );
+      sendResponse(res, 200, "User created successfully", response);
+    }catch (err) {
+      next(err);
+    }
+  },
+
   async listForPermissionManagement(
     _req: Request,
     res: Response,

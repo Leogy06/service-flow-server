@@ -19,6 +19,7 @@ export const createUserSchema = z.object({
     roleId: z.string().min(1, "Role ID is required"),
   }),
 });
+export type CreateUserSchema = z.infer<typeof createUserSchema>["body"];
 
 export const createUserInviteSchema = z.object({
   body: z.object({
@@ -38,6 +39,9 @@ export const createUserInviteSchema = z.object({
     roleId: z.string().min(1, "Role ID is required"),
   }),
 });
+export type CreateUserInviteSchema = z.infer<
+  typeof createUserInviteSchema
+>["body"];
 
 export const setPasswordSchema = z.object({
   body: z.object({
@@ -45,16 +49,21 @@ export const setPasswordSchema = z.object({
     confirmPassword: z.string().min(1, "Confirm password is required"),
   }),
 });
+export type SetPasswordSchema = z.infer<typeof setPasswordSchema>["body"];
 export const setPasswordParams = z.object({
   params: z.object({
     email: z.email("Invalid email").min(1, "Email is required"),
     token: z.string().min(1, "Token is required"),
   }),
 });
-
-export type CreateUserSchema = z.infer<typeof createUserSchema>["body"];
-export type CreateUserInviteSchema = z.infer<
-  typeof createUserInviteSchema
->["body"];
-export type SetPasswordSchema = z.infer<typeof setPasswordSchema>["body"];
 export type SetPasswordParams = z.infer<typeof setPasswordParams>["params"];
+
+export const resetTokenExpirationDateInvitationSchema = z.object({
+  body: z.object({
+    email: z.email("Invalid email").min(1, "Email is required"),
+    token: z.string().min(1, "Token is required"),
+  }),
+});
+export type ResetTokenExpirationDateInvitationSchema = z.infer<
+  typeof resetTokenExpirationDateInvitationSchema
+>["body"];
