@@ -7,6 +7,7 @@ import { Prisma } from "@/generated/prisma/client.js";
 import {
   CreateUserInviteSchema,
   CreateUserSchema,
+  ResetTokenExpirationDateInvitationSchema,
   SetPasswordParams,
   SetPasswordSchema,
 } from "./user.schema.js";
@@ -120,7 +121,7 @@ export const userController = {
 
   async resetTokenExpirationDateInvitation(req: Request, res: Response, next:NextFunction) {
     try{
-      const validated = req.validated.body;
+      const validated = req.validated.body as ResetTokenExpirationDateInvitationSchema;
       const response = await userService.resetTokenExpirationDateInvitation(
         validated.token,
         validated.email

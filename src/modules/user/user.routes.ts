@@ -6,6 +6,7 @@ import { validate } from "@/middleware/validate.js";
 import {
   createUserInviteSchema,
   createUserSchema,
+  resetTokenExpirationDateInvitationSchema,
   setPasswordParams,
   setPasswordSchema,
 } from "./user.schema.js";
@@ -35,6 +36,11 @@ userRoutes.get(
   "/list-for-permission-management",
   authenticate,
   userController.listForPermissionManagement,
+);
+userRoutes.put(
+  "/reset-token-expiration-date",
+  validate(resetTokenExpirationDateInvitationSchema),
+  userController.resetTokenExpirationDateInvitation,
 );
 userRoutes.put(
   "/set-password/:token/:email",
