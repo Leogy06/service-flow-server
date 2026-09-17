@@ -12,7 +12,7 @@ fi
 
 # --- Confirm Redis (external container "redis") is reachable ---
 echo "⏳ Waiting for Redis to be ready..."
-until docker exec redis redis-cli ping > /dev/null 2>&1; do
+until docker exec redis-main redis-cli ping > /dev/null 2>&1; do
   printf "."
   sleep 1
 done
