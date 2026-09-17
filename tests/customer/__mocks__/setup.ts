@@ -45,8 +45,6 @@ export function resetMocks() {
 export function mockCustomer(overrides = {}) {
   return {
     id: "cust-1",
-    firstName: "Juan",
-    lastName: "Dela Cruz",
     email: "juan@test.com",
     phoneNumber: "09171234567",
     organizationId: ORG_ID,

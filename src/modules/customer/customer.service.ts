@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma.js";
 import { auditService } from "@/modules/audit/audit.service.js";
 import {
-  CreateCustomerInput,
   UpdateCustomerInput,
 } from "./customer.schema.js";
 import { AppError } from "@/utils/AppError.js";
@@ -11,12 +10,17 @@ import {
   getOrSetCache,
   invalidateCache,
 } from "@/utils/cache.js";
+import { CreateCustomerInput } from "./types.js";
 
 export const customerService = {
   async create(data: CreateCustomerInput) {
     const organizationId = requestContext.getValue("organizationId");
     if (!organizationId) {
       throw new AppError(422, "Organization not found");
+    }
+
+    if (!data.customerType) {
+      throw new AppError(422, "Customer type is required.");
     }
 
     const [existingEmail, existingMobileNumber] = await Promise.all([
