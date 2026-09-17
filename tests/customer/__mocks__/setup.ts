@@ -1,10 +1,9 @@
 // tests/modules/customer/__mocks__/setup.ts
-import { prisma } from "@/lib/prisma.js";
-import { auditService } from "@/modules/audit/audit.service.js";
-import { requestContext } from "@/lib/requestContext.js";
-import { getOrSetCache, invalidateCache } from "@/utils/cache.js";
+import { jest } from "@jest/globals";
 
-jest.mock("@/lib/prisma.js", () => ({
+export const ORG_ID = "org-1";
+
+jest.unstable_mockModule("@/lib/prisma.js", () => ({
   prisma: {
     customer: {
       findUnique: jest.fn(),
@@ -16,21 +15,27 @@ jest.mock("@/lib/prisma.js", () => ({
   },
 }));
 
-jest.mock("@/modules/audit/audit.service.js", () => ({
+jest.unstable_mockModule("@/modules/audit/audit.service.js", () => ({
   auditService: { record: jest.fn() },
 }));
 
-jest.mock("@/lib/requestContext.js", () => ({
+jest.unstable_mockModule("@/lib/requestContext.js", () => ({
   requestContext: { getValue: jest.fn() },
 }));
 
-jest.mock("@/utils/cache.js", () => ({
+jest.unstable_mockModule("@/utils/cache.js", () => ({
   DEFAULT_TTL_SECONDS: 60,
   getOrSetCache: jest.fn(),
   invalidateCache: jest.fn(),
 }));
 
-export const ORG_ID = "org-1";
+// dynamic import AFTER mocks registered
+export const { prisma } = await import("@/lib/prisma.js");
+export const { auditService } =
+  await import("@/modules/audit/audit.service.js");
+export const { requestContext } = await import("@/lib/requestContext.js");
+export const { getOrSetCache, invalidateCache } =
+  await import("@/utils/cache.js");
 
 export function resetMocks() {
   jest.clearAllMocks();
@@ -49,5 +54,3 @@ export function mockCustomer(overrides = {}) {
     ...overrides,
   };
 }
-
-export { prisma, auditService, requestContext, getOrSetCache, invalidateCache };
