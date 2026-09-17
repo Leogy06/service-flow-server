@@ -5,8 +5,6 @@
     "moduleResolution": "Bundler",
     "esModuleInterop": true,
     "isolatedModules": true,
-    "outDir": "dist",
-    "rootDir": "src",
     "strict": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
@@ -16,7 +14,8 @@
     "noImplicitReturns": true,
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "types": ["jest", "node"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "tests/**/*.ts"]
 }

@@ -5,7 +5,8 @@
     "rootDir": ".",
     "baseUrl": ".",
     "noUnusedLocals": false,
-    "noUnusedParameters": false
+    "noUnusedParameters": false,
+    "types": ["jest", "node"]
   },
   "include": ["src/**/*.ts", "tests/**/*.ts"]
 }
