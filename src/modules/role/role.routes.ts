@@ -1,16 +1,10 @@
-import { PERMISSIONS } from "@/constants/permission.constants.js";
 import { roleController } from "./role.controller.js";
 import { authenticate } from "@/middleware/auth.js";
-import { requirePermission } from "@/middleware/require-permission.js";
 import { Router } from "express";
 
 const roleRoutes = Router();
 
-roleRoutes.get(
-  "/",
-  authenticate,
-  requirePermission(PERMISSIONS.USER_ASSIGN_ROLE),
-  roleController.list,
-);
+//just option for creating user
+roleRoutes.get("/", authenticate, roleController.list);
 
 export default roleRoutes;
