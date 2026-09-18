@@ -2,90 +2,61 @@ import { z } from "zod";
 import { paginationSchema } from "@/schemas/pagination.schema.js";
 import emptyToUndefined from "@/utils/emptyToUndefined.js";
 
+const customerBodySchema = z.object({
+  customerType: z.enum(["INDIVIDUAL", "ORGANIZATION"]),
+  organizationName: z
+    .string()
+    .trim()
+    .min(2, "Organization name is required")
+    .max(100, "Organization name must not exceed 100 characters"),
+  firstName: z
+    .string()
+    .trim()
+    .min(1, "First name is required")
+    .max(100, "First name must not exceed 100 characters"),
+  lastName: z
+    .string()
+    .trim()
+    .min(1, "Last name is required")
+    .max(100, "Last name must not exceed 100 characters"),
+  middleName: z.string().trim().max(100).optional(),
+  suffix: z.string().trim().max(20).optional(),
+  email: z
+    .email("Invalid email address")
+    .min(1, "Email is required")
+    .trim()
+    .toLowerCase()
+    .max(255),
+  phoneNumber: z
+    .string()
+    .trim()
+    .regex(/^(?:\+63|63|0)9\d{9}$/, "Please enter a valid Philippine mobile number"),
+  address: z.string().trim().max(500).optional(),
+  notes: z.string().trim().max(2000).optional(),
+});
+
 export const createCustomerSchema = z.object({
-  body: z
-    .object({
-      customerType: z.enum(["INDIVIDUAL", "ORGANIZATION"]),
-      organizationName: z
-        .string()
-        .trim()
-        .min(2, "Organization name is required")
-        .max(100, "Organization name must not exceed 100 characters"),
-      firstName: z
-        .string()
-        .trim()
-        .min(1, "First name is required")
-        .max(100, "First name must not exceed 100 characters"),
-
-      lastName: z
-        .string()
-        .trim()
-        .min(1, "Last name is required")
-        .max(100, "Last name must not exceed 100 characters"),
-
-      middleName: z
-        .string()
-        .trim()
-        .max(100, "Middle name must not exceed 100 characters")
-        .optional(),
-
-      suffix: z
-        .string()
-        .trim()
-        .max(20, "Suffix must not exceed 20 characters")
-        .optional(),
-
-      email: z
-        .email("Invalid email address")
-        .min(1, "Email is required")
-        .trim()
-        .toLowerCase()
-        .max(255, "Email must not exceed 255 characters"),
-
-      phoneNumber: z
-        .string()
-        .trim()
-        .regex(
-          /^(?:\+63|63|0)9\d{9}$/,
-          "Please enter a valid Philippine mobile number",
-        ),
-      address: z
-        .string()
-        .trim()
-        .max(500, "Address must not exceed 500 characters")
-        .optional(),
-
-      notes: z
-        .string()
-        .trim()
-        .max(2000, "Notes must not exceed 2000 characters")
-        .optional(),
-    })
-    .superRefine((data, ctx) => {
-      if (data.customerType) {
-        if (!data.firstName || data.firstName.trim().length < 1) {
-          ctx.addIssue({
-            code: "custom",
-            message: "First name is required",
-            path: ["firstName"],
-          });
-        }
-        if (!data.lastName || data.lastName.trim().length < 1) {
-          ctx.addIssue({
-            code: "custom",
-            message: "Last name is required",
-            path: ["lastName"],
-          });
-        }
-      } else {
-        if (!data.organizationName || data.organizationName.trim().length < 2) {
-          ctx.addIssue({
-            code: "custom",
-            message: "Organization name is required",
-            path: ["organizationName"],
-          });
-        }
+  body: customerBodySchema.superRefine((data, ctx) => {
+    if (data.customerType) {
+      if (!data.firstName || data.firstName.trim().length < 1) {
+        ctx.addIssue({ code: "custom", message: "First name is required", path: ["firstName"] });
       }
+      if (!data.lastName || data.lastName.trim().length < 1) {
+        ctx.addIssue({ code: "custom", message: "Last name is required", path: ["lastName"] });
+      }
+    } else {
+      if (!data.organizationName || data.organizationName.trim().length < 2) {
+        ctx.addIssue({ code: "custom", message: "Organization name is required", path: ["organizationName"] });
+      }
+    }
+  }),
+});
+
+export const updateCustomerSchema = z.object({
+  body: customerBodySchema
+    .partial()
+    .refine((data) => Object.keys(data).length > 0, {
+      message: "At least one field must be provided",
     }),
 });
 
@@ -101,14 +72,6 @@ export const customerListQuerySchema = paginationSchema.extend({
 //query accessor in the schema vald   iation
 export const customerListInput = z.object({
   query: customerListQuerySchema,
-});
-
-export const updateCustomerSchema = z.object({
-  body: createCustomerSchema.shape.body
-    .partial()
-    .refine((data) => Object.keys(data).length > 0, {
-      message: "At least one field must be provided",
-    }),
 });
 
 export const updateCustomerParamsSchema = z.object({
@@ -127,3 +90,4 @@ export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>["body"];
 export type UpdateCustomerParamsInput = z.infer<
   typeof updateCustomerParamsSchema
 >["params"];
+    

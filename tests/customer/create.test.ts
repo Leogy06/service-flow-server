@@ -63,6 +63,7 @@ describe("customerService.create", () => {
       organizationId: ORG_ID,
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await expect(customerService.create(input as any)).rejects.toThrow(
       "Customer type is required.",
     );

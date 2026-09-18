@@ -39,4 +39,12 @@ export default [
       },
     },
   },
+
+  //disables lint in test folder..,
+  {
+    files: ["**/*.test.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
 ];
