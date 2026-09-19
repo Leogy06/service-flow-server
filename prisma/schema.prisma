@@ -4,10 +4,10 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
-  moduleFormat          = "esm"
-  importFileExtension   = "js"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
 }
 
 datasource db {
@@ -63,11 +63,6 @@ enum AuditAction {
   ASSIGN
   STATUS_CHANGE
   PAYMENT
-}
-
-enum CustomerType {
-  INDIVIDUAL
-  ORGANIZATION
 }
 
 //ORGANIZATION
@@ -194,19 +189,13 @@ model UserPermission {
 model Customer {
   id String @id @default(cuid())
 
-  customerType CustomerType @default(INDIVIDUAL)
+  name String @unique
 
-  firstName   String?
-  lastName    String?
-  middleName  String?
-  suffix      String?
   email       String  @unique
   phoneNumber String  @unique
 
   address String?
   notes   String?
-
-  organizationName String?
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
@@ -221,7 +210,6 @@ model Customer {
 
   @@index([email])
   @@index([phoneNumber])
-  @@index([lastName, firstName])
 }
 
 // ─────────────────────────────────────────────
