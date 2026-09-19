@@ -1,5 +1,5 @@
 import {
-  CreateCustomerInput,
+  CreateCustomerSchema,
   UpdateCustomerInput,
 } from "./customer.schema.js";
 import { CustomerListInput } from "./customer.schema.js";
@@ -11,7 +11,8 @@ export const customerController = {
   create: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const customer = await customerService.create(
-        req.body as CreateCustomerInput,
+        req.body as CreateCustomerSchema,
+        
       );
       sendResponse(res, 201, "Customer created successfully", customer);
     } catch (error) {

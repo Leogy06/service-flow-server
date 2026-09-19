@@ -4,5 +4,5 @@ export type CreateCustomerInput = {
   phoneNumber: string;
   customerType: "INDIVIDUAL" | "ORGANIZATION";
   organizationName?: string;
-  organizationId: string;
+  organizationId?: string;
 };
