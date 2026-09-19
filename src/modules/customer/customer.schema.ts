@@ -5,18 +5,7 @@ import emptyToUndefined from "@/utils/emptyToUndefined.js";
 const customerBodySchema = z.object({
   customerType: z.enum(["INDIVIDUAL", "ORGANIZATION"]),
   organizationName: z.string().trim().max(100).optional(),
-  firstName: z
-    .string()
-    .trim()
-    .max(100, "First name must not exceed 100 characters")
-    .optional(),
-  lastName: z
-    .string()
-    .trim()
-    .max(100, "Last name must not exceed 100 characters")
-    .optional(),
-  middleName: z.string().trim().max(100).optional(),
-  suffix: z.string().trim().max(20).optional(),
+  name: z.string().trim().max(100).min(2, "Name is required"),
   email: z
     .email("Invalid email address")
     .min(1, "Email is required")
@@ -34,62 +23,8 @@ const customerBodySchema = z.object({
   notes: z.string().trim().max(2000).optional(),
 });
 
-const hasValue = (v?: string | null) => !!v && v.trim().length > 0;
-
 export const createCustomerSchema = z.object({
-  body: customerBodySchema.superRefine((data, ctx) => {
-    if (data.customerType === "INDIVIDUAL") {
-      if (!hasValue(data.firstName)) {
-        ctx.addIssue({
-          code: "custom",
-          message: "First name is required",
-          path: ["firstName"],
-        });
-      }
-      if (!hasValue(data.lastName)) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Last name is required",
-          path: ["lastName"],
-        });
-      }
-      if (hasValue(data.organizationName)) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Organization name not allowed for individual",
-          path: ["organizationName"],
-        });
-      }
-    } else if (data.customerType === "ORGANIZATION") {
-      if (!hasValue(data.organizationName)) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Organization is required",
-          path: ["organizationName"],
-        });
-      }
-      if (hasValue(data.firstName)) {
-        ctx.addIssue({
-          code: "custom",
-          message: "First name not allowed for organization",
-          path: ["firstName"],
-        });
-      }
-      if (hasValue(data.lastName)) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Last name not allowed for organization",
-          path: ["lastName"],
-        });
-      }
-    } else {
-      ctx.addIssue({
-        code: "custom",
-        message: "Customer type is required",
-        path: ["customerType"],
-      });
-    }
-  }),
+  body: customerBodySchema,
 });
 
 export const updateCustomerSchema = z.object({
@@ -104,7 +39,7 @@ export const updateCustomerSchema = z.object({
 export const customerListQuerySchema = paginationSchema.extend({
   sortBy: emptyToUndefined(
     z
-      .enum(["firstName", "lastName", "email", "createdAt"])
+      .enum(["name", "email", "createdAt"])
       .default("createdAt"),
   ),
 });

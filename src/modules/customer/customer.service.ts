@@ -81,14 +81,9 @@ export const customerService = {
         ? {
             OR: [
               {
-                firstName: {
-                  contains: search,
-                },
-              },
-              {
-                lastName: {
-                  contains: search,
-                },
+                name:{
+                  contains:search
+                }
               },
               {
                 email: {
