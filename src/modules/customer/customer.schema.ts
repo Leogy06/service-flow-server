@@ -4,21 +4,17 @@ import emptyToUndefined from "@/utils/emptyToUndefined.js";
 
 const customerBodySchema = z.object({
   customerType: z.enum(["INDIVIDUAL", "ORGANIZATION"]),
-  organizationName: z
-    .string()
-    .trim()
-    .min(2, "Organization name is required")
-    .max(100, "Organization name must not exceed 100 characters"),
+  organizationName: z.string().trim().max(100).optional(),
   firstName: z
     .string()
     .trim()
-    .min(1, "First name is required")
-    .max(100, "First name must not exceed 100 characters"),
+    .max(100, "First name must not exceed 100 characters")
+    .optional(),
   lastName: z
     .string()
     .trim()
-    .min(1, "Last name is required")
-    .max(100, "Last name must not exceed 100 characters"),
+    .max(100, "Last name must not exceed 100 characters")
+    .optional(),
   middleName: z.string().trim().max(100).optional(),
   suffix: z.string().trim().max(20).optional(),
   email: z
@@ -30,24 +26,68 @@ const customerBodySchema = z.object({
   phoneNumber: z
     .string()
     .trim()
-    .regex(/^(?:\+63|63|0)9\d{9}$/, "Please enter a valid Philippine mobile number"),
+    .regex(
+      /^(?:\+63|63|0)9\d{9}$/,
+      "Please enter a valid Philippine mobile number",
+    ),
   address: z.string().trim().max(500).optional(),
   notes: z.string().trim().max(2000).optional(),
 });
 
+const hasValue = (v?: string | null) => !!v && v.trim().length > 0;
+
 export const createCustomerSchema = z.object({
   body: customerBodySchema.superRefine((data, ctx) => {
-    if (data.customerType) {
-      if (!data.firstName || data.firstName.trim().length < 1) {
-        ctx.addIssue({ code: "custom", message: "First name is required", path: ["firstName"] });
+    if (data.customerType === "INDIVIDUAL") {
+      if (!hasValue(data.firstName)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "First name is required",
+          path: ["firstName"],
+        });
       }
-      if (!data.lastName || data.lastName.trim().length < 1) {
-        ctx.addIssue({ code: "custom", message: "Last name is required", path: ["lastName"] });
+      if (!hasValue(data.lastName)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Last name is required",
+          path: ["lastName"],
+        });
+      }
+      if (hasValue(data.organizationName)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Organization name not allowed for individual",
+          path: ["organizationName"],
+        });
+      }
+    } else if (data.customerType === "ORGANIZATION") {
+      if (!hasValue(data.organizationName)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Organization is required",
+          path: ["organizationName"],
+        });
+      }
+      if (hasValue(data.firstName)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "First name not allowed for organization",
+          path: ["firstName"],
+        });
+      }
+      if (hasValue(data.lastName)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Last name not allowed for organization",
+          path: ["lastName"],
+        });
       }
     } else {
-      if (!data.organizationName || data.organizationName.trim().length < 2) {
-        ctx.addIssue({ code: "custom", message: "Organization name is required", path: ["organizationName"] });
-      }
+      ctx.addIssue({
+        code: "custom",
+        message: "Customer type is required",
+        path: ["customerType"],
+      });
     }
   }),
 });
@@ -90,4 +130,3 @@ export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>["body"];
 export type UpdateCustomerParamsInput = z.infer<
   typeof updateCustomerParamsSchema
 >["params"];
-    
