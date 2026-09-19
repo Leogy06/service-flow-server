@@ -1,8 +1,9 @@
 export type CreateCustomerInput = {
-  name:string
+  name: string;
   email: string;
   phoneNumber: string;
-  customerType: "INDIVIDUAL" | "ORGANIZATION";
-  organizationName?: string;
+  address?: string;
+  notes?: string;
+  customerType: string;
   organizationId?: string;
 };

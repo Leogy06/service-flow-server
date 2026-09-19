@@ -3,8 +3,6 @@ import { paginationSchema } from "@/schemas/pagination.schema.js";
 import emptyToUndefined from "@/utils/emptyToUndefined.js";
 
 const customerBodySchema = z.object({
-  customerType: z.enum(["INDIVIDUAL", "ORGANIZATION"]),
-  organizationName: z.string().trim().max(100).optional(),
   name: z.string().trim().max(100).min(2, "Name is required"),
   email: z
     .email("Invalid email address")
@@ -38,9 +36,7 @@ export const updateCustomerSchema = z.object({
 //separate schema because it is exclusive to specific model
 export const customerListQuerySchema = paginationSchema.extend({
   sortBy: emptyToUndefined(
-    z
-      .enum(["name", "email", "createdAt"])
-      .default("createdAt"),
+    z.enum(["name", "email", "createdAt"]).default("createdAt"),
   ),
 });
 

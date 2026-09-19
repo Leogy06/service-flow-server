@@ -1,8 +1,6 @@
 import { prisma } from "@/lib/prisma.js";
 import { auditService } from "@/modules/audit/audit.service.js";
-import {
-  UpdateCustomerInput,
-} from "./customer.schema.js";
+import { UpdateCustomerInput } from "./customer.schema.js";
 import { AppError } from "@/utils/AppError.js";
 import { requestContext } from "@/lib/requestContext.js";
 import {
@@ -17,10 +15,6 @@ export const customerService = {
     const organizationId = requestContext.getValue("organizationId");
     if (!organizationId) {
       throw new AppError(422, "Organization not found");
-    }
-
-    if (!data.customerType) {
-      throw new AppError(422, "Customer type is required.");
     }
 
     const [existingEmail, existingMobileNumber] = await Promise.all([
@@ -81,9 +75,9 @@ export const customerService = {
         ? {
             OR: [
               {
-                name:{
-                  contains:search
-                }
+                name: {
+                  contains: search,
+                },
               },
               {
                 email: {

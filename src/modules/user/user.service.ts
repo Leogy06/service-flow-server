@@ -44,6 +44,7 @@ export const userService = {
     sortBy = "createdAt",
     organizationId,
   }: ListProps) {
+    if (!organizationId) throw new AppError(400, "Organization ID is required");
     if (!ALLOWED_SORT_FIELDS.includes(sortBy)) sortBy = "createdAt";
 
     const cacheKey = `cache:users:list:${organizationId}:${JSON.stringify(select)}:${page}:${pageSize}:${search}:${sortOrder}:${sortBy}`;

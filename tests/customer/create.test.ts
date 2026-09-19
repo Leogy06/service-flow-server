@@ -20,8 +20,7 @@ describe("customerService.create", () => {
 
   it("creates individual customer", async () => {
     const input = {
-      firstName: "Juan",
-      lastName: "Dela Cruz",
+      name: "Juan Dela Cruz",
       email: "juan@test.com",
       phoneNumber: "09171234567",
       customerType: "INDIVIDUAL" as const,
@@ -37,7 +36,7 @@ describe("customerService.create", () => {
 
   it("creates organization customer", async () => {
     const input = {
-      organizationName: "Test Organization",
+      name: "Test Organization",
       email: "test@email.com",
       phoneNumber: "09171234777",
       customerType: "ORGANIZATION" as const,
