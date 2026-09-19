@@ -15,4 +15,14 @@ export const roleController = {
       next(err);
     }
   },
+
+  async create(req: Request, res: Response, next: NextFunction) {
+    try {
+      const newRole = await roleService.create(req.body);
+
+      sendResponse(res, 201, "Role created successfully", newRole);
+    } catch (err) {
+      next(err);
+    }
+  },
 };

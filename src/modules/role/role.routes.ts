@@ -1,10 +1,12 @@
 import { roleController } from "./role.controller.js";
-import { authenticate } from "@/middleware/auth.js";
 import { Router } from "express";
+import { createRoleSchema } from "./role.schema.js";
+import { validate } from "@/middleware/validate.js";
 
 const roleRoutes = Router();
 
 //just option for creating user
-roleRoutes.get("/", authenticate, roleController.list);
+roleRoutes.get("/", roleController.list);
+roleRoutes.post("/", validate(createRoleSchema), roleController.create);
 
 export default roleRoutes;

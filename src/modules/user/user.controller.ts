@@ -74,14 +74,11 @@ export const userController = {
     try {
       const validated = req.validated.body as CreateUserSchema;
 
-      const organizationId = requestContext.getValue(
-        "organizationId",
-      ) as string;
+      // const organizationId = requestContext.getValue(
+      //   "organizationId",
+      // ) as string;
 
-      const user = await userService.createDirect({
-        ...validated,
-        organizationId,
-      });
+      const user = await userService.createDirect(validated);
 
       sendResponse(res, 201, "User created successfully", user);
     } catch (err) {
@@ -119,15 +116,20 @@ export const userController = {
     }
   },
 
-  async resetTokenExpirationDateInvitation(req: Request, res: Response, next:NextFunction) {
-    try{
-      const validated = req.validated.body as ResetTokenExpirationDateInvitationSchema;
+  async resetTokenExpirationDateInvitation(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const validated = req.validated
+        .body as ResetTokenExpirationDateInvitationSchema;
       const response = await userService.resetTokenExpirationDateInvitation(
         validated.token,
-        validated.email
+        validated.email,
       );
       sendResponse(res, 200, "User created successfully", response);
-    }catch (err) {
+    } catch (err) {
       next(err);
     }
   },

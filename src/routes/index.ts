@@ -12,8 +12,8 @@ import organizationRoutes from "@/modules/organization/organization.route.js";
 export const router = Router();
 
 router.use("/auth", authRoutes);
-router.use("/users", authenticate, userRoutes);
-router.use("/organization", authenticate, organizationRoutes);
+router.use("/users", userRoutes);
+router.use("/organization", organizationRoutes);
 router.use("/customers", authenticate, customerRoutes);
 router.use("/permission", permissionRoutes);
 router.use("/role-permission", rolePermissionRoutes);

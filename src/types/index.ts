@@ -45,6 +45,6 @@ export type CreateUserInput = {
   phone?: string;
   password?: string;
   roleId: string;
-  organizationId: string;
+  organizationId?: string;
 };
 

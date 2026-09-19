@@ -49,6 +49,7 @@ export const seedUsers = async (prisma, organizations, roles) => {
           password: passwordHash,
           organizationId: org.id,
           roleId: def.role.id,
+          status: "ACTIVE",
         },
       });
       users.push(user);

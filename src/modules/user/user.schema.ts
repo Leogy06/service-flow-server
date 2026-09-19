@@ -17,6 +17,7 @@ export const createUserSchema = z.object({
     email: z.email("Invalid email").min(1, "Email is required"),
     password: z.string().min(1, "Password is required"),
     roleId: z.string().min(1, "Role ID is required"),
+    organizationId: z.string().optional(),
   }),
 });
 export type CreateUserSchema = z.infer<typeof createUserSchema>["body"];
