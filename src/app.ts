@@ -11,12 +11,14 @@ import { notFound } from "./middleware/notFound.js";
 import { logger } from "@/lib/logger.js";
 import { apiLimiter } from "./middleware/rateLimiter.js";
 import { withRequestContext } from "./middleware/requestContext.middleware.js";
+import { requestLogger } from "./middleware/request-logger.js";
 
 export const app = express();
 
 app.use(helmet());
 app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
 app.use(compression()); // gzip reduces the size of the response
+app.use(requestLogger);
 app.use(express.json());
 app.use(cookieParser());
 app.use(pinoHttp({ logger }));

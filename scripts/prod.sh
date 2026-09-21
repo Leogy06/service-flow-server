@@ -2,22 +2,25 @@
 
 set -e
 
-echo "🚀 Service Flow - Production"
-
 export NODE_ENV=production
 export LOG_LEVEL=info
 
-echo "📦 Installing dependencies..."
-npm ci
+echo "===Service Flow - Production==="
 
-echo "🔍 Running lint..."
+echo "===Installing dependencies==="
+npm ci --include=dev
+
+echo "===Running lint==="
 npm run lint
 
-echo "🔧 Generating Prisma Client..."
+echo "===Generating Prisma Client==="
 npm run generate
 
-echo "🏗️ Building application..."
+echo "===Building application==="
 npm run build
 
-echo "🔥 Starting application..."
+echo "===Pruning dev dependencies==="
+npm prune --omit=dev
+
+echo "===Starting application==="
 npm start
