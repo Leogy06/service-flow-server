@@ -4,6 +4,9 @@ set -e
 
 echo "🚀 Service Flow - Production"
 
+export NODE_ENV=production
+export LOG_LEVEL=info
+
 echo "📦 Installing dependencies..."
 npm ci
 

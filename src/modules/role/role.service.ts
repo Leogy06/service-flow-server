@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma.js";
-import { auditService } from "../audit/audit.service";
+import { auditService } from "@/modules/audit/audit.service";
 import { CreateRoleInput } from "./types";
 
 export const roleService = {

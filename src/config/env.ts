@@ -27,6 +27,11 @@ const envSchema = z.object({
   //resend
   RESEND_API_KEY: z.string().min(1),
   EMAIL_FROM: z.string().min(1),
+
+  //pino
+  LOG_LEVEL: z
+    .enum(["trace", "debug", "info", "warn", "error", "fatal"])
+    .default("info"),
 });
 
 const parsed = envSchema.safeParse(process.env);
