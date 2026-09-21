@@ -27,12 +27,21 @@ export const logger = pino(
           },
 
           transport: {
-            target: "pino-roll",
-            options: {
-              file: "logs/app.log",
-              frequency: "daily",
-              mkdir: true,
-            },
+            targets: [
+              { target: "pino/file", options: { destination: 1 } },
+              {
+                target: "pino-roll",
+                options: {
+                  file: "logs/app.log",
+                  extension: ".log",
+                  frequency: "daily",
+                  dateFormat: "yyyy-MM-dd",
+                  size: "10m",
+                  limit: { count: 14 },
+                  mkdir: true,
+                },
+              },
+            ],
           },
         }
       : {

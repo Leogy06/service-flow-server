@@ -32,7 +32,6 @@ const envSchema = z.object({
   //pino
   LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
-    .default("info"),
 });
 
 const parsed = envSchema.safeParse(process.env);
