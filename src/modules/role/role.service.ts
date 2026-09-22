@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma.js";
 import { auditService } from "@/modules/audit/audit.service";
 import { CreateRoleInput } from "./types";
+import { AppError } from "@/utils/AppError";
 
 export const roleService = {
   async list(organizationId: string) {
+    if (!organizationId) throw new AppError(422, "Organization id is missing");
     return await prisma.role.findMany({
       where: {
         organizationId,
