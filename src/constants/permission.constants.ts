@@ -22,8 +22,7 @@ export const PERMISSIONS = {
   DASHBOARD_READ: "dashboard:read",
 
   USER_CREATE: "user:create",
+  USER_UPDATE: "user:update",
 
   ROLE_READ: "role:read",
-
-  USER_ASSIGN_ROLE: "user:assign-role",
 } as const;

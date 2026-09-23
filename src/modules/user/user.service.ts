@@ -12,6 +12,7 @@ import crypto from "node:crypto";
 import { sendInviteEmail } from "@/lib/email/send-invite.js";
 import { auditService } from "@/modules/audit/audit.service.js";
 import { SetPasswordParams, SetPasswordSchema } from "./user.schema.js";
+import { UserUpdateInput } from "./types";
 
 const DEFAULT_USER_SELECT = {
   id: true,
@@ -311,7 +312,7 @@ export const userService = {
     return updatedUser;
   },
 
-  async update(id: string, input: Prisma.UserUpdateInput) {
+  async update(id: string, input: UserUpdateInput) {
     //check if already deleted
     const existing = await this.getById(id);
     if (!existing || existing.deletedAt)
@@ -319,6 +320,14 @@ export const userService = {
 
     const user = await prisma.user.update({ where: { id }, data: input });
     await this.invalidateUserCache(id);
+
+    void auditService.record({
+      action: "update.user.success",
+      entity: "User",
+      entityId: user.id,
+      after: user,
+      before: existing,
+    });
 
     return user;
   },

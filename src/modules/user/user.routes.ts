@@ -9,6 +9,7 @@ import {
   resetTokenExpirationDateInvitationSchema,
   setPasswordParams,
   setPasswordSchema,
+  userUpdateSchema,
 } from "./user.schema.js";
 import { writeLimmiter } from "@/middleware/rateLimiter.js";
 
@@ -22,6 +23,15 @@ userRoutes.post(
   validate(createUserSchema),
   userController.create,
 );
+//update user
+userRoutes.put(
+  "/:id",
+  writeLimmiter,
+  requirePermission(PERMISSIONS.USER_UPDATE),
+  validate(userUpdateSchema),
+  userController.update,
+);
+
 userRoutes.post(
   "/invite-email",
   writeLimmiter,

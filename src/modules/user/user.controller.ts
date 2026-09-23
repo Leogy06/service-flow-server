@@ -11,6 +11,7 @@ import {
   SetPasswordParams,
   SetPasswordSchema,
 } from "./user.schema.js";
+import { UserUpdateInput } from "./types.js";
 
 export const userController = {
   async list(req: Request, res: Response, next: NextFunction) {
@@ -44,7 +45,7 @@ export const userController = {
 
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      const parsed = req.body;
+      const parsed = req.validated.body as UserUpdateInput;
       const user = await userService.update(req.params.id as string, parsed);
       sendResponse(res, 200, "User updated successfully", user);
     } catch (err) {
