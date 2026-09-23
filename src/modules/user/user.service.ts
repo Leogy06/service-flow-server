@@ -21,6 +21,7 @@ const DEFAULT_USER_SELECT = {
   lastName: true,
   role: true,
   status: true,
+  organizationId: true,
 } satisfies Prisma.UserSelect;
 
 interface ListProps {
@@ -313,10 +314,28 @@ export const userService = {
   },
 
   async update(id: string, input: UserUpdateInput, authUserOrg: string) {
-    //check if already deleted
-    const existing = await this.getById(id);
-    if (!existing || existing.deletedAt)
-      throw new AppError(404, "User not found");
+    //create promise all
+    const [existing, existingEmail, existingPhone] = await Promise.all([
+      this.getById(id),
+      prisma.user.findUnique({
+        where: {
+          email: input.email,
+        },
+      }),
+      prisma.user.findUnique({
+        where: {
+          phone: input.phone,
+        },
+      }),
+    ]);
+
+    if (!existing) throw new AppError(404, "User not found");
+
+    if (existingPhone && existingPhone.id !== id)
+      throw new AppError(409, "Phone number already in use");
+
+    if (existingEmail && existingEmail.id !== id)
+      throw new AppError(409, "Email already in use");
 
     //check if existing and authUserOrg is the same org
     if (existing.organizationId !== authUserOrg)

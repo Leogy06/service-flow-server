@@ -37,7 +37,6 @@ export const logger = pino(
                   frequency: "daily",
                   dateFormat: "yyyy-MM-dd",
                   size: "10m",
-                  limit: { count: 14 },
                   mkdir: true,
                 },
               },
