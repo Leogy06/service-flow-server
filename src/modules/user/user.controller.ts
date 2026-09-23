@@ -46,7 +46,12 @@ export const userController = {
   async update(req: Request, res: Response, next: NextFunction) {
     try {
       const parsed = req.validated.body as UserUpdateInput;
-      const user = await userService.update(req.params.id as string, parsed);
+      const authUserOrg = requestContext.getValue("organizationId") as string;
+      const user = await userService.update(
+        req.params.id as string,
+        parsed,
+        authUserOrg,
+      );
       sendResponse(res, 200, "User updated successfully", user);
     } catch (err) {
       next(err);

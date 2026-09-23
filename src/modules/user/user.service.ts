@@ -312,11 +312,15 @@ export const userService = {
     return updatedUser;
   },
 
-  async update(id: string, input: UserUpdateInput) {
+  async update(id: string, input: UserUpdateInput, authUserOrg: string) {
     //check if already deleted
     const existing = await this.getById(id);
     if (!existing || existing.deletedAt)
       throw new AppError(404, "User not found");
+
+    //check if existing and authUserOrg is the same org
+    if (existing.organizationId !== authUserOrg)
+      throw new AppError(403, "Forbidden - User does not belong to this org");
 
     const user = await prisma.user.update({ where: { id }, data: input });
     await this.invalidateUserCache(id);
