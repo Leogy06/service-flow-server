@@ -19,6 +19,8 @@ const DEFAULT_USER_SELECT = {
   email: true,
   firstName: true,
   lastName: true,
+  middleName: true,
+  suffix: true,
   role: true,
   status: true,
   organizationId: true,
