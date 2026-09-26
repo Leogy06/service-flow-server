@@ -24,6 +24,7 @@ const DEFAULT_USER_SELECT = {
   role: true,
   status: true,
   organizationId: true,
+  phone: true,
 } satisfies Prisma.UserSelect;
 
 interface ListProps {
