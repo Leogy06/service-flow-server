@@ -26,7 +26,7 @@ export const createUserInviteSchema = z.object({
   }),
 });
 export const userUpdateSchema = z.object({
-  body: baseUserSchema.extend({
+  body: baseUserSchema.omit({ organizationId: true, roleId: true }).extend({
     id: z.string().min(1, "User ID is required"),
   }),
 });
