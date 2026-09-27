@@ -26,4 +26,11 @@ export const PERMISSIONS = {
 
   ROLE_READ: "role:read",
   ROLE_CREATE: "role:create",
+  ROLE_UPDATE: "role:update",
+  ROLE_DELETE: "role:delete",
+
+  SYSTEM_ADMIN_READ: "system_admin:read",
+  SYSTEM_ADMIN_UPDATE: "system_admin:update",
+  
+  
 } as const;

@@ -6,9 +6,11 @@ export const seedPermissions = async (prisma) => {
     "customer",
     "job",
     "invoice",
-    "serviceRequest",
+    "service-request",
     "user",
     "dashboard",
+    "role",
+    "system-admin",
   ];
 
   const data = [];
