@@ -1,4 +1,4 @@
-import { Prisma } from "@/generated/prisma/client.js";
+import { Prisma, UserStatus } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
 import { AppError } from "@/utils/AppError.js";
 import {
@@ -35,6 +35,9 @@ interface ListProps {
   sortOrder?: "asc" | "desc";
   sortBy?: string;
   organizationId: string;
+  status: "active" | "pending" | null;
+  roleId?: string;
+  deleted: boolean;
 }
 
 const ALLOWED_SORT_FIELDS = ["createdAt", "firstName", "lastName", "email"];
@@ -48,14 +51,16 @@ export const userService = {
     sortOrder = "desc",
     sortBy = "createdAt",
     organizationId,
+    status, // active | pending
+    roleId,
+    deleted,
   }: ListProps) {
     if (!organizationId) throw new AppError(400, "Organization ID is required");
     if (!ALLOWED_SORT_FIELDS.includes(sortBy)) sortBy = "createdAt";
 
-    const cacheKey = `cache:users:list:${organizationId}:${JSON.stringify(select)}:${page}:${pageSize}:${search}:${sortOrder}:${sortBy}`;
+    const cacheKey = `cache:users:list:${organizationId}:${JSON.stringify(select)}:${page}:${pageSize}:${search}:${sortOrder}:${sortBy}:${status ?? ""}:${roleId ?? ""}:${deleted ?? ""}`;
 
     const where = {
-      deletedAt: null,
       organizationId,
       OR: search
         ? [
@@ -64,6 +69,10 @@ export const userService = {
             { email: { contains: search, mode: "insensitive" } },
           ]
         : undefined,
+      deletedAt: deleted ? { not: null } : null,
+      ...(status === "active" ? { status: UserStatus.ACTIVE } : {}),
+      ...(status === "pending" ? { status: UserStatus.PENDING } : {}),
+      ...(roleId ? { roleId } : {}),
     };
 
     const { users, total } = await getOrSetCache(

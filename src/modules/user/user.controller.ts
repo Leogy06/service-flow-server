@@ -27,6 +27,9 @@ export const userController = {
         search: req.query.search as string,
         sortOrder: req.query.sortOrder as "asc" | "desc",
         sortBy: req.query.sortBy as string,
+        status: req.query.status as "active" | "pending" | null,
+        roleId: req.query.roleId as string,
+        deleted: req.query.deleted === "true",
       });
       sendResponse(res, 200, "Users fetched successfully", users);
     } catch (err) {
