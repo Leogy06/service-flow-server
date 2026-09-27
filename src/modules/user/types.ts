@@ -8,6 +8,7 @@ export type UserBase = {
   phone: string;
   organizationId: string;
   roleId: string;
+  password?: string;
 };
 
 // Create — no id (auto-gen), organizationId optional (system admin case, no org)

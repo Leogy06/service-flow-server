@@ -14,10 +14,14 @@ export const systemAdminSchema = z.object({
     )
     .min(1, "Phone number is required"),
   email: z.email("Invalid email").min(1, "Email is required"),
+  password: z.string().min(1, "Password is required"),
   roleId: z.string().min(1, "Role ID is required"),
+  organizationId: z.string().min(1, "Organization ID is required"),
 });
 
-export const systemAdminCreateSchema = systemAdminSchema;
-export type UserCreateSystemAdminInput = z.infer<
+export const systemAdminCreateSchema = z.object({
+  body: systemAdminSchema.omit({ organizationId: true }),
+}); // extends systemAdminSchema;
+export type SystemAdminCreateInput = z.infer<
   typeof systemAdminCreateSchema
->;
+>["body"];
