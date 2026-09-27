@@ -13,4 +13,11 @@ userPermissionRoutes.patch(
   userPermissionController.updatePermissions,
 );
 
+userPermissionRoutes.patch(
+  "/system-admin/:userId",
+  authenticate,
+  validate(updateUserPermissionSchema),
+  userPermissionController.systemAdminUpdatePermissions,
+);
+
 export default userPermissionRoutes;

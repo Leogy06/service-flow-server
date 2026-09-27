@@ -29,4 +29,22 @@ export const userPermissionController = {
       next(e);
     }
   },
+
+  async systemAdminUpdatePermissions(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const validated = req.validated.body as { permissionIds: string[] };
+      const response = await userPermissionService.systemAdminUpdatePermission(
+        req.params.userId as string,
+        validated.permissionIds,
+      );
+
+      sendResponse(res, 200, "User permissions updated successfully", response);
+    } catch (e) {
+      next(e);
+    }
+  },
 };

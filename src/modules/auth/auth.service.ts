@@ -123,6 +123,10 @@ export const authService = {
       },
     });
 
+    //throw error if user has no organizationId
+    if (!user?.organizationId)
+      throw new AppError(400, "User has no organization");
+
     if (!user || !(await bcrypt.compare(password, user.password!))) {
       throw new AppError(401, "Invalid credentials");
     }
@@ -256,8 +260,8 @@ export const authService = {
         role: {
           select: {
             permissions: {
-              where:{
-                isActive: true
+              where: {
+                isActive: true,
               },
               select: {
                 permission: {
