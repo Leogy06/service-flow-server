@@ -11,5 +11,7 @@ export const errorHandler: ErrorRequestHandler = (err, _, res, _next) => {
   }
 
   logger.error({ err }, "Unhandled error");
-  return res.status(500).json({ error: "Internal server error" });
+  return res
+    .status(500)
+    .json({ error: "Internal server error", message: err.message });
 };

@@ -18,7 +18,9 @@ export const baseUserSchema = z.object({
   organizationId: z.string().optional(),
 });
 export const createUserSchema = z.object({
-  body: baseUserSchema,
+  body: baseUserSchema.omit({
+    organizationId: true,
+  }),
 });
 export const createUserInviteSchema = z.object({
   body: baseUserSchema.extend({

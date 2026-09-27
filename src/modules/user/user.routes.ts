@@ -8,7 +8,6 @@ import {
   createUserSchema,
   resetTokenExpirationDateInvitationSchema,
   setPasswordParams,
-  setPasswordSchema,
   userUpdateSchema,
 } from "./user.schema.js";
 import { writeLimmiter } from "@/middleware/rateLimiter.js";
@@ -27,16 +26,16 @@ userRoutes.post(
 userRoutes.put(
   "/:id",
   writeLimmiter,
-  requirePermission(PERMISSIONS.USER_UPDATE),
   validate(userUpdateSchema),
+  requirePermission(PERMISSIONS.USER_UPDATE),
   userController.update,
 );
 
 userRoutes.post(
   "/invite-email",
   writeLimmiter,
-  requirePermission(PERMISSIONS.USER_CREATE),
   validate(createUserInviteSchema),
+  requirePermission(PERMISSIONS.USER_CREATE),
   userController.createWithInvite,
 );
 userRoutes.get(
@@ -51,7 +50,6 @@ userRoutes.put(
 userRoutes.put(
   "/set-password/:token/:email",
   validate(setPasswordParams),
-  validate(setPasswordSchema),
   userController.setPassword,
 );
 userRoutes.get("/by-id/:id", userController.getById);

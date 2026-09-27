@@ -8,6 +8,7 @@ import customerRoutes from "@/modules/customer/customer.routes.js";
 import rolePermissionRoutes from "@/modules/role-permission/role.permission.routes.js";
 import userRoutes from "@/modules/user/user.routes.js";
 import organizationRoutes from "@/modules/organization/organization.route.js";
+import systemAdminRoutes from "@/modules/user/routes/system-admin.routes.js";
 
 export const router = Router();
 
@@ -19,5 +20,6 @@ router.use("/permission", permissionRoutes);
 router.use("/role-permission", rolePermissionRoutes);
 router.use("/user-permission", userPermissionRoutes);
 router.use("/role", authenticate, roleRoutes);
+router.use("/system-admin", authenticate, systemAdminRoutes);
 
 router.get("/health", (_req, res) => res.json({ status: "ok" }));

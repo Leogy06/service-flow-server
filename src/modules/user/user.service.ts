@@ -126,21 +126,23 @@ export const userService = {
     if (isEmailExist) throw new AppError(409, "Email already in use");
     if (isPhoneExist) throw new AppError(409, "Phone already in use");
 
-    const [organization, role] = await Promise.all([
-      prisma.organization.findUnique({
+    if (input.organizationId) {
+      const organization = await prisma.organization.findUnique({
         where: { id: input.organizationId },
-      }),
-      prisma.role.findFirst({
+      });
+      if (!organization) throw new AppError(404, "Organization not found");
+    }
+
+    if (input.roleId) {
+      const role = await prisma.role.findFirst({
         where: {
           id: input.roleId,
           organizationId: input.organizationId,
         },
-      }),
-    ]);
-    if (!organization) throw new AppError(404, "Organization not found");
-    if (!role) throw new AppError(404, "Role not found");
-
-    return { organization, role };
+      });
+      if (!role) throw new AppError(404, "Role not found");
+    }
+    return input;
   },
 
   async createDirect(input: CreateUserInput) {
