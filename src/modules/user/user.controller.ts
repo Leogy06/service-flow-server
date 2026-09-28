@@ -37,15 +37,6 @@ export const userController = {
     }
   },
 
-  async getById(req: Request, res: Response, next: NextFunction) {
-    try {
-      const user = await userService.getById(req.params.id as string);
-      sendResponse(res, 200, "OK", user);
-    } catch (err) {
-      next(err);
-    }
-  },
-
   async update(req: Request, res: Response, next: NextFunction) {
     try {
       const parsed = req.validated.body as UserUpdateInput;
@@ -66,9 +57,13 @@ export const userController = {
       const organizationId = requestContext.getValue(
         "organizationId",
       ) as string;
+
+      const actorId = requestContext.getValue("userId") as string;
+
       const user = await userService.delete(
         req.params.id as string,
         organizationId,
+        actorId,
       );
 
       sendResponse(res, 200, "User deleted successfully", user);
@@ -78,8 +73,12 @@ export const userController = {
   },
 
   async restore(req: Request, res: Response, next: NextFunction) {
+    const organizationId = requestContext.getValue("organizationId") as string;
     try {
-      const user = await userService.restore(req.params.id as string);
+      const user = await userService.restore(
+        req.params.id as string,
+        organizationId,
+      );
       sendResponse(res, 200, "User restored successfully", user);
     } catch (err) {
       next(err);

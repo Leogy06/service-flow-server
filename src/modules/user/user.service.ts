@@ -1,18 +1,21 @@
-import { Prisma, UserStatus } from "@/generated/prisma/client.js";
-import { prisma } from "@/lib/prisma.js";
-import { AppError } from "@/utils/AppError.js";
+import { Prisma, UserStatus } from "@/generated/prisma/client";
+import { prisma } from "@/lib/prisma";
+import { AppError } from "@/utils/AppError";
 import {
   DEFAULT_TTL_SECONDS,
   getOrSetCache,
   invalidateCache,
-} from "@/utils/cache.js";
-import { hashedPassword } from "@/utils/bcrypPassword.js";
-import { CreateUserInput } from "@/types/index.js";
+} from "@/utils/cache";
+import { hashedPassword } from "@/utils/bcrypPassword";
+import { CreateUserInput } from "@/types/index";
 import crypto from "node:crypto";
-import { sendInviteEmail } from "@/lib/email/send-invite.js";
-import { auditService } from "@/modules/audit/audit.service.js";
-import { SetPasswordParams, SetPasswordSchema } from "./user.schema.js";
+import { sendInviteEmail } from "@/lib/email/send-invite";
+import { auditService } from "@/modules/audit/audit.service";
+import { SetPasswordParams, SetPasswordSchema } from "./user.schema";
 import { UserUpdateInput } from "./types";
+import { userScope } from "@/utils/user-utils/user-scope";
+import { isPrismaError } from "@/utils/errorHelper";
+import { stripSecrets } from "@/utils/user-utils/stripSecrets";
 
 const DEFAULT_USER_SELECT = {
   id: true,
@@ -25,6 +28,7 @@ const DEFAULT_USER_SELECT = {
   status: true,
   organizationId: true,
   phone: true,
+  deletedAt: true,
 } satisfies Prisma.UserSelect;
 
 interface ListProps {
@@ -43,6 +47,26 @@ interface ListProps {
 const ALLOWED_SORT_FIELDS = ["createdAt", "firstName", "lastName", "email"];
 
 export const userService = {
+  async getById(
+    id: string,
+    organizationId: string,
+    opts: { deleted?: boolean; select?: Prisma.UserSelect } = {},
+  ) {
+    const { deleted = false, select = DEFAULT_USER_SELECT } = opts;
+
+    const cacheKey = `cache:user:byId:${organizationId}:${id}:${deleted}:${JSON.stringify(select)}`;
+
+    const user = await getOrSetCache(cacheKey, DEFAULT_TTL_SECONDS, () =>
+      prisma.user.findUnique({
+        where: { id, ...userScope(organizationId, { deleted }) },
+        select,
+      }),
+    );
+
+    if (!user) throw new AppError(404, "User not found");
+    return user;
+  },
+
   async list({
     select = DEFAULT_USER_SELECT,
     page = 1,
@@ -110,21 +134,14 @@ export const userService = {
     };
   },
 
-  async getById(id: string, select: Prisma.UserSelect = DEFAULT_USER_SELECT) {
-    const cacheKey = `cache:user:byId:${id}:${JSON.stringify(select)}`;
-    const user = await getOrSetCache(cacheKey, DEFAULT_TTL_SECONDS, () =>
-      prisma.user.findUnique({ where: { id, deletedAt: null }, select }),
-    );
-
-    if (!user) throw new AppError(404, "User not founddd");
-
-    return user;
-  },
-
   async invalidateUserCache(userId?: string) {
-    await invalidateCache("cache:users:list*"); //invalidate all users list cache keys
-
-    if (userId) await invalidateCache(`cache:user:byId:${userId}*`); //invalidate specific user cache key
+    try {
+      await invalidateCache("cache:users:list*");
+      if (userId) await invalidateCache(`cache:user:byId:*:${userId}:*`);
+    } catch (err) {
+      console.error("cache invalidation failed:", err);
+      throw err;
+    }
   },
 
   async validateCreateInput(input: CreateUserInput) {
@@ -297,6 +314,7 @@ export const userService = {
       where: {
         email: params.email,
         inviteToken: params.token,
+        deletedAt: null,
       },
     });
 
@@ -313,9 +331,11 @@ export const userService = {
     const password = await hashedPassword(input.password!);
 
     const updatedUser = await prisma.user.update({
-      where: { id: user.id },
+      where: { id: user.id, deletedAt: null },
       data: { password },
     });
+
+    if (!updatedUser) throw new AppError(404, "User not found");
 
     void auditService.record({
       action: "set.password.success",
@@ -327,96 +347,134 @@ export const userService = {
     return updatedUser;
   },
 
-  async update(id: string, input: UserUpdateInput, authUserOrg: string) {
-    //create promise all
-    const [existing, existingEmail, existingPhone] = await Promise.all([
-      this.getById(id),
-      prisma.user.findUnique({
-        where: {
-          email: input.email,
-        },
-      }),
-      prisma.user.findUnique({
-        where: {
-          phone: input.phone,
-        },
-      }),
+  async update(
+    id: string,
+    input: UserUpdateInput,
+    authUserOrg: string,
+  ) {
+    const existing = await this.getById(id, authUserOrg); // 404 if missing, deleted, other org
+
+    const [byEmail, byPhone] = await Promise.all([
+      input.email
+        ? prisma.user.findUnique({
+            where: { email: input.email },
+            select: { id: true },
+          })
+        : null,
+      input.phone
+        ? prisma.user.findUnique({
+            where: { phone: input.phone },
+            select: { id: true },
+          })
+        : null,
     ]);
-
-    if (!existing) throw new AppError(404, "User not found");
-
-    if (existingPhone && existingPhone.id !== id)
+    if (byEmail && byEmail.id !== id)
+      throw new AppError(409, "Email already in use");
+    if (byPhone && byPhone.id !== id)
       throw new AppError(409, "Phone number already in use");
 
-    if (existingEmail && existingEmail.id !== id)
-      throw new AppError(409, "Email already in use");
 
-    //check if existing and authUserOrg is the same org
-    if (existing.organizationId !== authUserOrg)
-      throw new AppError(403, "Forbidden - User does not belong to this org");
+    let user;
+    try {
+      user = await prisma.user.update({
+        where: { id, ...userScope(authUserOrg) },
+        data: {
+          firstName: input.firstName,
+          lastName: input.lastName,
+          middleName: input.middleName,
+          suffix: input.suffix,
+          email: input.email,
+          phone: input.phone,
+        },
+      });
+    } catch (error) {
+      if (isPrismaError(error, "P2025"))
+        throw new AppError(404, "User not found");
+      if (isPrismaError(error, "P2002"))
+        throw new AppError(409, "Email or phone already in use");
+      throw error;
+    }
 
-    const user = await prisma.user.update({ where: { id }, data: input });
+    const safe = stripSecrets(user);
+
+    void auditService
+      .record({
+        action: "update.user.success",
+        entity: "User",
+        entityId: user.id,
+        before: existing,
+        after: safe,
+      })
+      .catch((err) => console.error("audit failed:", err));
+
     await this.invalidateUserCache(id);
-
-    void auditService.record({
-      action: "update.user.success",
-      entity: "User",
-      entityId: user.id,
-      after: user,
-      before: existing,
-    });
-
-    return user;
+    return safe;
   },
 
-  async delete(id: string, authUserOrg: string) {
-    //check if existing and deleted
-    const existing = await this.getById(id);
-    if (!existing || existing.deletedAt)
-      throw new AppError(404, "User not found");
+  async delete(id: string, authUserOrg: string, actorId: string) {
+    if (actorId === id) {
+      throw new AppError(400, "You cannot delete your own account.");
+    }
 
-    //check if existing and authUserOrg is the same org
-    if (existing.organizationId !== authUserOrg)
-      throw new AppError(403, "Forbidden - User does not belong to this org");
+    const existing = await this.getById(id, authUserOrg);
 
-    //check if existing and not deleted
-    if (existing.deletedAt !== null)
-      throw new AppError(404, "User already deleted");
+    let user;
 
-    const user = await prisma.user.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    try {
+      user = await prisma.user.update({
+        where: { id, ...userScope(authUserOrg) },
+        data: { deletedAt: new Date() },
+      });
+    } catch (error) {
+      if (isPrismaError(error, "P2025"))
+        throw new AppError(400, "User does not exist");
 
-    //audit log
+      throw error;
+    }
+
+    const safe = stripSecrets(user);
 
     void auditService.record({
       action: "delete.user.success",
       entity: "User",
       entityId: user.id,
       before: JSON.stringify(existing),
-      after: JSON.stringify(user),
+      after: JSON.stringify(safe),
     });
 
-    //invalidate cache
     await this.invalidateUserCache(id);
 
-    return user;
+    return safe;
   },
 
-  async restore(id: string) {
+  async restore(id: string, authUserOrg: string) {
     //check if existing and not deleted
-    const existing = await this.getById(id);
-    if (!existing || !existing.deletedAt)
-      throw new AppError(404, "User not found");
+    const existing = await this.getById(id, authUserOrg, {deleted:true});
+    let user;
+    try {
+      user = await prisma.user.update({
+        where: { id, ...userScope(authUserOrg, {deleted:true}) },
+        data: { deletedAt: null },
+      });
+    } catch(error) {
+      if(isPrismaError(error, "P2025"))
+        throw new AppError(400, "User does not exist");
+      throw error;
+    }
 
-    const user = await prisma.user.update({
-      where: { id },
-      data: { deletedAt: null },
-    });
+    const safe = stripSecrets(user);
+
+    void auditService.record({
+      action: "restore.user.success",
+      entity: "User",
+      entityId: user.id,
+      before: JSON.stringify(existing),
+      after: JSON.stringify(safe),
+    }).catch((err) => console.error("audit failed:", err));
+
     await this.invalidateUserCache(id);
-
-    return user;
+    
+    return safe;
   },
 
   async listForPermissionManagement(organizationId: string) {

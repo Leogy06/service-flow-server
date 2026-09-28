@@ -52,7 +52,6 @@ userRoutes.put(
   validate(setPasswordParams),
   userController.setPassword,
 );
-userRoutes.get("/by-id/:id", userController.getById);
 userRoutes.patch("/:id/restore", userController.restore);
 userRoutes.put("/:id", userController.update);
 userRoutes.delete("/:id", userController.delete);
@@ -60,6 +59,5 @@ userRoutes.get(
   "/list-for-permission-management",
   userController.listForPermissionManagement,
 );
-userRoutes.get("/by-id/:id", userController.getById);
 
 export default userRoutes;
