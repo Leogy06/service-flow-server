@@ -369,16 +369,36 @@ export const userService = {
     return user;
   },
 
-  async delete(id: string) {
+  async delete(id: string, authUserOrg: string) {
     //check if existing and deleted
     const existing = await this.getById(id);
     if (!existing || existing.deletedAt)
       throw new AppError(404, "User not found");
 
+    //check if existing and authUserOrg is the same org
+    if (existing.organizationId !== authUserOrg)
+      throw new AppError(403, "Forbidden - User does not belong to this org");
+
+    //check if existing and not deleted
+    if (existing.deletedAt !== null)
+      throw new AppError(404, "User already deleted");
+
     const user = await prisma.user.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
+
+    //audit log
+
+    void auditService.record({
+      action: "delete.user.success",
+      entity: "User",
+      entityId: user.id,
+      before: JSON.stringify(existing),
+      after: JSON.stringify(user),
+    });
+
+    //invalidate cache
     await this.invalidateUserCache(id);
 
     return user;
