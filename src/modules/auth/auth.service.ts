@@ -123,6 +123,8 @@ export const authService = {
       },
     });
 
+    if (!user) throw new AppError(404, "User not found");
+
     //throw error if user has no organizationId
     if (!user?.organizationId)
       throw new AppError(400, "User has no organization");
