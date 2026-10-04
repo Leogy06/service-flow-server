@@ -65,7 +65,7 @@ export const writeLimmiter = rateLimit({
 });
 
 export const deleteLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
+  windowMs: 15 * 60 * 1000, // 15 min
   limit: 1,
   standardHeaders: true,
   legacyHeaders: false,
