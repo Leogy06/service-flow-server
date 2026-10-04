@@ -23,6 +23,8 @@ export const PERMISSIONS = {
 
   USER_CREATE: "user:create",
   USER_UPDATE: "user:update",
+  USER_DELETE: "user:delete",
+  USER_READ: "user:read",
 
   ROLE_READ: "role:read",
   ROLE_CREATE: "role:create",
@@ -31,6 +33,4 @@ export const PERMISSIONS = {
 
   SYSTEM_ADMIN_READ: "system_admin:read",
   SYSTEM_ADMIN_UPDATE: "system_admin:update",
-  
-  
 } as const;

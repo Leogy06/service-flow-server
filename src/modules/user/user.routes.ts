@@ -10,7 +10,7 @@ import {
   setPasswordParams,
   userUpdateSchema,
 } from "./user.schema.js";
-import { writeLimmiter } from "@/middleware/rateLimiter.js";
+import { deleteLimiter, writeLimmiter } from "@/middleware/rateLimiter.js";
 
 //already authenticate in index route
 const userRoutes = Router();
@@ -54,7 +54,12 @@ userRoutes.put(
 );
 userRoutes.patch("/:id/restore", userController.restore);
 userRoutes.put("/:id", userController.update);
-userRoutes.delete("/:id", userController.delete);
+userRoutes.delete(
+  "/:id",
+  deleteLimiter,
+  requirePermission(PERMISSIONS.USER_DELETE),
+  userController.delete,
+);
 userRoutes.get(
   "/list-for-permission-management",
   userController.listForPermissionManagement,

@@ -63,3 +63,12 @@ export const writeLimmiter = rateLimit({
   store: redisStore("write"),
   handler: limitReached,
 });
+
+export const deleteLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  limit: 1,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: redisStore("delete"),
+  handler: limitReached,
+});
