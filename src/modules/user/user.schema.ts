@@ -32,6 +32,14 @@ export const userUpdateSchema = z.object({
     id: z.string().min(1, "User ID is required"),
   }),
 });
+export const userListQuerySchema = z.object({
+  query: z
+    .object({
+      status: z.enum(["active", "pending"]).optional(),
+      roleName: z.enum(["Admin", "Manager"]).optional(),
+    })
+    .passthrough(),
+});
 export const setPasswordSchema = z.object({
   body: z.object({
     password: z.string().min(1, "Password is required"),

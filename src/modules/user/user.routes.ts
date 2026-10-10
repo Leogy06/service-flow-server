@@ -9,13 +9,14 @@ import {
   resetTokenExpirationDateInvitationSchema,
   setPasswordParams,
   userUpdateSchema,
+  userListQuerySchema,
 } from "./user.schema.js";
 import { deleteLimiter, writeLimmiter } from "@/middleware/rateLimiter.js";
 
 //already authenticate in index route
 const userRoutes = Router();
 
-userRoutes.get("/", userController.list);
+userRoutes.get("/", validate(userListQuerySchema), userController.list);
 userRoutes.post(
   "/",
   writeLimmiter,

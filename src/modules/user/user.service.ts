@@ -39,7 +39,8 @@ interface ListProps {
   sortOrder?: "asc" | "desc";
   sortBy?: string;
   organizationId: string;
-  status: "active" | "pending" | null;
+  status?: "active" | "pending" | null;
+  roleName?: "Admin" | "Manager";
   roleId?: string;
   deleted: boolean;
 }
@@ -76,13 +77,14 @@ export const userService = {
     sortBy = "createdAt",
     organizationId,
     status, // active | pending
+    roleName,
     roleId,
     deleted,
   }: ListProps) {
     if (!organizationId) throw new AppError(400, "Organization ID is required");
     if (!ALLOWED_SORT_FIELDS.includes(sortBy)) sortBy = "createdAt";
 
-    const cacheKey = `cache:users:list:${organizationId}:${JSON.stringify(select)}:${page}:${pageSize}:${search}:${sortOrder}:${sortBy}:${status ?? ""}:${roleId ?? ""}:${deleted ?? ""}`;
+    const cacheKey = `cache:users:list:${organizationId}:${JSON.stringify(select)}:${page}:${pageSize}:${search}:${sortOrder}:${sortBy}:${status ?? ""}:${roleId ?? ""}:${roleName ?? ""}:${deleted ?? ""}`;
 
     const where = {
       organizationId,
@@ -97,6 +99,7 @@ export const userService = {
       ...(status === "active" ? { status: UserStatus.ACTIVE } : {}),
       ...(status === "pending" ? { status: UserStatus.PENDING } : {}),
       ...(roleId ? { roleId } : {}),
+      ...(roleName ? { role: { name: roleName } } : {}),
     };
 
     const { users, total } = await getOrSetCache(

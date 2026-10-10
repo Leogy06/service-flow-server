@@ -27,7 +27,8 @@ export const userController = {
         search: req.query.search as string,
         sortOrder: req.query.sortOrder as "asc" | "desc",
         sortBy: req.query.sortBy as string,
-        status: req.query.status as "active" | "pending" | null,
+        status: req.validated.query.status as "active" | "pending" | undefined,
+        roleName: req.validated.query.roleName as "Admin" | "Manager" | undefined,
         roleId: req.query.roleId as string,
         deleted: req.query.deleted === "true",
       });
