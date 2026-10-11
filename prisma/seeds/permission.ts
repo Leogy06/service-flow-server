@@ -1,38 +1,13 @@
-export const seedPermissions = async (prisma) => {
-  console.log("Seeding permissions...");
+import type { Prisma } from "../../src/generated/prisma/client.js";
+import { PERMISSIONS } from "../../src/constants/permission.constants.js";
 
-  const actions = ["create", "read", "update", "delete"];
-  const resources = [
-    "customer",
-    "job",
-    "invoice",
-    "service-request",
-    "user",
-    "dashboard",
-    "role",
-    "system-admin",
-  ];
-
-  const data = [];
-  for (const resource of resources) {
-    for (const action of actions) {
-      data.push({
-        name: `${resource}:${action}`,
-        description: `Can ${action} ${resource}`,
-      });
-    }
-  }
-
-  const permissions = await Promise.all(
-    data.map((perm) =>
-      prisma.permission.upsert({
-        where: { name: perm.name },
-        update: {},
-        create: perm,
-      }),
-    ),
-  );
-
-  console.log(`Seeded ${permissions.length} permissions`);
+export const seedPermissions = async (prisma: Prisma.TransactionClient) => {
+  const permissions = await Promise.all(Object.values(PERMISSIONS).map((name) =>
+    prisma.permission.upsert({
+      where: { name }, update: {},
+      create: { name, description: "Can " + name.replace(":", " ") },
+    }),
+  ));
+  console.log("Seeded " + permissions.length + " permissions");
   return permissions;
 };

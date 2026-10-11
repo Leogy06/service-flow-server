@@ -15,7 +15,7 @@ const refreshCookieOptions = {
 export const authController = {
   async register(req: Request, res: Response, next: NextFunction) {
     try {
-      const user = await authService.register(req.body);
+      const user = await authService.register(req.validated.body as Parameters<typeof authService.register>[0]);
       res.status(201).json(user);
     } catch (err) {
       next(err);

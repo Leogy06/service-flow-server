@@ -10,15 +10,19 @@ import {
   setPasswordParams,
   userUpdateSchema,
   userListQuerySchema,
+  assignUserRoleSchema,
 } from "./user.schema.js";
 import { deleteLimiter, writeLimmiter } from "@/middleware/rateLimiter.js";
+import { userPermissionController } from "@/modules/user-permission/user.permission.controller.js";
 
 //already authenticate in index route
 const userRoutes = Router();
 
-userRoutes.get("/", validate(userListQuerySchema), userController.list);
+userRoutes.get("/", requirePermission(PERMISSIONS.USER_READ), validate(userListQuerySchema), userController.list);
+userRoutes.patch("/:id/role", requirePermission(PERMISSIONS.USER_UPDATE), writeLimmiter, validate(assignUserRoleSchema), userPermissionController.assignRole);
 userRoutes.post(
   "/",
+  requirePermission(PERMISSIONS.USER_CREATE),
   writeLimmiter,
   validate(createUserSchema),
   userController.create,
@@ -41,6 +45,7 @@ userRoutes.post(
 );
 userRoutes.get(
   "/list-for-permission-management",
+  requirePermission(PERMISSIONS.USER_READ),
   userController.listForPermissionManagement,
 );
 userRoutes.put(
@@ -53,17 +58,12 @@ userRoutes.put(
   validate(setPasswordParams),
   userController.setPassword,
 );
-userRoutes.patch("/:id/restore", userController.restore);
-userRoutes.put("/:id", userController.update);
+userRoutes.patch("/:id/restore", requirePermission(PERMISSIONS.USER_UPDATE), userController.restore);
 userRoutes.delete(
   "/:id",
   deleteLimiter,
   requirePermission(PERMISSIONS.USER_DELETE),
   userController.delete,
-);
-userRoutes.get(
-  "/list-for-permission-management",
-  userController.listForPermissionManagement,
 );
 
 export default userRoutes;

@@ -1,19 +1,16 @@
 import { roleController } from "./role.controller.js";
 import { Router } from "express";
-import { createRoleSchema } from "./role.schema.js";
+import { createRoleSchema, updateRoleSchema, roleParamsSchema } from "./role.schema.js";
 import { validate } from "@/middleware/validate.js";
 import { requirePermission } from "@/middleware/require-permission.js";
 import { PERMISSIONS } from "@/constants/permission.constants.js";
+import { deleteLimiter, writeLimmiter } from "@/middleware/rateLimiter.js";
 
 const roleRoutes = Router();
-
-//just option for creating user
-roleRoutes.get("/", roleController.list);
-roleRoutes.post(
-  "/",
-  requirePermission(PERMISSIONS.ROLE_CREATE),
-  validate(createRoleSchema),
-  roleController.create,
-);
-
+roleRoutes.get("/", requirePermission(PERMISSIONS.ROLE_READ), roleController.list);
+roleRoutes.get("/assignable", roleController.listAssignable);
+roleRoutes.get("/:id", requirePermission(PERMISSIONS.ROLE_READ), validate(roleParamsSchema), roleController.getById);
+roleRoutes.post("/", requirePermission(PERMISSIONS.ROLE_CREATE), writeLimmiter, validate(createRoleSchema), roleController.create);
+roleRoutes.patch("/:id", requirePermission(PERMISSIONS.ROLE_UPDATE), writeLimmiter, validate(updateRoleSchema), roleController.update);
+roleRoutes.delete("/:id", requirePermission(PERMISSIONS.ROLE_DELETE), deleteLimiter, validate(roleParamsSchema), roleController.delete);
 export default roleRoutes;

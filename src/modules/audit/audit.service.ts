@@ -12,6 +12,18 @@ type RecordAuditInput = {
 };
 
 export const auditService = {
+  // Access mutations await this inside their transaction: audit failure rolls back access changes.
+  async recordInTransaction(db: Prisma.TransactionClient, input: RecordAuditInput) {
+    const ctx = requestContext.get();
+    return db.auditLog.create({ data: {
+      actorId: ctx?.userId,
+      organizationId: ctx?.organizationId ?? null,
+      action: input.action, entity: input.entity, entityId: input.entityId,
+      ipAddress: ctx?.ip ?? null, userAgent: ctx?.userAgent ?? null,
+      requestId: ctx?.requestId ?? null,
+      metadata: { before: input.before, after: input.after },
+    } });
+  },
   async record(input: RecordAuditInput) {
     const ctx = requestContext.get();
 

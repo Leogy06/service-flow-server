@@ -8,6 +8,7 @@ import {
   getRefreshExpiry,
 } from "@/utils/tokens.js";
 import { auditService } from "@/modules/audit/audit.service.js";
+import { loadAuthorization, sessionUser } from "./authorization.js";
 
 interface RegisterInput {
   email: string;
@@ -42,6 +43,8 @@ function extractRoleName(role: unknown): string {
 
 export const authService = {
   async register(input: RegisterInput) {
+    // This public schema has no role/tenant assignment authority; invitations assign those.
+    if (!input.role) throw new AppError(400, "Account creation requires an organization invitation");
     const existing = await prisma.user.findUnique({
       where: { email: input.email },
     });
@@ -112,6 +115,7 @@ export const authService = {
           },
         },
         userPermissions: {
+          where: { isActive: true },
           select: {
             permission: {
               select: {
@@ -139,12 +143,7 @@ export const authService = {
 
     const roleName = extractRoleName(user.role);
 
-    const rolePermission = user.role.permissions.map((p) => p.permission.name);
-    const userPermission = user.userPermissions.map((p) => p.permission.name);
-
-    const permissions = Array.from(
-      new Set([...rolePermission, ...userPermission]),
-    ); //new set prevent duplication
+    const permissions = sessionUser(await loadAuthorization(user.id)).permissions;
 
     const tokenPayload: TokenPayloadUser = {
       id: user.id,
@@ -234,6 +233,8 @@ export const authService = {
       throw new AppError(403, "Account is inactive");
     }
 
+    const currentUser = sessionUser(await loadAuthorization(stored.userId));
+
     const newRawToken = generateRefreshTokenValue();
 
     await prisma.$transaction([
@@ -242,66 +243,23 @@ export const authService = {
         data: {
           token: hashToken(newRawToken),
           userId: stored.userId,
+          organizationId: currentUser.organizationId,
           expiresAt: getRefreshExpiry(),
         },
       }),
     ]);
 
-    const userWithPermissions = await prisma.user.findUnique({
-      where: { id: stored.userId },
-      select: {
-        userPermissions: {
-          select: {
-            permission: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-        role: {
-          select: {
-            permissions: {
-              where: {
-                isActive: true,
-              },
-              select: {
-                permission: {
-                  select: {
-                    name: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    const rolePermission =
-      userWithPermissions?.role.permissions.map((up) => up.permission.name) ||
-      [];
-    const userPermission =
-      userWithPermissions?.userPermissions.map((up) => up.permission.name) ||
-      [];
-
-    const permissions = Array.from(
-      new Set([...rolePermission, ...userPermission]),
-    );
-
-    const roleName = extractRoleName(stored.user.role);
-
     const tokenPayload: TokenPayloadUser = {
       id: stored.user.id,
       email: stored.user.email,
-      role: roleName,
-      organizationId: stored.user.organizationId,
+      role: currentUser.role,
+      organizationId: currentUser.organizationId ?? null,
       firstName: stored.user.firstName,
       lastName: stored.user.lastName,
       middleName: stored.user.middleName,
       suffix: stored.user.suffix,
       slug: stored.user.organization?.slug,
-      permissions,
+      permissions: currentUser.permissions,
     };
 
     const accessToken = generateAccessToken(tokenPayload);

@@ -16,6 +16,9 @@ import { UserUpdateInput } from "./types";
 import { userScope } from "@/utils/user-utils/user-scope";
 import { isPrismaError } from "@/utils/errorHelper";
 import { stripSecrets } from "@/utils/user-utils/stripSecrets";
+import { PERMISSIONS } from "@/constants/permission.constants.js";
+import { accessTransaction, requireAssignableRole, requireTenantAdmin } from "@/modules/role/tenant-access-policy.js";
+import { authorizationSelect, resolvePermissions } from "@/modules/auth/authorization.js";
 
 const DEFAULT_USER_SELECT = {
   id: true,
@@ -86,20 +89,20 @@ export const userService = {
 
     const cacheKey = `cache:users:list:${organizationId}:${JSON.stringify(select)}:${page}:${pageSize}:${search}:${sortOrder}:${sortBy}:${status ?? ""}:${roleId ?? ""}:${roleName ?? ""}:${deleted ?? ""}`;
 
-    const where = {
+    const where: Prisma.UserWhereInput = {
       organizationId,
       OR: search
         ? [
-            { firstName: { contains: search, mode: "insensitive" } },
-            { lastName: { contains: search, mode: "insensitive" } },
-            { email: { contains: search, mode: "insensitive" } },
+            { firstName: { contains: search } },
+            { lastName: { contains: search } },
+            { email: { contains: search } },
           ]
         : undefined,
       deletedAt: deleted ? { not: null } : null,
       ...(status === "active" ? { status: UserStatus.ACTIVE } : {}),
       ...(status === "pending" ? { status: UserStatus.PENDING } : {}),
       ...(roleId ? { roleId } : {}),
-      ...(roleName ? { role: { name: roleName } } : {}),
+      role: { organizationId, ...(roleName ? { name: roleName } : {}) },
     };
 
     const { users, total } = await getOrSetCache(
@@ -150,7 +153,7 @@ export const userService = {
   async validateCreateInput(input: CreateUserInput) {
     const [isEmailExist, isPhoneExist] = await Promise.all([
       prisma.user.findUnique({ where: { email: input.email } }),
-      prisma.user.findUnique({ where: { phone: input.phone as string } }),
+      input.phone ? prisma.user.findUnique({ where: { phone: input.phone } }) : null,
     ]);
     if (isEmailExist) throw new AppError(409, "Email already in use");
     if (isPhoneExist) throw new AppError(409, "Phone already in use");
@@ -175,12 +178,18 @@ export const userService = {
   },
 
   async createDirect(input: CreateUserInput) {
+    const actor = await requireTenantAdmin(prisma, PERMISSIONS.USER_CREATE);
+    input = { ...input, organizationId: actor.organizationId };
+    if (!input.password) throw new AppError(400, "Password is required");
     //check email duplication and phone
     await this.validateCreateInput(input);
 
     const password = await hashedPassword(input.password!);
 
-    const user = await prisma.user.create({
+    const user = await accessTransaction(async (db) => {
+      const currentActor = await requireTenantAdmin(db, PERMISSIONS.USER_CREATE);
+      await requireAssignableRole(db, input.roleId, currentActor);
+      return db.user.create({
       data: {
         firstName: input.firstName,
         lastName: input.lastName,
@@ -200,14 +209,18 @@ export const userService = {
           },
         },
       },
+      });
     });
 
+    await auditService.record({ action: "create.user.success", entity: "User", entityId: user.id, after: stripSecrets(user) });
     await this.invalidateUserCache();
 
-    return user;
+    return stripSecrets(user);
   },
 
   async createWithInvite(input: CreateUserInput) {
+    const actor = await requireTenantAdmin(prisma, PERMISSIONS.USER_CREATE);
+    input = { ...input, organizationId: actor.organizationId };
     await this.validateCreateInput(input);
 
     const rawToken = crypto.randomBytes(32).toString("hex");
@@ -217,7 +230,10 @@ export const userService = {
       .digest("hex");
     const inviteTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
-    const user = await prisma.user.create({
+    const user = await accessTransaction(async (db) => {
+      const currentActor = await requireTenantAdmin(db, PERMISSIONS.USER_CREATE);
+      await requireAssignableRole(db, input.roleId, currentActor);
+      return db.user.create({
       data: {
         firstName: input.firstName,
         lastName: input.lastName,
@@ -240,13 +256,14 @@ export const userService = {
           },
         },
       },
+      });
     });
 
     void auditService.record({
       action: "create.user.success",
       entity: "User",
       entityId: user.id,
-      after: user,
+      after: stripSecrets(user),
     });
 
     await this.invalidateUserCache();
@@ -262,7 +279,7 @@ export const userService = {
       // don't throw — user already created, admin can resend invite later
     }
 
-    return user;
+    return stripSecrets(user);
   },
 
   async resetTokenExpirationDateInvitation(token: string, email: string) {
@@ -482,64 +499,16 @@ export const userService = {
 
   async listForPermissionManagement(organizationId: string) {
     if (!organizationId) throw new AppError(400, "Organization ID is required");
-
     const users = await prisma.user.findMany({
-      where: {
-        deletedAt: null,
-        organizationId,
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: {
-          select: {
-            name: true,
-            permissions: {
-              select: {
-                permission: {
-                  select: { name: true },
-                },
-              },
-            },
-          },
-        },
-        userPermissions: {
-          select: {
-            permission: {
-              select: { name: true },
-            },
-          },
-        },
-        organization: {
-          select: { name: true },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+      where: { deletedAt: null, organizationId, role: { organizationId } },
+      select: { ...authorizationSelect, organization: { select: { slug: true, name: true } } },
+      orderBy: { createdAt: "desc" },
     });
-
-    return users.map((user) => {
-      const rolePermissions =
-        user.role?.permissions?.map((rp) => rp.permission.name) || [];
-      const extraPermissions =
-        user.userPermissions?.map((up) => up.permission.name) || [];
-      const permissions = Array.from(
-        new Set([...rolePermissions, ...extraPermissions]),
-      );
-
-      return {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        roleName: user.role?.name ?? null,
-        organizationName: user.organization?.name ?? null,
-        permissions,
-      };
-    });
+    return users.map((user) => ({
+      id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName,
+      roleName: user.role.name, organizationName: user.organization?.name ?? null,
+      permissions: resolvePermissions(user).names,
+    }));
   },
 };
 

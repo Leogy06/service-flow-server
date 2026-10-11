@@ -1,4 +1,5 @@
 import z from "zod";
+import { resourceId } from "@/modules/role/role.schema.js";
 
 export const baseUserSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -20,12 +21,10 @@ export const baseUserSchema = z.object({
 export const createUserSchema = z.object({
   body: baseUserSchema.omit({
     organizationId: true,
-  }),
+  }).extend({ password: z.string().min(8).max(128) }),
 });
 export const createUserInviteSchema = z.object({
-  body: baseUserSchema.extend({
-    password: z.string().optional(),
-  }),
+  body: baseUserSchema.omit({ organizationId: true }),
 });
 export const userUpdateSchema = z.object({
   body: baseUserSchema.omit({ organizationId: true, roleId: true }).extend({
@@ -33,12 +32,22 @@ export const userUpdateSchema = z.object({
   }),
 });
 export const userListQuerySchema = z.object({
-  query: z
-    .object({
-      status: z.enum(["active", "pending"]).optional(),
-      roleName: z.enum(["Admin", "Manager"]).optional(),
-    })
-    .passthrough(),
+  query: z.object({
+    page: z.coerce.number().int().min(1).max(1000000).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(10),
+    search: z.string().trim().max(120).default(""),
+    sortBy: z.enum(["", "createdAt", "firstName", "lastName", "email"]).default("createdAt"),
+    sortOrder: z.enum(["asc", "desc"]).default("desc"),
+    status: z.enum(["active", "pending"]).optional(),
+    roleName: z.enum(["Admin", "Manager"]).optional(),
+    roleId: resourceId.optional(),
+    deleted: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  }),
+});
+export type UserListQuery = z.infer<typeof userListQuerySchema>["query"];
+export const assignUserRoleSchema = z.object({
+  params: z.object({ id: resourceId }),
+  body: z.object({ roleId: resourceId }).strict(),
 });
 export const setPasswordSchema = z.object({
   body: z.object({

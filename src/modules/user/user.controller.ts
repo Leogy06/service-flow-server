@@ -3,34 +3,24 @@ import { Request, Response, NextFunction } from "express";
 import { userService } from "./user.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { requestContext } from "@/lib/requestContext.js";
-import { Prisma } from "@/generated/prisma/client.js";
 import {
   CreateUserInviteSchema,
   CreateUserSchema,
   ResetTokenExpirationDateInvitationSchema,
   SetPasswordParams,
   SetPasswordSchema,
+  UserListQuery,
 } from "./user.schema.js";
 import { UserUpdateInput } from "./types.js";
 
 export const userController = {
   async list(req: Request, res: Response, next: NextFunction) {
     const organizationId = requestContext.getValue("organizationId") as string;
-    const select = req.query.select as Prisma.UserSelect;
 
     try {
       const users = await userService.list({
         organizationId,
-        select,
-        page: Number(req.query.page) || 1,
-        pageSize: Number(req.query.pageSize) || 10,
-        search: req.query.search as string,
-        sortOrder: req.query.sortOrder as "asc" | "desc",
-        sortBy: req.query.sortBy as string,
-        status: req.validated.query.status as "active" | "pending" | undefined,
-        roleName: req.validated.query.roleName as "Admin" | "Manager" | undefined,
-        roleId: req.query.roleId as string,
-        deleted: req.query.deleted === "true",
+        ...(req.validated.query as UserListQuery),
       });
       sendResponse(res, 200, "Users fetched successfully", users);
     } catch (err) {

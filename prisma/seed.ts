@@ -1,24 +1,21 @@
-// import { seedOrganization } from "./seeds/organization.js";
-// import { prisma } from "../src/lib/prisma.js";
-// import { seedPermissions } from "./seeds/permission.js";
-// import { seedRoles } from "./seeds/roles.js";
-// import { seedUsers } from "./seeds/users.js";
+import { prisma } from "../src/lib/prisma.js";
+import { redis } from "../src/lib/redis.js";
+import { invalidateCache } from "../src/utils/cache.js";
+import { seedAdminRoles } from "./seeds/adminRoles.js";
 
-// async function main() {
-//   const permissions = await seedPermissions(prisma);
-//   // const organizations = await seedOrganization(prisma);
-//   // const roles = await seedRoles(prisma, organizations, permissions);
-//   // await seedUsers(prisma, organizations, roles);
+async function main() {
+  const result = await seedAdminRoles(prisma);
+  await invalidateCache("cache:users:list*");
+  await invalidateCache("cache:user:byId*");
+  console.log("Tenant Admin permission seed complete:", result);
+}
 
-//   console.log("============Seed complete.=======================");
-// }
-
-// main()
-//   .then(async () => {
-//     await prisma.$disconnect();
-//   })
-//   .catch(async (e) => {
-//     console.error(e);
-//     await prisma.$disconnect();
-//     process.exit(1);
-//   });
+try {
+  await main();
+} catch (error) {
+  console.error("Tenant Admin permission seed failed:", error instanceof Error ? error.message : "Unknown error");
+  process.exitCode = 1;
+} finally {
+  redis.disconnect();
+  await prisma.$disconnect();
+}

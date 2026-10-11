@@ -1,22 +1,19 @@
 import z from "zod";
+import { permissionIdsSchema, resourceId } from "@/modules/role/role.schema.js";
 
 export const createRolePermissionSchema = z.object({
   body: z.object({
-    roleId: z.string().min(1, "Role ID is required"),
-    permissionId: z.string().min(1, "Permission ID is required"),
-  }),
+    roleId: resourceId,
+    permissionId: resourceId,
+  }).strict(),
 });
+export const rolePermissionParamsSchema = z.object({ params: z.object({ roleId: resourceId }) });
 
 export const updateRolePermission = z.object({
+  params: z.object({ roleId: resourceId }),
   body: z.object({
-    permissions: z
-      .array(z.cuid2())
-      .default([])
-      .refine(
-        (ids) => new Set(ids).size === ids.length,
-        "Duplicate permission IDs are not allowed",
-      ),
-  }),
+    permissions: permissionIdsSchema,
+  }).strict(),
 });
 
 export type CreateRolePermissionSchema = z.infer<

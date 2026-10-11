@@ -3,14 +3,15 @@ import { verifyAccessToken } from "@/utils/tokens.js";
 import jwt from "jsonwebtoken";
 import { AppError } from "@/utils/AppError.js"; // adjust to your actual path
 import { requestContext } from "@/lib/requestContext.js";
+import { loadAuthorization, sessionUser } from "@/modules/auth/authorization.js";
 
 const { TokenExpiredError, JsonWebTokenError } = jwt;
 
-export function authenticate(
+export async function authenticate(
   req: Request,
   _res: Response,
   next: NextFunction,
-): void {
+): Promise<void> {
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith("Bearer ")
     ? authHeader.split(" ")[1]
@@ -25,25 +26,14 @@ export function authenticate(
 
   try {
     const payload = verifyAccessToken(token);
-    req.user = {
-      id: payload.sub,
-      role: payload.role as string,
-      organizationId: payload.organizationId,
-      firstName: payload.firstName,
-      lastName: payload.lastName,
-      middleName: payload?.middleName,
-      suffix: payload?.suffix,
-      email: payload.email,
-      slug: payload.slug,
-      permissions: payload.permissions,
-    };
+    req.user = sessionUser(await loadAuthorization(payload.sub));
 
     const ctx = requestContext.get();
     if (ctx) {
-      ctx.userId = payload.sub;
-      ctx.role = payload.role as string;
-      ctx.organizationId = payload.organizationId;
-      ctx.permissions = payload.permissions;
+      ctx.userId = req.user.id;
+      ctx.role = req.user.role;
+      ctx.organizationId = req.user.organizationId;
+      ctx.permissions = req.user.permissions;
     }
 
     next();

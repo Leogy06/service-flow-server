@@ -5,10 +5,8 @@ import { sendResponse } from "@/utils/sendResponse.js";
 export function requirePermission(permission: string) {
   return (_req: Request, res: Response, next: NextFunction) => {
     const permissions = requestContext.getValue("permissions");
-    const context = requestContext.get();
-    console.dir(context, { depth: null });
     if (!permissions || !permissions.includes(permission)) {
-      sendResponse(res, 403, "Forbidden", permissions);
+      sendResponse(res, 403, "Forbidden", null);
       return; //necessary do not remove to stop
     }
 
