@@ -1,15 +1,15 @@
 import { roleService } from "./role.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { NextFunction, Response, Request } from "express";
-import type { CreateRoleSchema, UpdateRoleSchema } from "./role.schema.js";
+import type { CreateRoleSchema, UpdateRoleSchema, ListRolesQuery, RestoreRoleInput } from "./role.schema.js";
 
 export const roleController = {
   async listAssignable(_req: Request, res: Response, next: NextFunction) {
     try { sendResponse(res, 200, "Assignable roles fetched successfully", await roleService.listAssignable()); }
     catch (error) { next(error); }
   },
-  async list(_req: Request, res: Response, next: NextFunction) {
-    try { sendResponse(res, 200, "Roles fetched successfully", await roleService.list()); }
+  async list(req: Request, res: Response, next: NextFunction) {
+    try { sendResponse(res, 200, "Roles fetched successfully", await roleService.list(req.validated.query as ListRolesQuery)); }
     catch (error) { next(error); }
   },
   async getById(req: Request, res: Response, next: NextFunction) {
@@ -25,7 +25,11 @@ export const roleController = {
     catch (error) { next(error); }
   },
   async delete(req: Request, res: Response, next: NextFunction) {
-    try { sendResponse(res, 200, "Role deleted successfully", await roleService.delete(req.params.id as string)); }
+    try { sendResponse(res, 200, "Role archived successfully", await roleService.delete(req.params.id as string)); }
+    catch (error) { next(error); }
+  },
+  async restore(req: Request, res: Response, next: NextFunction) {
+    try { sendResponse(res, 200, "Role restored successfully", await roleService.restore(req.params.id as string, req.validated.body as RestoreRoleInput)); }
     catch (error) { next(error); }
   },
 };

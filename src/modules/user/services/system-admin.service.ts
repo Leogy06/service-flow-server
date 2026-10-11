@@ -46,7 +46,7 @@ export const systemAdminService = {
 
     const newSystemAdmin = await accessTransaction(async (db) => {
       await requirePlatformAuthority(db);
-      const role = await db.role.findFirst({ where: { id: input.roleId, organizationId: input.organizationId ?? null }, select: { id: true } });
+      const role = await db.role.findFirst({ where: { id: input.roleId, organizationId: input.organizationId ?? null, deletedAt: null }, select: { id: true } });
       if (!role) throw new AppError(404, "Role not found");
       return db.user.create({ data: { ...validatedInput, status: "ACTIVE" } });
     });

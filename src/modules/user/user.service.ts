@@ -102,7 +102,7 @@ export const userService = {
       ...(status === "active" ? { status: UserStatus.ACTIVE } : {}),
       ...(status === "pending" ? { status: UserStatus.PENDING } : {}),
       ...(roleId ? { roleId } : {}),
-      role: { organizationId, ...(roleName ? { name: roleName } : {}) },
+      role: { organizationId, deletedAt: null, ...(roleName ? { name: roleName } : {}) },
     };
 
     const { users, total } = await getOrSetCache(
@@ -170,6 +170,7 @@ export const userService = {
         where: {
           id: input.roleId,
           organizationId: input.organizationId,
+          deletedAt: null,
         },
       });
       if (!role) throw new AppError(404, "Role not found");
@@ -500,7 +501,7 @@ export const userService = {
   async listForPermissionManagement(organizationId: string) {
     if (!organizationId) throw new AppError(400, "Organization ID is required");
     const users = await prisma.user.findMany({
-      where: { deletedAt: null, organizationId, role: { organizationId } },
+      where: { deletedAt: null, organizationId, role: { organizationId, deletedAt: null } },
       select: { ...authorizationSelect, organization: { select: { slug: true, name: true } } },
       orderBy: { createdAt: "desc" },
     });

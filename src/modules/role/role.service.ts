@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma.js";
 import { auditService } from "@/modules/audit/audit.service.js";
 import { AppError } from "@/utils/AppError.js";
 import { PERMISSIONS } from "@/constants/permission.constants.js";
+import type { Prisma } from "@/generated/prisma/client.js";
+import type { ListRolesQuery, RestoreRoleInput } from "./role.schema.js";
 import {
   accessTransaction, findTenantRole, isReservedRoleName, managedRoleSelect,
   requireAssignableRole, requireTenantAdmin, roleIsProtected, validateGrants,
@@ -11,25 +13,48 @@ import {
 function view(role: ManagedRole, actor: TenantActor) {
   const protectedRole = roleIsProtected(role, actor);
   return {
-    id: role.id, name: role.name, organizationId: role.organizationId,
+    id: role.id, name: role.name, organizationId: role.organizationId, deletedAt: role.deletedAt,
     permissions: role.permissions.filter(({ permission: p }) => p.organizationId === null || p.organizationId === actor.organizationId)
       .map((grant) => ({ id: grant.permission.id, name: grant.permission.name })),
-    userCount: role._count.users, protected: protectedRole, assignable: !protectedRole,
+    userCount: role._count.users, protected: protectedRole, assignable: !protectedRole && !role.deletedAt,
   };
 }
 
+async function requireAvailableName(db: Prisma.TransactionClient, organizationId: string, name: string, id?: string) {
+  // Archived names remain reserved by the existing organization/name unique constraint.
+  const conflict = await db.role.findFirst({ where: {
+    organizationId, name, ...(id ? { NOT: { id } } : {}),
+  }, select: { id: true } });
+  if (conflict) throw new AppError(409, "A role with this name already exists in your organization, including archived roles");
+}
+
 export const roleService = {
-  async list() {
+  async list(query: ListRolesQuery) {
     const actor = await requireTenantAdmin(prisma, PERMISSIONS.ROLE_READ);
-    const roles = await prisma.role.findMany({
-      where: { organizationId: actor.organizationId }, select: managedRoleSelect, orderBy: { name: "asc" },
-    });
-    return roles.map((role) => view(role, actor));
+    return prisma.$transaction(async (db) => {
+      const where: Prisma.RoleWhereInput = {
+        organizationId: actor.organizationId,
+        deletedAt: query.deleted ? { not: null } : null,
+        ...(query.search ? { name: { contains: query.search } } : {}),
+      };
+      const total = await db.role.count({ where });
+      const totalPages = Math.max(1, Math.ceil(total / query.pageSize));
+      const page = Math.min(query.page, totalPages);
+      const roles = await db.role.findMany({
+        where, select: managedRoleSelect,
+        orderBy: [{ [query.sortBy]: query.sortOrder }, { id: "asc" }],
+        skip: (page - 1) * query.pageSize, take: query.pageSize,
+      });
+      return { roles: roles.map((role) => view(role, actor)), pagination: {
+        page, pageSize: query.pageSize, total, totalPages,
+        hasNextPage: page < totalPages, hasPreviousPage: page > 1,
+      } };
+    }, { isolationLevel: "RepeatableRead" });
   },
   async listAssignable() {
     const actor = await requireTenantAdmin(prisma, [PERMISSIONS.USER_CREATE, PERMISSIONS.USER_UPDATE]);
     const roles = await prisma.role.findMany({
-      where: { organizationId: actor.organizationId }, select: managedRoleSelect, orderBy: { name: "asc" },
+      where: { organizationId: actor.organizationId, deletedAt: null }, select: managedRoleSelect, orderBy: { name: "asc" },
     });
     return roles.filter((role) => !roleIsProtected(role, actor)).map((role) => ({ id: role.id, name: role.name, assignable: true }));
   },
@@ -41,6 +66,7 @@ export const roleService = {
     const role = await accessTransaction(async (db) => {
       const actor = await requireTenantAdmin(db, PERMISSIONS.ROLE_CREATE);
       if (isReservedRoleName(input.name)) throw new AppError(403, "This role name is reserved");
+      await requireAvailableName(db, actor.organizationId, input.name);
       await validateGrants(db, input.permissionIds, actor);
       const created = await db.role.create({ data: {
         name: input.name, organizationId: actor.organizationId,
@@ -57,6 +83,7 @@ export const roleService = {
       const actor = await requireTenantAdmin(db, PERMISSIONS.ROLE_UPDATE);
       const before = await requireAssignableRole(db, id, actor);
       if (input.name && isReservedRoleName(input.name)) throw new AppError(403, "This role name is reserved");
+      if (input.name !== undefined) await requireAvailableName(db, actor.organizationId, input.name, id);
       if (input.permissionIds !== undefined) {
         await validateGrants(db, input.permissionIds, actor);
         await db.rolePermission.updateMany({ where: { roleId: id }, data: { isActive: false } });
@@ -93,16 +120,39 @@ export const roleService = {
     return result.after.permissions.map((permission) => ({ permission }));
   },
   async delete(id: string) {
-    const before = await accessTransaction(async (db) => {
+    return accessTransaction(async (db) => {
       const actor = await requireTenantAdmin(db, PERMISSIONS.ROLE_DELETE);
       const role = await requireAssignableRole(db, id, actor);
       if (role._count.users) throw new AppError(409, "Assign users to another role before deleting this role");
-      await db.rolePermission.deleteMany({ where: { roleId: id } });
-      await db.role.delete({ where: { id, organizationId: actor.organizationId } });
-      const snapshot = view(role, actor);
-      await auditService.recordInTransaction(db, { action: "delete.role.success", entity: "Role", entityId: role.id, before: snapshot });
-      return snapshot;
+      const archived = await db.role.update({
+        where: { id, organizationId: actor.organizationId, deletedAt: null },
+        data: { deletedAt: new Date() }, select: managedRoleSelect,
+      });
+      const after = view(archived, actor);
+      await auditService.recordInTransaction(db, {
+        action: "delete.role.success", entity: "Role", entityId: role.id, before: view(role, actor), after,
+      });
+      return after;
     });
-    return { id: before.id };
+  },
+  async restore(id: string, input: RestoreRoleInput) {
+    return accessTransaction(async (db) => {
+      const actor = await requireTenantAdmin(db, PERMISSIONS.ROLE_UPDATE);
+      const role = await findTenantRole(db, id, actor, true);
+      if (roleIsProtected(role, actor)) throw new AppError(403, "Role is protected or outside your grantable authority");
+      const name = input.name ?? role.name;
+      if (isReservedRoleName(name)) throw new AppError(403, "This role name is reserved");
+      await requireAvailableName(db, actor.organizationId, name, id);
+      await validateGrants(db, role.permissions.map((grant) => grant.permission.id), actor);
+      const restored = await db.role.update({
+        where: { id, organizationId: actor.organizationId, deletedAt: { not: null } },
+        data: { name, deletedAt: null }, select: managedRoleSelect,
+      });
+      const after = view(restored, actor);
+      await auditService.recordInTransaction(db, {
+        action: "restore.role.success", entity: "Role", entityId: id, before: view(role, actor), after,
+      });
+      return after;
+    });
   },
 };

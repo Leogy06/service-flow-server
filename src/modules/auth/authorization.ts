@@ -9,7 +9,7 @@ export const authorizationSelect = {
   organizationId: true,
   organization: { select: { slug: true } },
   role: { select: {
-    id: true, name: true, organizationId: true,
+    id: true, name: true, organizationId: true, deletedAt: true,
     permissions: { where: { isActive: true }, select: {
       permission: { select: { id: true, name: true, organizationId: true } },
     } },
@@ -25,7 +25,7 @@ export type AuthorizationUser = Prisma.UserGetPayload<{ select: typeof authoriza
 export function resolvePermissions(user: AuthorizationUser) {
   const visible = (permission: { organizationId: string | null }) =>
     permission.organizationId === null || permission.organizationId === user.organizationId;
-  const inherited = user.role.organizationId === user.organizationId
+  const inherited = !user.role.deletedAt && user.role.organizationId === user.organizationId
     ? user.role.permissions.map((grant) => grant.permission).filter(visible)
     : [];
   const overrides = user.userPermissions.filter((override) => visible(override.permission));
@@ -37,7 +37,7 @@ export function resolvePermissions(user: AuthorizationUser) {
 
 export async function loadAuthorization(id: string, db: Prisma.TransactionClient = prisma) {
   const user = await db.user.findUnique({ where: { id }, select: authorizationSelect });
-  if (!user || user.deletedAt || user.status !== "ACTIVE" ||
+  if (!user || user.deletedAt || user.role.deletedAt || user.status !== "ACTIVE" ||
     user.role.organizationId !== user.organizationId) {
     throw new AppError(401, "Session is no longer valid");
   }

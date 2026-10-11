@@ -41,7 +41,7 @@ export async function requireTenantAdmin(db: Prisma.TransactionClient, permissio
 }
 
 export const managedRoleSelect = {
-  id: true, name: true, organizationId: true,
+  id: true, name: true, organizationId: true, deletedAt: true,
   permissions: { where: { isActive: true }, select: {
     permission: { select: { id: true, name: true, organizationId: true } },
   } },
@@ -55,8 +55,10 @@ export function roleIsProtected(role: ManagedRole, actor: TenantActor) {
       !actor.grantable.includes(p.name) || (p.organizationId !== null && p.organizationId !== actor.organizationId));
 }
 
-export async function findTenantRole(db: Prisma.TransactionClient, id: string, actor: TenantActor) {
-  const role = await db.role.findFirst({ where: { id, organizationId: actor.organizationId }, select: managedRoleSelect });
+export async function findTenantRole(db: Prisma.TransactionClient, id: string, actor: TenantActor, archived = false) {
+  const role = await db.role.findFirst({ where: {
+    id, organizationId: actor.organizationId, deletedAt: archived ? { not: null } : null,
+  }, select: managedRoleSelect });
   if (!role) throw new AppError(404, "Role not found");
   return role;
 }
@@ -68,7 +70,7 @@ export async function requireAssignableRole(db: Prisma.TransactionClient, id: st
 }
 
 export function userIsProtected(user: AuthorizationUser, actor: TenantActor) {
-  return user.id === actor.user.id || user.role.organizationId !== actor.organizationId ||
+  return user.id === actor.user.id || !!user.role.deletedAt || user.role.organizationId !== actor.organizationId ||
     isReservedRoleName(user.role.name) ||
     [...user.role.permissions, ...user.userPermissions].some(({ permission: p }) =>
       !actor.grantable.includes(p.name) || (p.organizationId !== null && p.organizationId !== actor.organizationId));

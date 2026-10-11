@@ -18,6 +18,7 @@ const { PERMISSIONS } = await import("../../src/constants/permission.constants.t
 const { authenticate } = await import("../../src/middleware/auth.ts");
 const { withRequestContext } = await import("../../src/middleware/requestContext.middleware.ts");
 const { requirePermission } = await import("../../src/middleware/require-permission.ts");
+const { errorHandler } = await import("../../src/middleware/errorHandler.ts");
 const { default: userPermissionRoutes } = await import("../../src/modules/user-permission/user.permission.routes.ts");
 const { default: userRoutes } = await import("../../src/modules/user/user.routes.ts");
 const { default: permissionRoutes } = await import("../../src/modules/permission/permission.route.ts");
@@ -29,7 +30,7 @@ const { auditService } = await import("../../src/modules/audit/audit.service.ts"
 const { generateAccessToken, verifyAccessToken } = await import("../../src/utils/tokens.ts");
 const { default: bcrypt } = await import("bcryptjs");
 
-test("frontend staff permission API through HTTP and MySQL", { timeout: process.env.RUN_BROWSER_ACCESS_TESTS === "1" ? 180000 : 60000 }, async (t) => {
+test("frontend role and staff permission APIs through HTTP and MySQL", { timeout: process.env.RUN_BROWSER_ACCESS_TESTS === "1" ? 300000 : 90000 }, async (t) => {
   const tag = randomUUID();
   const orgA = `access-it-a-${tag}`, orgB = `access-it-b-${tag}`;
   const adminId = `access-it-admin-${tag}`, staffId = `access-it-staff-${tag}`, foreignId = `access-it-foreign-${tag}`;
@@ -39,13 +40,15 @@ test("frontend staff permission API through HTTP and MySQL", { timeout: process.
   const ids = {};
   const password = randomUUID();
   const testIp = `10.${Math.floor(Math.random() * 250) + 1}.${Math.floor(Math.random() * 250) + 1}.${Math.floor(Math.random() * 250) + 1}`;
+  const testIps = new Set([testIp]);
   const server = createServer();
   const originalAudit = auditService.recordInTransaction;
   try {
     await redis.ping();
-    for (const name of [PERMISSIONS.CUSTOMER_READ, PERMISSIONS.CUSTOMER_UPDATE, PERMISSIONS.USER_READ, PERMISSIONS.USER_UPDATE]) {
+    for (const name of [PERMISSIONS.CUSTOMER_READ, PERMISSIONS.CUSTOMER_UPDATE, PERMISSIONS.USER_READ, PERMISSIONS.USER_UPDATE,
+      PERMISSIONS.ROLE_READ, PERMISSIONS.ROLE_CREATE, PERMISSIONS.ROLE_UPDATE, PERMISSIONS.ROLE_DELETE]) {
       let permission = await prisma.permission.findUnique({ where: { name } });
-      if (permission && permission.organizationId !== null) throw new Error("Integration requires global definitions for the four tested permissions.");
+      if (permission && permission.organizationId !== null) throw new Error("Integration requires global definitions for the tested permissions.");
       if (!permission) {
         permission = await prisma.permission.create({ data: { id: `access-it-permission-${randomUUID()}`, name, description: "Temporary access integration definition" } });
         createdPermissionIds.push(permission.id);
@@ -70,7 +73,16 @@ test("frontend staff permission API through HTTP and MySQL", { timeout: process.
       { id: foreignId, firstName: "Foreign", lastName: "Fixture", email: `${foreignId}@example.invalid`, roleId: foreignRole, organizationId: orgB, status: "ACTIVE" },
     ] });
     const app = express();
-    app.use((req, _res, next) => { req.headers["x-forwarded-for"] = testIp; next(); });
+    app.use((req, _res, next) => {
+      // Independent test clients exercise sensitive operations without weakening real rate limits.
+      let clientIp = testIp;
+      if (req.method !== "GET") {
+        do { clientIp = `10.${Math.floor(Math.random() * 250) + 1}.${Math.floor(Math.random() * 250) + 1}.${Math.floor(Math.random() * 250) + 1}`; } while (testIps.has(clientIp));
+        testIps.add(clientIp);
+      }
+      req.headers["x-forwarded-for"] = clientIp;
+      next();
+    });
     app.use(cors({ origin: /^http:\/\/localhost:\d+$/, credentials: true }));
     // Trust only the local test listener's synthetic client identity for isolated rate-limit keys.
     app.set("trust proxy", "loopback");
@@ -82,13 +94,14 @@ test("frontend staff permission API through HTTP and MySQL", { timeout: process.
     app.use("/api/auth", authRoutes);
     app.use("/api/organization", organizationRoutes);
     app.get("/api/probe", authenticate, requirePermission(PERMISSIONS.CUSTOMER_READ), (_req, res) => res.json({ ok: true }));
-    app.use((error, _req, res, next) => { void next; res.status(error.statusCode ?? 500).json({ error: "Integration request rejected" }); });
+    app.use(errorHandler);
     server.on("request", app);
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
     const address = server.address();
     process.env.NEXT_PUBLIC_API_URL = `http://localhost:${address.port}/api`;
     const { api, setAccessToken } = await import("../../../frontend/app/lib/api/client.ts");
     const { userAccessApi } = await import("../../../frontend/features/users/api/user-access-api.ts");
+    const { roleApi } = await import("../../../frontend/features/role/api/roleApi.ts");
     api.defaults.headers.common["X-Forwarded-For"] = testIp;
     const tokenFor = (id, role, organizationId) => generateAccessToken({ id, role, organizationId, firstName: "Test", lastName: "Fixture", email: `${id}@example.invalid`, permissions: Object.values(PERMISSIONS) });
     const adminToken = tokenFor(adminId, "Admin", orgA), staffToken = tokenFor(staffId, "Staff", orgA);
@@ -105,6 +118,65 @@ test("frontend staff permission API through HTTP and MySQL", { timeout: process.
     const save = (overrides, id = staffId, token = adminToken) => as(token, () => userAccessApi.savePermissions({ userId: id, overrides }));
     const readId = ids[PERMISSIONS.CUSTOMER_READ], updateId = ids[PERMISSIONS.CUSTOMER_UPDATE];
     const defaultsBefore = await prisma.rolePermission.findMany({ where: { roleId: staffRole }, orderBy: { permissionId: "asc" } });
+    const listParams = { page: 1, pageSize: 10, search: "", sortBy: "name", sortOrder: "asc", deleted: false };
+    let lifecycleRole;
+    const lifecycleName = `Lifecycle ${tag}`;
+    const lifecyclePermissions = [readId, updateId];
+    await t.test("creates a real role, paginates and sorts tenant-scoped search results", async () => {
+      lifecycleRole = await as(adminToken, () => roleApi.save({ input: { name: lifecycleName, permissionIds: lifecyclePermissions } }));
+      roleIds.push(lifecycleRole.id);
+      const page = await as(adminToken, () => roleApi.list({ ...listParams, pageSize: 2 }));
+      assert.equal(page.pagination.total, 4);
+      assert.equal(page.pagination.totalPages, 2);
+      assert.deepEqual(page.roles.map((r) => r.name), ["Admin", "Empty"]);
+      const descending = await as(adminToken, () => roleApi.list({ ...listParams, page: 2, pageSize: 2, sortOrder: "desc" }));
+      assert.deepEqual(descending.roles.map((r) => r.name), ["Empty", "Admin"]);
+      const search = await as(adminToken, () => roleApi.list({ ...listParams, search: "Staff" }));
+      assert.deepEqual(search.roles.map((r) => r.id), [staffRole]);
+      assert.equal(search.pagination.total, 1);
+      const empty = await as(adminToken, () => roleApi.list({ ...listParams, search: "not present" }));
+      assert.equal(empty.pagination.total, 0);
+      assert.deepEqual(empty.roles, []);
+    });
+    await t.test("renames without touching role default rows, user assignments or overrides", async () => {
+      const defaults = await prisma.rolePermission.findMany({ where: { roleId: lifecycleRole.id }, orderBy: { permissionId: "asc" } });
+      await as(adminToken, () => roleApi.save({ id: lifecycleRole.id, input: { name: `${lifecycleName} renamed` } }));
+      assert.deepEqual(await prisma.rolePermission.findMany({ where: { roleId: lifecycleRole.id }, orderBy: { permissionId: "asc" } }), defaults);
+      assert.equal((await prisma.user.findUnique({ where: { id: staffId } })).roleId, staffRole);
+      assert.deepEqual(await prisma.userPermission.findMany({ where: { userId: staffId } }), []);
+      await assert.rejects(() => as(adminToken, () => roleApi.save({ id: lifecycleRole.id, input: { name: "staff" } })), (error) => error.status === 409);
+    });
+    await t.test("archives and restores real defaults, audits and assignment choices", async () => {
+      const before = await prisma.rolePermission.findMany({ where: { roleId: lifecycleRole.id }, orderBy: { permissionId: "asc" } });
+      await as(adminToken, () => roleApi.delete(lifecycleRole.id));
+      assert.ok((await prisma.role.findUnique({ where: { id: lifecycleRole.id } })).deletedAt);
+      assert.deepEqual(await prisma.rolePermission.findMany({ where: { roleId: lifecycleRole.id }, orderBy: { permissionId: "asc" } }), before);
+      assert.equal((await as(adminToken, () => roleApi.assignable())).some((r) => r.id === lifecycleRole.id), false);
+      const archives = await as(adminToken, () => roleApi.list({ ...listParams, deleted: true }));
+      assert.deepEqual(archives.roles.map((r) => r.id), [lifecycleRole.id]);
+      await assert.rejects(() => as(adminToken, () => userAccessApi.assignRole({ userId: staffId, roleId: lifecycleRole.id })), (error) => error.status === 404);
+      await assert.rejects(() => as(adminToken, () => roleApi.restore({ id: lifecycleRole.id, name: "Staff" })), (error) => error.status === 409);
+      await as(adminToken, () => roleApi.restore({ id: lifecycleRole.id }));
+      assert.equal((await prisma.role.findUnique({ where: { id: lifecycleRole.id } })).deletedAt, null);
+      assert.deepEqual(await prisma.rolePermission.findMany({ where: { roleId: lifecycleRole.id }, orderBy: { permissionId: "asc" } }), before);
+      const audits = await prisma.auditLog.findMany({ where: { entityId: lifecycleRole.id, action: { in: ["delete.role.success", "restore.role.success"] } } });
+      assert.equal(audits.length, 2);
+      assert.ok(audits.every((row) => row.actorId === adminId && row.organizationId === orgA));
+    });
+    await t.test("enforces role archive and restoration authorization against MySQL", async () => {
+      await assert.rejects(() => as(adminToken, () => roleApi.delete(staffRole)), (error) => error.status === 409);
+      await assert.rejects(() => as(adminToken, () => roleApi.delete(adminRole)), (error) => error.status === 403);
+      await assert.rejects(() => as(adminToken, () => roleApi.delete(foreignRole)), (error) => error.status === 404);
+      await assert.rejects(() => as(adminToken, () => roleApi.restore({ id: foreignRole })), (error) => error.status === 404);
+      await assert.rejects(() => as(staffToken, () => roleApi.restore({ id: lifecycleRole.id })), (error) => error.status === 403);
+      await as(adminToken, () => roleApi.delete(lifecycleRole.id));
+      await assert.rejects(() => as(adminToken, () => roleApi.save({ input: { name: `${lifecycleName} renamed` } })), (error) => error.status === 409);
+      auditService.recordInTransaction = (db) => db.auditLog.create({ data: { actorId: `missing-${tag}`, action: "test.audit.failure", entity: "Role", entityId: lifecycleRole.id, organizationId: orgA } });
+      try { await assert.rejects(() => as(adminToken, () => roleApi.restore({ id: lifecycleRole.id })), (error) => error.status === 409); }
+      finally { auditService.recordInTransaction = originalAudit; }
+      assert.ok((await prisma.role.findUnique({ where: { id: lifecycleRole.id } })).deletedAt);
+      await as(adminToken, () => roleApi.restore({ id: lifecycleRole.id }));
+    });
 
     await t.test("loads actual staff details, role defaults and the authorized catalog", async () => {
       const detail = await as(adminToken, () => userAccessApi.get(staffId));
@@ -180,13 +252,32 @@ test("frontend staff permission API through HTTP and MySQL", { timeout: process.
       assert.equal(detail.effectivePermissions.includes(PERMISSIONS.CUSTOMER_READ), false);
       assert.equal(await prisma.userPermission.count({ where: { userId: staffId, permissionId: readId } }), 0);
     });
-    if (process.env.RUN_BROWSER_ACCESS_TESTS === "1") await t.test("browser grants, denies, restores and reloads through the actual Users page", async () => {
+    if (process.env.RUN_BROWSER_ACCESS_TESTS === "1") await t.test("actual Roles table/lifecycle and staff overrides in the browser", async () => {
+      const browserRoleIds = Array.from({ length: 12 }, () => `access-it-browser-role-${randomUUID()}`);
+      roleIds.push(...browserRoleIds);
+      await prisma.role.createMany({ data: browserRoleIds.map((id, index) => ({ id, name: `Browser pagination ${String(index + 1).padStart(2, "0")}`, organizationId: orgA })) });
       await as(adminToken, () => userAccessApi.assignRole({ userId: staffId, roleId: staffRole }));
       await save([{ permissionId: readId, state: "inherit" }, { permissionId: updateId, state: "inherit" }]);
       const { runBrowserFlow } = await import("./browser-flow.mjs");
       await runBrowserFlow({
         apiUrl: process.env.NEXT_PUBLIC_API_URL, slug: orgA,
         email: `${adminId}@example.invalid`, password, staffEmail: `${staffId}@example.invalid`,
+        roleName: `Browser lifecycle ${tag}`,
+        verifyRole: async (stage, name) => {
+          const role = await prisma.role.findFirst({ where: { name, organizationId: orgA }, include: { permissions: true } });
+          assert.ok(role, "Browser role was not persisted");
+          if (!roleIds.includes(role.id)) roleIds.push(role.id);
+          assert.equal(!!role.deletedAt, stage === "archived", `Unexpected archived state after ${stage}`);
+          assert.deepEqual(role.permissions.map((grant) => grant.permissionId), [readId]);
+          assert.equal(role.permissions[0].isActive, true);
+          assert.deepEqual(await prisma.rolePermission.findMany({ where: { roleId: staffRole }, orderBy: { permissionId: "asc" } }), defaultsBefore);
+          if (stage === "restored") {
+            const audits = await prisma.auditLog.findMany({ where: { entityId: role.id } });
+            for (const action of ["create.role.success", "update.role.success", "delete.role.success", "restore.role.success"]) {
+              assert.ok(audits.some((row) => row.action === action && row.actorId === adminId && row.organizationId === orgA));
+            }
+          }
+        },
         verify: async (stage) => {
           const rows = await prisma.userPermission.findMany({ where: { userId: staffId } });
           if (stage === "denied") {
@@ -206,16 +297,19 @@ test("frontend staff permission API through HTTP and MySQL", { timeout: process.
     try {
       // Every deletion is bounded to UUID fixture IDs; existing tenant data is untouched.
       await prisma.$transaction(async (db) => {
+        // Include a browser-created role even if its response/verification failed.
+        const fixtureRoles = await db.role.findMany({ where: { organizationId: { in: orgIds } }, select: { id: true } });
+        const cleanupRoleIds = [...new Set([...roleIds, ...fixtureRoles.map((role) => role.id)])];
         await db.refreshToken.deleteMany({ where: { userId: { in: userIds } } });
         await db.auditLog.deleteMany({ where: { OR: [{ organizationId: { in: orgIds } }, { entityId: { in: [...userIds, ...roleIds] } }] } });
         await db.userPermission.deleteMany({ where: { userId: { in: userIds } } });
         await db.user.deleteMany({ where: { id: { in: userIds }, organizationId: { in: orgIds } } });
-        await db.rolePermission.deleteMany({ where: { roleId: { in: roleIds } } });
-        await db.role.deleteMany({ where: { id: { in: roleIds }, organizationId: { in: orgIds } } });
+        await db.rolePermission.deleteMany({ where: { roleId: { in: cleanupRoleIds } } });
+        await db.role.deleteMany({ where: { id: { in: cleanupRoleIds }, organizationId: { in: orgIds } } });
         if (createdPermissionIds.length) await db.permission.deleteMany({ where: { id: { in: createdPermissionIds } } });
         await db.organization.deleteMany({ where: { id: { in: orgIds } } });
       });
-      await redis.del(`rl:write:${testIp}`, `rl:auth:${testIp}`);
+      await redis.del(...[...testIps].flatMap((ip) => ["write", "auth", "delete"].map((prefix) => `rl:${prefix}:${ip}`)));
     } finally { await prisma.$disconnect(); redis.disconnect(); }
   }
 });

@@ -6,7 +6,7 @@ import { mkdtemp, rm, access, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, resolve, relative, isAbsolute, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 import process from "node:process";
 import { setTimeout, clearTimeout } from "node:timers";
 
@@ -57,7 +57,7 @@ async function restoreGeneratedConfig(frontend, originalConfig, originalEnv) {
   if (currentEnv.includes(".next/permission-tests/")) await writeFile(envPath, originalEnv.replaceAll(".next/permission-tests/", ".next/"));
 }
 
-export async function runBrowserFlow({ apiUrl, slug, email, password, staffEmail, verify }) {
+export async function runBrowserFlow({ apiUrl, slug, email, password, staffEmail, verify, roleName, verifyRole }) {
   const frontend = resolve(dirname(fileURLToPath(import.meta.url)), "../../../frontend");
   const browser = process.env.ACCESS_TEST_BROWSER ?? "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
   await access(browser);
@@ -95,7 +95,7 @@ export async function runBrowserFlow({ apiUrl, slug, email, password, staffEmail
     function call(method, params = {}) {
       return new Promise((resolveCall, reject) => {
         const id = ++sequence;
-        const timer = setTimeout(() => { pending.delete(id); reject(new Error(`Browser command timed out: ${method}`)); }, 15000);
+        const timer = setTimeout(() => { pending.delete(id); reject(new Error(`Browser command timed out: ${method}${method === "Page.navigate" ? " " + new URL(params.url).pathname : ""}`)); }, method === "Page.navigate" ? 60000 : 15000);
         pending.set(id, { resolve: resolveCall, reject, timer });
         socket.send(JSON.stringify({ id, method, params }));
       });
@@ -182,6 +182,94 @@ export async function runBrowserFlow({ apiUrl, slug, email, password, staffEmail
     await verify("inherit");
     await call("Emulation.setDeviceMetricsOverride", { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
     assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "Mobile dialog overflows horizontally");
+    await call("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    process.stdout.write("  Browser: staff permissions verified; checking role table and lifecycle.\n");
+    await call("Page.navigate", { url: `${origin}/${slug}/roles` });
+    await ready('input[placeholder="Search role names..."]');
+    const searchRoles = async (search) => {
+      await fill('input[placeholder="Search role names..."]', search);
+      await until(() => evaluate(`!!document.querySelector('tbody') && document.querySelector('input[placeholder="Search role names..."]').value === ${JSON.stringify(search)}`), "Role search did not complete");
+    };
+    const rowNames = () => evaluate("[...document.querySelectorAll('tbody tr')].map(row => row.cells[0].textContent.trim())");
+    const waitRole = (name) => until(() => evaluate(`[...document.querySelectorAll('tbody tr')].some(row => row.cells[0].textContent.trim() === ${JSON.stringify(name)})`), "Role row did not refresh");
+    const roleAction = async (name, action) => {
+      await ready(`[aria-label="Actions for ${name}"]`);
+      await click(`[aria-label="Actions for ${name}"]`);
+      await clickText('[role="menuitem"]', action);
+      await ready('[role="dialog"]');
+    };
+    await searchRoles("Browser pagination");
+    await waitRole("Browser pagination 01");
+    await until(() => evaluate("document.body.innerText.includes('Showing 1-10 of 12')"), "Role search totals did not load");
+    assert.equal((await rowNames()).length, 10);
+    await click('[aria-label="Go to next page"]');
+    await waitRole("Browser pagination 11");
+    assert.deepEqual(await rowNames(), ["Browser pagination 11", "Browser pagination 12"]);
+    assert.equal(await evaluate('document.querySelector(\'input[placeholder="Search role names..."]\').value'), "Browser pagination");
+    await clickText('thead button', "Name");
+    await waitRole("Browser pagination 12");
+    await until(() => evaluate("document.body.innerText.includes('Showing 1-10 of 12')"), "Role sorting did not reset pagination");
+    assert.equal((await rowNames())[0], "Browser pagination 12");
+    await call("Network.enable");
+    await call("Network.emulateNetworkConditions", { offline: false, latency: 800, downloadThroughput: -1, uploadThroughput: -1 });
+    await searchRoles("No matching role exists");
+    await ready('tbody [data-slot="skeleton"]');
+    assert.equal(await evaluate('!!document.querySelector(\'input[placeholder="Search role names..."]\')'), true, "Role search unmounted while loading");
+    await until(() => evaluate("!!document.querySelector('tbody') && document.querySelector('tbody').textContent.includes('No results')"), "Role empty state did not render");
+    await call("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    // Keep navigator online: TanStack Query intentionally pauses when the browser is offline.
+    await call("Network.setBlockedURLs", { urls: [apiUrl + "/role*"] });
+    await searchRoles("Failed role query");
+    await until(() => evaluate("document.body.innerText.includes('Unable to load roles.')"), "Role error state did not render");
+    await call("Network.setBlockedURLs", { urls: [] });
+    await clickText('[role="alert"] button', "Retry");
+    await until(() => evaluate("!!document.querySelector('tbody') && document.querySelector('tbody').textContent.includes('No results')"), "Role retry did not recover");
+    await searchRoles("");
+    process.stdout.write("  Browser: role pagination, sorting, empty state and network retry verified.\n");
+    await clickText('button', "Create role");
+    await ready("#role-name");
+    await fill("#role-name", roleName);
+    await click('[role="dialog"] input[type="checkbox"]');
+    await clickText('[role="dialog"] button', "Save role");
+    await until(() => evaluate("!document.querySelector('[role=dialog]')"), "Role creation dialog did not close");
+    await verifyRole("created", roleName);
+    await searchRoles(roleName);
+    await waitRole(roleName);
+    await roleAction(roleName, "Edit role");
+    await fill("#role-name", roleName + " renamed");
+    await clickText('[role="dialog"] button', "Save role");
+    await until(() => evaluate("!document.querySelector('[role=dialog]')"), "Role edit dialog did not close");
+    await verifyRole("renamed", roleName + " renamed");
+    await waitRole(roleName + " renamed");
+    await roleAction(roleName + " renamed", "Delete role");
+    await clickText('[role="dialog"] button', "Cancel");
+    await until(() => evaluate("!document.querySelector('[role=dialog]')"), "Cancelled archive dialog did not close");
+    await verifyRole("renamed", roleName + " renamed");
+    await roleAction(roleName + " renamed", "Delete role");
+    await clickText('[role="dialog"] button', "Delete role");
+    await until(() => evaluate("document.body.innerText.includes('Role archived')"), "Role archive was not acknowledged");
+    await until(() => evaluate("!document.querySelector('[role=dialog]')"), "Role archive dialog did not close");
+    await verifyRole("archived", roleName + " renamed");
+    await clickText('button', "Archived roles");
+    await waitRole(roleName + " renamed");
+    await roleAction(roleName + " renamed", "Restore role");
+    await fill("#restore-role-name", "Staff");
+    await clickText('[role="dialog"] button', "Restore role");
+    await until(() => evaluate("document.body.innerText.includes('A role with this name already exists')"), "Restore name conflict was not shown", 10000);
+    assert.equal(await evaluate("!!document.querySelector('#restore-role-name')"), true);
+    await fill("#restore-role-name", roleName + " restored");
+    await clickText('[role="dialog"] button', "Restore role");
+    await until(() => evaluate("!document.querySelector('[role=dialog]')"), "Role restore dialog did not close");
+    await verifyRole("restored", roleName + " restored");
+    process.stdout.write("  Browser: role create, rename, archive, conflict and restore persisted.\n");
+    await clickText('button', "Active roles");
+    await waitRole(roleName + " restored");
+    await call("Page.reload");
+    await ready('input[placeholder="Search role names..."]');
+    await searchRoles(roleName);
+    await waitRole(roleName + " restored");
+    await call("Emulation.setDeviceMetricsOverride", { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
+    assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "Mobile role table overflows horizontally");
   } finally {
     socket?.close();
     await stop(edge);

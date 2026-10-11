@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import { PERMISSIONS } from "../../src/constants/permission.constants.js";
 
 type Grant = { permissionId: string; isActive: boolean };
-type RoleRow = { id: string; name: string; organizationId: string | null; grants: Grant[] };
+type RoleRow = { id: string; name: string; organizationId: string | null; deletedAt?: Date | null; grants: Grant[] };
 type UserRow = { id: string; roleId: string; organizationId: string | null; status: string; deletedAt: Date | null; grants: Grant[] };
 type PermissionRow = { id: string; name: string; organizationId: string | null; description: string };
 let roles: RoleRow[];
@@ -39,7 +39,7 @@ function grantViews(grants: Grant[], activeOnly = true) {
   return grants.filter((g) => !activeOnly || g.isActive).map((g) => ({ ...g, permission: permissions.find((p) => p.id === g.permissionId)! }));
 }
 function roleView(role: RoleRow) {
-  return { ...role, permissions: grantViews(role.grants), _count: { users: users.filter((u) => u.roleId === role.id).length } };
+  return { ...role, deletedAt: role.deletedAt ?? null, permissions: grantViews(role.grants), _count: { users: users.filter((u) => u.roleId === role.id).length } };
 }
 function userView(user: UserRow) {
   return { ...user, email: user.id + "@example.com", firstName: user.id, lastName: "Test", middleName: null, suffix: null, password: "hash",
@@ -51,6 +51,13 @@ function upsertGrant(list: Grant[], permissionId: string, isActive = true) {
   const existing = list.find((g) => g.permissionId === permissionId);
   if (existing) existing.isActive = isActive;
   else list.push(grant(permissionId, isActive));
+}
+function matchesRole(role: RoleRow, where: any) {
+  return (!where.id || role.id === where.id) &&
+    (where.organizationId === undefined || role.organizationId === where.organizationId) &&
+    (where.deletedAt === undefined || (where.deletedAt === null ? !role.deletedAt : !!role.deletedAt)) &&
+    (!where.NOT?.id || role.id !== where.NOT.id) &&
+    (!where.name || (typeof where.name === "string" ? role.name.toLowerCase() === where.name.toLowerCase() : role.name.toLowerCase().includes(where.name.contains.toLowerCase())));
 }
 // Repository mocks enforce query scopes against two tenants. No live database or Redis is used.
 const transaction = jest.fn<(work: any) => Promise<any>>();
@@ -74,8 +81,14 @@ const db = {
     }),
   },
   role: {
-    findFirst: jest.fn(async ({ where }: any) => { const role = roles.find((r) => r.id === where.id && r.organizationId === where.organizationId); return role ? roleView(role) : null; }),
-    findMany: jest.fn(async ({ where }: any) => roles.filter((r) => r.organizationId === where.organizationId).map(roleView)),
+    findFirst: jest.fn(async ({ where }: any) => { const role = roles.find((r) => matchesRole(r, where)); return role ? roleView(role) : null; }),
+    count: jest.fn(async ({ where }: any) => roles.filter((r) => matchesRole(r, where)).length),
+    findMany: jest.fn(async ({ where, orderBy, skip = 0, take }: any) => {
+      const order = Array.isArray(orderBy) ? orderBy[0] : orderBy;
+      const sorted = roles.filter((r) => matchesRole(r, where)).sort((a, b) =>
+        (order?.name === "desc" ? -1 : 1) * a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+      return sorted.slice(skip, take === undefined ? undefined : skip + take).map(roleView);
+    }),
     create: jest.fn(async ({ data }: any) => { const role: RoleRow = { id: "new-role", name: data.name, organizationId: data.organizationId, grants: data.permissions.create.map((g: any) => grant(g.permissionId)) }; roles.push(role); return roleView(role); }),
     update: jest.fn(async ({ where, data }: any) => { const role = roles.find((r) => r.id === where.id && r.organizationId === where.organizationId)!; Object.assign(role, data); return roleView(role); }),
     delete: jest.fn(async ({ where }: any) => { roles = roles.filter((r) => r.id !== where.id || r.organizationId !== where.organizationId); }),
@@ -167,11 +180,128 @@ async function request(path: string, method = "GET", body?: unknown, token = "ad
   return { status: response.status, body: await response.json() as any };
 }
 
+describe("Role table and archive management", () => {
+  it("paginates tenant results with stable names, totals and a bounded page", async () => {
+    const first = await request("/role?page=1&pageSize=2&sortBy=name&sortOrder=asc");
+    expect(first.body.data.roles.map((r: any) => r.name)).toEqual(["Admin", "Empty"]);
+    expect(first.body.data.pagination).toEqual({ page: 1, pageSize: 2, total: 3, totalPages: 2, hasNextPage: true, hasPreviousPage: false });
+    const last = await request("/role?page=999&pageSize=2");
+    expect(last.body.data.roles.map((r: any) => r.name)).toEqual(["Staff"]);
+    expect(last.body.data.pagination.page).toBe(2);
+    expect(db.role.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ skip: 2, take: 2, where: { organizationId: "org-a", deletedAt: null } }));
+  });
+  it("searches only tenant role names and sorts descending", async () => {
+    const response = await request("/role?search=STAFF&sortOrder=desc");
+    expect(response.body.data.roles.map((r: any) => r.id)).toEqual(["staff-role-a"]);
+    expect(response.body.data.pagination.total).toBe(1);
+    const desc = await request("/role?sortOrder=desc&pageSize=2");
+    expect(desc.body.data.roles.map((r: any) => r.name)).toEqual(["Staff", "Empty"]);
+    const empty = await request("/role?search=missing");
+    expect(empty.body.data.roles).toEqual([]);
+    expect(empty.body.data.pagination.total).toBe(0);
+  });
+  it.each(["page=0", "page=1.5", "pageSize=101", "sortBy=organizationId", "sortOrder=invalid", "deleted=anything", "organizationId=org-b"])("rejects invalid table query %s", async (query) => {
+    expect((await request("/role?" + query)).status).toBe(400);
+    expect(db.role.count).not.toHaveBeenCalled();
+  });
+  it("rejects organization-local duplicate names, including case variants and archived names", async () => {
+    expect((await request("/role", "POST", { name: "staff", permissionIds: [] })).status).toBe(409);
+    expect((await request("/role/empty-role-a", "PATCH", { name: "Staff" })).status).toBe(409);
+    roles.find((r) => r.id === "empty-role-a")!.deletedAt = new Date();
+    expect((await request("/role", "POST", { name: "Empty", permissionIds: [] })).status).toBe(409);
+    expect((await request("/role", "POST", { name: "Staff B", permissionIds: [] })).status).toBe(201);
+  });
+  it("renames a role without writing role defaults or user overrides", async () => {
+    users.find((u) => u.id === "staff-a")!.grants = [grant("read", false), grant("update")];
+    const before = structuredClone({ users, grants: roles.find((r) => r.id === "staff-role-a")!.grants });
+    expect((await request("/role/staff-role-a", "PATCH", { name: "Dispatch" })).status).toBe(200);
+    expect(users).toEqual(before.users);
+    expect(roles.find((r) => r.id === "staff-role-a")!.grants).toEqual(before.grants);
+    expect(db.rolePermission.updateMany).not.toHaveBeenCalled();
+    expect(db.userPermission.upsert).not.toHaveBeenCalled();
+  });
+  it("archives without deleting defaults, hides active lookups and restores the exact defaults", async () => {
+    const role = roles.find((r) => r.id === "empty-role-a")!;
+    role.grants = [grant("read"), grant("update", false)];
+    const before = structuredClone(role.grants);
+    const archived = await request("/role/empty-role-a", "DELETE");
+    expect(archived.status).toBe(200);
+    expect(archived.body.data.deletedAt).toBeTruthy();
+    expect(archived.body.data.assignable).toBe(false);
+    expect(role.grants).toEqual(before);
+    expect(db.role.delete).not.toHaveBeenCalled();
+    expect(db.rolePermission.deleteMany).not.toHaveBeenCalled();
+    expect((await request("/role/empty-role-a")).status).toBe(404);
+    expect((await request("/role/empty-role-a", "PATCH", { name: "Hidden" })).status).toBe(404);
+    expect((await request("/role/empty-role-a", "DELETE")).status).toBe(404);
+    expect((await request("/role")).body.data.roles.some((r: any) => r.id === role.id)).toBe(false);
+    expect((await request("/role?deleted=true")).body.data.roles.map((r: any) => r.id)).toEqual([role.id]);
+    expect((await request("/role/assignable")).body.data.some((r: any) => r.id === role.id)).toBe(false);
+    expect((await request("/users/staff-a/role", "PATCH", { roleId: role.id })).status).toBe(404);
+    expect((await request("/role/empty-role-a/restore", "PATCH", {})).status).toBe(200);
+    expect(roles.find((r) => r.id === role.id)!.deletedAt).toBeNull();
+    expect(roles.find((r) => r.id === role.id)!.grants).toEqual(before);
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: "delete.role.success", before: expect.objectContaining({ deletedAt: null }), after: expect.objectContaining({ deletedAt: expect.any(Date) }) }));
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: "restore.role.success", after: expect.objectContaining({ deletedAt: null }) }));
+  });
+  it.each(["staff-role-b", "global-role", "missing", "empty-role-a"])("conceals foreign, missing or active restoration targets: %s", async (id) => {
+    expect((await request(`/role/${id}/restore`, "PATCH", {})).status).toBe(404);
+  });
+  it("prevents protected or out-of-authority archived roles from being restored", async () => {
+    roles.push({ id: "archived-admin", name: "Tenant Admin", organizationId: "org-a", deletedAt: new Date(), grants: [] });
+    expect((await request("/role/archived-admin/restore", "PATCH", { name: "Safe" })).status).toBe(403);
+    const role = roles.find((r) => r.id === "empty-role-a")!;
+    role.deletedAt = new Date();
+    for (const id of ["system", "unheld", "foreign"]) {
+      role.grants = [grant(id)];
+      expect((await request("/role/empty-role-a/restore", "PATCH", {})).status).toBe(403);
+    }
+  });
+  it("requires role update authority and an actual tenant administrator for restore", async () => {
+    roles.find((r) => r.id === "empty-role-a")!.deletedAt = new Date();
+    roles.find((r) => r.id === "staff-role-a")!.grants.push(grant("role-update"));
+    expect((await request("/role/empty-role-a/restore", "PATCH", {}, "staff-a")).status).toBe(403);
+    users.find((u) => u.id === "admin-a")!.grants.push(grant("role-update", false));
+    expect((await request("/role/empty-role-a/restore", "PATCH", {})).status).toBe(403);
+  });
+  it("keeps archives intact on name conflicts, rejects reserved names and accepts a new unique name", async () => {
+    roles.find((r) => r.id === "empty-role-a")!.deletedAt = new Date();
+    expect((await request("/role/empty-role-a/restore", "PATCH", { name: "Staff" })).status).toBe(409);
+    expect(roles.find((r) => r.id === "empty-role-a")!.deletedAt).toBeTruthy();
+    expect((await request("/role/empty-role-a/restore", "PATCH", { name: "Admin" })).status).toBe(403);
+    expect((await request("/role/empty-role-a/restore", "PATCH", { name: "Restored" })).status).toBe(200);
+    expect(roles.find((r) => r.id === "empty-role-a")!.name).toBe("Restored");
+  });
+  it("rejects restore mass assignment and invalid names", async () => {
+    roles.find((r) => r.id === "empty-role-a")!.deletedAt = new Date();
+    for (const body of [{ name: "x" }, { permissionIds: [] }, { organizationId: "org-b" }, { deletedAt: null }]) {
+      expect((await request("/role/empty-role-a/restore", "PATCH", body)).status).toBe(400);
+    }
+    expect(record).not.toHaveBeenCalled();
+  });
+  it.each(["archive", "restore"])("rolls back %s and retains defaults when audit insertion fails", async (operation) => {
+    roles.find((r) => r.id === "empty-role-a")!.deletedAt = operation === "restore" ? new Date() : null;
+    const before = structuredClone(roles);
+    record.mockRejectedValueOnce(new Error("Audit unavailable"));
+    const response = operation === "archive" ? await request("/role/empty-role-a", "DELETE") : await request("/role/empty-role-a/restore", "PATCH", {});
+    expect(response.status).toBe(500);
+    expect(roles).toEqual(before);
+  });
+  it("rejects an archived assigned role during authentication even with an existing token", async () => {
+    roles.find((r) => r.id === "staff-role-a")!.deletedAt = new Date();
+    expect((await request("/probe", "GET", undefined, "staff-a")).status).toBe(401);
+  });
+  it("rejects archived roles during invitation validation", async () => {
+    roles.find((r) => r.id === "empty-role-a")!.deletedAt = new Date();
+    await expect(userService.validateCreateInput({ email: "new@example.com", organizationId: "org-a", roleId: "empty-role-a" } as any)).rejects.toThrow("Role not found");
+  });
+});
+
 describe("Tenant access management routes", () => {
   it("lists only the authenticated organization and does not trust token organization claims", async () => {
     const response = await request("/role");
     expect(response.status).toBe(200);
-    expect(response.body.data.map((r: any) => r.id)).toEqual(["admin-role-a", "staff-role-a", "empty-role-a"]);
+    expect(response.body.data.roles.map((r: any) => r.id)).toEqual(["admin-role-a", "empty-role-a", "staff-role-a"]);
   });
   it("enforces permission checks even when an old token claims admin privileges", async () => {
     expect((await request("/role", "POST", { name: "Evil", permissionIds: [] }, "staff-a")).status).toBe(403);
@@ -186,7 +316,7 @@ describe("Tenant access management routes", () => {
     expect((await request("/role")).status).toBe(403);
     const choices = await request("/role/assignable");
     expect(choices.status).toBe(200);
-    expect(choices.body.data.map((r: any) => r.id)).toEqual(["staff-role-a", "empty-role-a"]);
+    expect(choices.body.data.map((r: any) => r.id)).toEqual(["empty-role-a", "staff-role-a"]);
     expect(choices.body.data.every((r: any) => !Object.hasOwn(r, "permissions"))).toBe(true);
   });
   it("creates, updates and deletes a tenant role with validated defaults and audit events", async () => {

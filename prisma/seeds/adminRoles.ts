@@ -13,7 +13,7 @@ export async function seedAdminRoles(prisma: PrismaClient) {
     }
     const permissionIds = permissions.map((permission) => permission.id);
     const roles = (await db.role.findMany({
-      where: { organizationId: { not: null } },
+      where: { organizationId: { not: null }, deletedAt: null },
       select: { id: true, name: true, organizationId: true, permissions: {
         select: { permissionId: true, isActive: true }, orderBy: { permissionId: "asc" },
       } },

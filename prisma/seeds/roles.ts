@@ -42,6 +42,7 @@ export const seedRoles = async (prisma: PrismaClient, organizations: { id: strin
         },
       });
 
+      if (role.deletedAt) continue;
       await prisma.rolePermission.updateMany({ where: { roleId: role.id, permission: { name: { notIn: def.perms.map((p) => p.name) } } }, data: { isActive: false } });
       for (const perm of def.perms) {
         await prisma.rolePermission.upsert({

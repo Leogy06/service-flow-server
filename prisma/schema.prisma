@@ -134,12 +134,14 @@ model Role {
   id             String  @id @default(cuid())
   name           String
   organizationId String?
+  deletedAt      DateTime?
 
   organization Organization?    @relation(fields: [organizationId], references: [id])
   users        User[]
   permissions  RolePermission[]
 
   @@unique([name, organizationId])
+  @@index([organizationId, deletedAt, name])
 }
 
 //permission
