@@ -38,7 +38,7 @@ export const { getOrSetCache, invalidateCache } =
   await import("@/utils/cache.js");
 
 export function resetMocks() {
-  jest.clearAllMocks();
+  jest.resetAllMocks();
   (requestContext.getValue as jest.Mock).mockReturnValue(ORG_ID);
 }
 

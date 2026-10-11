@@ -4,5 +4,4 @@ export type CreateCustomerInput = {
   phoneNumber: string;
   address?: string;
   notes?: string;
-  organizationId?: string;
 };

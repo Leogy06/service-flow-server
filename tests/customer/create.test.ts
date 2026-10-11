@@ -5,6 +5,7 @@ import {
   // getOrSetCache,
   // invalidateCache,
   ORG_ID,
+  requestContext,
   resetMocks,
   mockCustomer,
 } from "./__mocks__/setup.js";
@@ -17,12 +18,11 @@ describe("customerService.create", () => {
     resetMocks();
   });
 
-  it("creates individual customer", async () => {
+  it("creates a customer in the authenticated organization", async () => {
     const input = {
       name: "Juan Dela Cruz",
       email: "juan@test.com",
       phoneNumber: "09171234567",
-      customerType: "INDIVIDUAL" as const,
       organizationId: ORG_ID,
     };
     const created = mockCustomer(input);
@@ -33,12 +33,11 @@ describe("customerService.create", () => {
     expect(result).toEqual(created);
   });
 
-  it("creates organization customer", async () => {
+  it("creates a customer with an organization name", async () => {
     const input = {
       name: "Test Organization",
       email: "test@email.com",
       phoneNumber: "09171234777",
-      customerType: "ORGANIZATION" as const,
       organizationId: ORG_ID,
     };
 
@@ -49,21 +48,19 @@ describe("customerService.create", () => {
 
     expect(result).toEqual(created);
 
-    console.log("RESULT:", result);
-    console.log("EXPECTED:", created);
   });
 
-  it("failes because no customer type", async () => {
+  it("rejects creation without a trusted organization context", async () => {
+    (requestContext.getValue as jest.Mock).mockReturnValue(undefined);
     const input = {
-      id: "cust-1",
+      name: "Juan Dela Cruz",
       email: "juan@test.com",
       phoneNumber: "09171234567",
       organizationId: ORG_ID,
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await expect(customerService.create(input as any)).rejects.toThrow(
-      "Customer type is required.",
+    await expect(customerService.create(input)).rejects.toThrow(
+      "Organization context is required",
     );
   });
 });

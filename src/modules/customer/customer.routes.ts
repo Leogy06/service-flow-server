@@ -5,13 +5,13 @@ import { validate } from "@/middleware/validate.js";
 import {
   createCustomerSchema,
   customerListInput,
-  updateCustomerParamsSchema,
-  updateCustomerSchema,
+  customerParamsSchema,
+  updateCustomerInput,
 } from "./customer.schema.js";
 import { Router } from "express";
 import { PERMISSIONS } from "@/constants/permission.constants.js";
 
- const customerRoutes = Router();
+const customerRoutes = Router();
 
 customerRoutes.post(
   "/",
@@ -28,18 +28,26 @@ customerRoutes.get(
   customerController.list,
 );
 
+customerRoutes.get(
+  "/:id",
+  requirePermission(PERMISSIONS.CUSTOMER_READ),
+  validate(customerParamsSchema),
+  customerController.get,
+);
+
 customerRoutes.put(
   "/:id",
   writeLimmiter,
   requirePermission(PERMISSIONS.CUSTOMER_UPDATE),
-  validate(updateCustomerParamsSchema),
-  validate(updateCustomerSchema),
+  validate(updateCustomerInput),
   customerController.update,
 );
 
 customerRoutes.delete(
   "/:id",
+  writeLimmiter,
   requirePermission(PERMISSIONS.CUSTOMER_DELETE),
+  validate(customerParamsSchema),
   customerController.delete,
 );
 export default customerRoutes;

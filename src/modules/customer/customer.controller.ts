@@ -1,6 +1,7 @@
 import {
   CreateCustomerSchema,
   UpdateCustomerInput,
+  CustomerParams,
 } from "./customer.schema.js";
 import { CustomerListInput } from "./customer.schema.js";
 import { customerService } from "./customer.service.js";
@@ -11,8 +12,7 @@ export const customerController = {
   create: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const customer = await customerService.create(
-        req.body as CreateCustomerSchema,
-        
+        req.validated.body as CreateCustomerSchema,
       );
       sendResponse(res, 201, "Customer created successfully", customer);
     } catch (error) {
@@ -21,10 +21,8 @@ export const customerController = {
   },
 
   list: async (req: Request, res: Response, next: NextFunction) => {
-    const { page, pageSize, sortBy, sortOrder, search } = req.validated
+    const { page, pageSize, sortBy, sortOrder, search, filter } = req.validated
       .query as CustomerListInput["query"];
-
-    // console.log("sortBy", sortBy);
 
     try {
       const customers = await customerService.list(
@@ -33,6 +31,7 @@ export const customerController = {
         search,
         sortOrder,
         sortBy,
+        filter,
       );
       sendResponse(res, 200, "Customers fetched successfully", customers);
     } catch (error) {
@@ -40,11 +39,22 @@ export const customerController = {
     }
   },
 
+  async get(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.validated.params as CustomerParams;
+      const customer = await customerService.get(id);
+      sendResponse(res, 200, "Customer fetched successfully", customer);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async update(req: Request, res: Response, next: NextFunction) {
     try {
       const validated = req.validated.body as UpdateCustomerInput;
+      const { id } = req.validated.params as CustomerParams;
       const customer = await customerService.update(
-        req.params.id as string,
+        id,
         validated,
       );
       sendResponse(res, 200, "Customer updated successfully", customer);
@@ -55,7 +65,8 @@ export const customerController = {
 
   async delete(req: Request, res: Response, next: NextFunction) {
     try {
-      const customer = await customerService.delete(req.params.id as string);
+      const { id } = req.validated.params as CustomerParams;
+      const customer = await customerService.delete(id);
       sendResponse(res, 200, "Customer deleted successfully", customer);
     } catch (err) {
       next(err);

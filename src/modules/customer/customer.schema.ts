@@ -4,19 +4,15 @@ import emptyToUndefined from "@/utils/emptyToUndefined.js";
 
 const customerBodySchema = z.object({
   name: z.string().trim().max(100).min(2, "Name is required"),
-  email: z
-    .email("Invalid email address")
-    .min(1, "Email is required")
-    .trim()
-    .toLowerCase()
-    .max(255),
+  email: z.string().trim().toLowerCase().pipe(z.email("Invalid email address").max(255)),
   phoneNumber: z
     .string()
     .trim()
-    .regex(
+    .transform((value) => value.replace(/[\s-]/g, ""))
+    .pipe(z.string().regex(
       /^(?:\+63|63|0)9\d{9}$/,
       "Please enter a valid Philippine mobile number",
-    ),
+    )),
   address: z.string().trim().max(500).optional(),
   notes: z.string().trim().max(2000).optional(),
 });
@@ -33,31 +29,32 @@ export const updateCustomerSchema = z.object({
     }),
 });
 
-//separate schema because it is exclusive to specific model
 export const customerListQuerySchema = paginationSchema.extend({
+  page: z.coerce.number().int().min(1).max(1_000_000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+  search: z.string().trim().max(200).optional(),
+  filter: emptyToUndefined(z.enum(["all", "missing_address", "with_notes"]).default("all")),
+  sortOrder: emptyToUndefined(z.enum(["asc", "desc"]).default("desc")),
   sortBy: emptyToUndefined(
     z.enum(["name", "email", "createdAt"]).default("createdAt"),
   ),
 });
 
-//query accessor in the schema vald   iation
 export const customerListInput = z.object({
   query: customerListQuerySchema,
 });
 
-export const updateCustomerParamsSchema = z.object({
-  params: z.object({
-    id: z.string().min(1, "Customer id is required"),
-  }),
+export const customerParamsSchema = z.object({
+  params: z.object({ id: z.string().trim().min(1, "Customer id is required").max(64) }),
+});
+
+export const updateCustomerInput = updateCustomerSchema.extend({
+  params: customerParamsSchema.shape.params,
 });
 
 export type CreateCustomerSchema = z.infer<typeof createCustomerSchema>["body"];
 export type CustomerListInput = z.infer<typeof customerListInput>;
 
-//update custoemr chema
 export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>["body"];
 
-//update customer params schema
-export type UpdateCustomerParamsInput = z.infer<
-  typeof updateCustomerParamsSchema
->["params"];
+export type CustomerParams = z.infer<typeof customerParamsSchema>["params"];
