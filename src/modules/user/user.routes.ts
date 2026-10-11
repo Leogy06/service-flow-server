@@ -11,6 +11,7 @@ import {
   userUpdateSchema,
   userListQuerySchema,
   assignUserRoleSchema,
+  userParamsSchema,
 } from "./user.schema.js";
 import { deleteLimiter, writeLimmiter } from "@/middleware/rateLimiter.js";
 import { userPermissionController } from "@/modules/user-permission/user.permission.controller.js";
@@ -19,6 +20,7 @@ import { userPermissionController } from "@/modules/user-permission/user.permiss
 const userRoutes = Router();
 
 userRoutes.get("/", requirePermission(PERMISSIONS.USER_READ), validate(userListQuerySchema), userController.list);
+userRoutes.get("/roles", requirePermission(PERMISSIONS.USER_READ), userController.listRoles);
 userRoutes.patch("/:id/role", requirePermission(PERMISSIONS.USER_UPDATE), writeLimmiter, validate(assignUserRoleSchema), userPermissionController.assignRole);
 userRoutes.post(
   "/",
@@ -58,11 +60,12 @@ userRoutes.put(
   validate(setPasswordParams),
   userController.setPassword,
 );
-userRoutes.patch("/:id/restore", requirePermission(PERMISSIONS.USER_UPDATE), userController.restore);
+userRoutes.patch("/:id/restore", requirePermission(PERMISSIONS.USER_UPDATE), writeLimmiter, validate(userParamsSchema), userController.restore);
 userRoutes.delete(
   "/:id",
   deleteLimiter,
   requirePermission(PERMISSIONS.USER_DELETE),
+  validate(userParamsSchema),
   userController.delete,
 );
 

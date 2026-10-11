@@ -27,10 +27,16 @@ export const createUserInviteSchema = z.object({
   body: baseUserSchema.omit({ organizationId: true }),
 });
 export const userUpdateSchema = z.object({
+  params: z.object({ id: resourceId }),
   body: baseUserSchema.omit({ organizationId: true, roleId: true }).extend({
-    id: z.string().min(1, "User ID is required"),
+    id: resourceId,
+    phone: z.union([baseUserSchema.shape.phone, z.literal(""), z.null()])
+      .transform((value) => value === "" ? null : value),
   }),
+}).refine((input) => input.params.id === input.body.id, {
+  message: "User ID must match the URL", path: ["body", "id"],
 });
+export const userParamsSchema = z.object({ params: z.object({ id: resourceId }) });
 export const userListQuerySchema = z.object({
   query: z.object({
     page: z.coerce.number().int().min(1).max(1000000).default(1),

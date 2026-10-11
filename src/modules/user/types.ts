@@ -18,8 +18,8 @@ export type UserCreateInput = Omit<UserBase, "id" | "organizationId"> & {
 
 // Update — everything optional except keep organizationId/roleId separate (admin-only change)
 export type UserUpdateInput = Partial<
-  Omit<UserBase, "id" | "organizationId" | "roleId">
->;
+  Omit<UserBase, "id" | "organizationId" | "roleId" | "phone">
+> & { phone?: string | null };
 
 // Separate type for org/role reassignment — admin-only action, not regular update
 export type UserOrgRoleUpdateInput = {

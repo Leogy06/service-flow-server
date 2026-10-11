@@ -14,6 +14,15 @@ import {
 import { UserUpdateInput } from "./types.js";
 
 export const userController = {
+  async listRoles(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const organizationId = requestContext.getValue("organizationId") as string;
+      const roles = await userService.listRoles(organizationId);
+      sendResponse(res, 200, "User roles fetched successfully", roles);
+    } catch (err) {
+      next(err);
+    }
+  },
   async list(req: Request, res: Response, next: NextFunction) {
     const organizationId = requestContext.getValue("organizationId") as string;
 

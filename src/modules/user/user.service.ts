@@ -32,6 +32,7 @@ const DEFAULT_USER_SELECT = {
   organizationId: true,
   phone: true,
   deletedAt: true,
+  createdAt: true,
 } satisfies Prisma.UserSelect;
 
 interface ListProps {
@@ -91,12 +92,16 @@ export const userService = {
 
     const where: Prisma.UserWhereInput = {
       organizationId,
-      OR: search
-        ? [
-            { firstName: { contains: search } },
-            { lastName: { contains: search } },
-            { email: { contains: search } },
-          ]
+      AND: search
+        ? search.split(/[\s,]+/).filter(Boolean).map((term) => ({
+            OR: [
+              { firstName: { contains: term } },
+              { lastName: { contains: term } },
+              { middleName: { contains: term } },
+              { suffix: { contains: term } },
+              { email: { contains: term } },
+            ],
+          }))
         : undefined,
       deletedAt: deleted ? { not: null } : null,
       ...(status === "active" ? { status: UserStatus.ACTIVE } : {}),
@@ -105,39 +110,46 @@ export const userService = {
       role: { organizationId, deletedAt: null, ...(roleName ? { name: roleName } : {}) },
     };
 
-    const { users, total } = await getOrSetCache(
+    const { users, total, currentPage, totalPages } = await getOrSetCache(
       cacheKey,
       DEFAULT_TTL_SECONDS,
       async () => {
-        const [users, total] = await Promise.all([
-          prisma.user.findMany({
+        return prisma.$transaction(async (db) => {
+          const total = await db.user.count({ where });
+          const totalPages = Math.max(1, Math.ceil(total / pageSize));
+          const currentPage = Math.min(page, totalPages);
+          const users = await db.user.findMany({
             where,
             select,
             orderBy: [{ [sortBy]: sortOrder }, { id: "asc" }],
-            skip: (page - 1) * pageSize,
+            skip: (currentPage - 1) * pageSize,
             take: pageSize,
-          }),
-          prisma.user.count({
-            where,
-          }),
-        ]);
-        return { users, total };
+          });
+          return { users, total, currentPage, totalPages };
+        }, { isolationLevel: "RepeatableRead" });
       },
     );
-
-    const totalPages = Math.ceil(total / pageSize);
 
     return {
       users,
       pagination: {
         total,
         totalPages,
-        page,
+        page: currentPage,
         pageSize,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1,
       },
     };
+  },
+
+  async listRoles(organizationId: string) {
+    if (!organizationId) throw new AppError(400, "Organization ID is required");
+    return prisma.role.findMany({
+      where: { organizationId, deletedAt: null },
+      select: { id: true, name: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    });
   },
 
   async invalidateUserCache(userId?: string) {
