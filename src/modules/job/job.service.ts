@@ -39,6 +39,7 @@ export const jobService = {
       ] }] } : {}),
       ...(query.search ? { OR: [{ referenceNumber: { contains: query.search } },
         { customer: { organizationId, name: { contains: query.search } } },
+        { serviceType: { organizationId, name: { contains: query.search } } },
         { serviceRequest: { organizationId, referenceNumber: { contains: query.search } } }] } : {}),
     };
     return tenantTransaction(async (db) => {

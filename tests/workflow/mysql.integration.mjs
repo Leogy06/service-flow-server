@@ -126,6 +126,8 @@ test("request -> assigned jobs -> completion -> invoice -> payments", { timeout:
       assert.equal(page.jobs.length, 1); assert.equal(page.pagination.total, 2);
       assert.equal((await as(tokenA, () => jobs.list({ ...listParams, page: 999, pageSize: 1 }))).pagination.page, 2);
       assert.equal((await as(tokenA, () => jobs.list({ ...listParams, search: firstJob.referenceNumber }))).jobs[0].id, firstJob.id);
+      assert.equal((await as(tokenA, () => jobs.list({ ...listParams, search: "Fixture repair" }))).pagination.total, 2);
+      assert.equal((await as(tokenB, () => jobs.list({ ...listParams, search: "Fixture repair" }))).pagination.total, 0);
       assert.equal((await as(tokenA, () => jobs.list({ ...listParams, serviceRequestId: otherRequest.id }))).pagination.total, 0);
       await as(tokenA, () => jobs.update(firstJob.id, { assignedStaffId: admin, description: "Updated repair", location: "Cebu", internalNotes: "Updated notes", scheduledStart: "2026-10-13T08:00:00+08:00", scheduledEnd: "2026-10-13T10:00:00+08:00" }));
       assert.equal((await as(tokenA, () => jobs.get(firstJob.id))).assignedStaffId, admin);
@@ -149,7 +151,11 @@ test("request -> assigned jobs -> completion -> invoice -> payments", { timeout:
       await denied(() => as(tokenA, () => requests.status(firstRequest.id, "COMPLETED")), 409);
       await denied(() => as(tokenA, () => invoices.create(invoiceInput(firstJob.id))), 409);
       await as(tokenA, () => jobs.status(secondJob.id, "IN_PROGRESS")); await as(tokenA, () => jobs.status(secondJob.id, "COMPLETED"));
+      assert.equal((await as(tokenA, () => jobs.list({ ...listParams, search: "Fixture repair", billable: "true" }))).pagination.total, 0);
       await as(tokenA, () => requests.status(firstRequest.id, "COMPLETED"));
+      const billable = await as(tokenA, () => jobs.list({ ...listParams, search: "Fixture repair", billable: "true" }));
+      assert.deepEqual(new Set(billable.jobs.map((job) => job.id)), new Set([firstJob.id, secondJob.id]));
+      assert.equal((await as(tokenB, () => jobs.list({ ...listParams, search: "Fixture repair", billable: "true" }))).pagination.total, 0);
       const detail = await as(tokenA, () => jobs.get(firstJob.id));
       assert.equal(detail.statusHistory.length, 3); assert.ok(detail.startedAt); assert.ok(detail.completedAt);
       await denied(() => as(tokenA, () => jobs.update(firstJob.id, jobInput())), 409);
