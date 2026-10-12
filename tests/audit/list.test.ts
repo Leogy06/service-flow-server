@@ -72,6 +72,9 @@ const db = {
       .sort((a, b) => (orderBy[0].createdAt === "asc" ? 1 : -1) *
         (a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id)))
       .slice(skip, skip + take).map((row) => project(row, select))),
+    groupBy: jest.fn(async ({ by: [field], where }: { by: ("action" | "entity")[]; where: { organizationId: string } }) =>
+      [...new Set(logs.filter((row) => matches(row, where)).map((row) => row[field]))]
+        .sort().map((value) => ({ [field]: value }))),
     create: jest.fn(),
   },
   $transaction: jest.fn(async (work: (db: any) => Promise<unknown>) => work(db)),
@@ -113,6 +116,7 @@ describe("Read-only tenant audit logs", () => {
     expect((await get("", actor)).status).toBe(403);
     expect(db.auditLog.count).not.toHaveBeenCalled();
     expect(db.auditLog.findMany).not.toHaveBeenCalled();
+    expect(db.auditLog.groupBy).not.toHaveBeenCalled();
   });
 
   it("requires authentication and rejects missing or inactive users", async () => {
@@ -178,9 +182,46 @@ describe("Read-only tenant audit logs", () => {
     expect(ids(await get("?page=3&pageSize=1"))).toEqual(["a-1"]);
   });
 
+  it("returns unique filter choices from the tenant's full history, independent of page and active filters", async () => {
+    logs.push({ ...logs[0], id: "a-duplicate" });
+    const response = await get("?pageSize=1&action=update.job.success&entity=Job&search=Alice");
+    expect(response.status).toBe(200);
+    expect(response.body.data.filters).toEqual({
+      actions: ["create.customer.success", "seed.admin.role.permissions.success", "update.job.success"],
+      entities: ["Customer", "Job", "Role"],
+    });
+    expect((await get("", "admin-b")).body.data.filters).toEqual({ actions: ["delete.customer.success"], entities: ["Customer"] });
+    expect((await get("?search=missing")).body.data.filters).toEqual(response.body.data.filters);
+  });
+
+  it.each([
+    ["action=create.customer.success", ["a-1"]],
+    ["entity=Job", ["a-2"]],
+    ["action=update.job.success&entity=Job&search=Able", ["a-2"]],
+    ["action=update.job.success&entity=Customer", []],
+    ["action=delete.customer.success", []],
+    ["action=update", []],
+    ["entity=Unknown", []],
+  ])("filters actions and record types server-side for %s", async (query, expected) => {
+    const response = await get("?" + query);
+    expect(response.status).toBe(200);
+    expect(ids(response)).toEqual(expected);
+    expect(response.body.data.pagination.total).toBe(expected.length);
+  });
+
+  it("keeps filter totals and pagination scoped and respects timestamp sorting", async () => {
+    logs[0].action = "update.job.success";
+    logs[0].entity = "Job";
+    const response = await get("?action=update.job.success&entity=Job&pageSize=1&page=2&sortOrder=asc");
+    expect(ids(response)).toEqual(["a-2"]);
+    expect(response.body.data.pagination).toMatchObject({ page: 2, total: 2, totalPages: 2 });
+  });
+
   it.each([
     "organizationId=org-b", "actorId=actor-org-b", "page=0", "page=1.5", "page=1000001",
     "pageSize=0", "pageSize=101", "pageSize=1.5", "sortOrder=invalid", "sortBy=password", "search=" + "x".repeat(121),
+    "action=", "entity=", "action=" + "x".repeat(192), "entity=" + "x".repeat(192),
+    "action=one&action=two", "entity=one&entity=two",
   ])("rejects unsupported or invalid input %s", async (query) => {
     expect((await get("?" + query)).status).toBe(400);
     expect(db.auditLog.findMany).not.toHaveBeenCalled();
@@ -196,6 +237,11 @@ describe("Read-only tenant audit logs", () => {
 
   it("propagates database failures without returning successful results", async () => {
     db.auditLog.count.mockRejectedValueOnce(new Error("Unavailable"));
+    expect((await get()).status).toBe(500);
+  });
+
+  it("does not return successful results when filter choices cannot be loaded", async () => {
+    db.auditLog.groupBy.mockRejectedValueOnce(new Error("Unavailable"));
     expect((await get()).status).toBe(500);
   });
 

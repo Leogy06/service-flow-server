@@ -25,6 +25,8 @@ export const auditService = {
     const organizationId = ctx.organizationId;
     const where: Prisma.AuditLogWhereInput = {
       organizationId,
+      ...(query.action ? { action: query.action } : {}),
+      ...(query.entity ? { entity: query.entity } : {}),
       ...(query.search ? {
         AND: query.search.split(/\s+/).map((word) => ({ OR: [
           { action: { contains: word } },
@@ -51,7 +53,16 @@ export const auditService = {
         skip: (page - 1) * query.pageSize,
         take: query.pageSize,
       });
+      // Options include the tenant's full history, independent of the current page or filters.
+      const [actions, entities] = await Promise.all([
+        db.auditLog.groupBy({ by: ["action"], where: { organizationId }, orderBy: { action: "asc" } }),
+        db.auditLog.groupBy({ by: ["entity"], where: { organizationId }, orderBy: { entity: "asc" } }),
+      ]);
       return {
+        filters: {
+          actions: actions.map((row) => row.action),
+          entities: entities.map((row) => row.entity),
+        },
         logs: logs.map(({ actor, ...log }) => ({
           ...log,
           // A historical actor may now belong to a different tenant.

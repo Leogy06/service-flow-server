@@ -6,6 +6,8 @@ export const listAuditLogsSchema = z.object({
     pageSize: z.coerce.number().int().min(1).max(100).default(10),
     search: z.string().trim().max(120).default(""),
     sortOrder: z.enum(["asc", "desc"]).default("desc"),
+    action: z.string().trim().min(1).max(191).optional(),
+    entity: z.string().trim().min(1).max(191).optional(),
   }).strict(),
 });
 
