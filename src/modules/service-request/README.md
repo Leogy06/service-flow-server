@@ -36,8 +36,11 @@ Lifecycle:
 Ownership checks, lifecycle changes, and audit writes execute in serializable
 transactions with bounded conflict retries. Audit failures roll back mutations.
 The request API omits public tracking tokens and job internal notes.
-Job creation and updates remain the responsibility of the job workflow; future
-job mutations must check the parent request lifecycle before changing its jobs.
+The Job module checks the parent request lifecycle before creating, editing or
+changing jobs. Starting a job advances a pending request to `IN_PROGRESS`, with
+an audit entry; completing jobs leaves request completion explicit.
+The linked Jobs and Billing workflow is documented in
+`frontend/features/workflow/README.md`.
 
 Verification commands from `backend/`:
 

@@ -6,6 +6,8 @@ import userPermissionRoutes from "@/modules/user-permission/user.permission.rout
 import roleRoutes from "@/modules/role/role.routes.js";
 import customerRoutes from "@/modules/customer/customer.routes.js";
 import serviceRequestRoutes from "@/modules/service-request/service-request.routes.js";
+import jobRoutes from "@/modules/job/job.routes.js";
+import invoiceRoutes from "@/modules/invoice/invoice.routes.js";
 import rolePermissionRoutes from "@/modules/role-permission/role.permission.routes.js";
 import userRoutes from "@/modules/user/user.routes.js";
 import organizationRoutes from "@/modules/organization/organization.route.js";
@@ -18,6 +20,8 @@ router.use("/users", authenticate, userRoutes);
 router.use("/organization", organizationRoutes);
 router.use("/customers", authenticate, customerRoutes);
 router.use("/service-requests", authenticate, serviceRequestRoutes);
+router.use("/jobs", authenticate, jobRoutes);
+router.use("/invoices", authenticate, invoiceRoutes);
 router.use("/permission", permissionRoutes);
 router.use("/role-permission", rolePermissionRoutes);
 router.use("/user-permission", userPermissionRoutes);

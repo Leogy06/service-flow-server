@@ -1,41 +1,16 @@
 import { randomUUID } from "node:crypto";
-import { prisma } from "@/lib/prisma.js";
-import { requestContext } from "@/lib/requestContext.js";
 import { auditService } from "@/modules/audit/audit.service.js";
 import { AppError } from "@/utils/AppError.js";
 import type { Prisma, ServiceRequestStatus } from "@/generated/prisma/client.js";
 import type { CreateRequest, UpdateRequest, RequestList, CreateType, UpdateType, TypeList } from "./service-request.schema.js";
 import { requestTransitions, validateTransition } from "./lifecycle.js";
-
-function organization() {
-  const id = requestContext.getValue("organizationId");
-  if (!id) throw new AppError(403, "An organization session is required");
-  return id;
-}
+import { tenantOrganization as organization, tenantTransaction as transaction, pagination } from "@/utils/tenant-transaction.js";
 const requestSelect = {
   id: true, referenceNumber: true, title: true, description: true, priority: true,
   status: true, createdAt: true, updatedAt: true, customerId: true, serviceTypeId: true,
   customer: { select: { id: true, name: true } },
   serviceType: { select: { id: true, name: true, isActive: true } },
 } satisfies Prisma.ServiceRequestSelect;
-function pagination(page: number, pageSize: number, total: number) {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const current = Math.min(page, totalPages);
-  return { page: current, pageSize, total, totalPages, hasNextPage: current < totalPages, hasPreviousPage: current > 1 };
-}
-// Serializable reads protect ownership, archive checks and job completion against concurrent writes.
-async function transaction<T>(work: (db: Prisma.TransactionClient) => Promise<T>): Promise<T> {
-  for (let attempt = 0; ; attempt++) {
-    try { return await prisma.$transaction(work, { isolationLevel: "Serializable" }); }
-    catch (error) {
-      const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
-      if (code === "P2034" && attempt < 2) continue;
-      if (code === "P2034") throw new AppError(409, "The record changed concurrently. Please retry");
-      if (code === "P2002") throw new AppError(409, "A record with this name or reference already exists");
-      throw error;
-    }
-  }
-}
 async function related(db: Prisma.TransactionClient, organizationId: string, customerId?: string, serviceTypeId?: string) {
   if (customerId && !await db.customer.findFirst({ where: { id: customerId, organizationId, deletedAt: null }, select: { id: true } })) {
     throw new AppError(404, "Customer not found");

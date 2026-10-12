@@ -1,0 +1,41 @@
+import { z } from "zod";
+
+export const resourceId = z.string().trim().min(1).max(64);
+export const resourceParams = z.object({ params: z.object({ id: resourceId }) });
+export const listQuery = z.object({
+  page: z.coerce.number().int().min(1).max(1_000_000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+  search: z.string().trim().max(200).default(""),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
+});
+const date = z.iso.datetime({ offset: true }).transform((value) => new Date(value));
+const jobFields = z.object({
+  assignedStaffId: resourceId,
+  description: z.string().trim().max(191).default(""),
+  location: z.string().trim().max(191).default(""),
+  internalNotes: z.string().trim().max(191).default(""),
+  scheduledStart: date.nullable().optional(),
+  scheduledEnd: date.nullable().optional(),
+});
+export const createJobInput = z.object({ body: jobFields.extend({ serviceRequestId: resourceId }).refine(
+  (value) => !value.scheduledEnd || !!value.scheduledStart && value.scheduledEnd >= value.scheduledStart,
+  "Scheduled end must follow scheduled start",
+) });
+export const updateJobInput = resourceParams.extend({ body: jobFields.partial().refine(
+  (value) => Object.keys(value).length > 0, "At least one field is required",
+) });
+export const jobListInput = z.object({ query: listQuery.extend({
+  status: z.enum(["ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).optional(),
+  serviceRequestId: resourceId.optional(),
+  mine: z.enum(["true", "false"]).default("false"),
+  billable: z.enum(["true", "false"]).default("false"),
+}) });
+export const staffListInput = z.object({ query: listQuery });
+export const jobStatusInput = resourceParams.extend({ body: z.object({
+  status: z.enum(["IN_PROGRESS", "COMPLETED"]),
+  note: z.string().trim().max(191).default(""),
+}) });
+export const cancelJobInput = resourceParams.extend({ body: z.object({ note: z.string().trim().min(1, "Cancellation reason is required").max(191) }) });
+export type CreateJob = z.infer<typeof createJobInput>["body"];
+export type UpdateJob = z.infer<typeof updateJobInput>["body"];
+export type JobList = z.infer<typeof jobListInput>["query"];

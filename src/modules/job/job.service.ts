@@ -1,0 +1,139 @@
+import { randomUUID } from "node:crypto";
+import { requestContext } from "@/lib/requestContext.js";
+import { auditService } from "@/modules/audit/audit.service.js";
+import { AppError } from "@/utils/AppError.js";
+import { tenantOrganization, tenantTransaction, pagination } from "@/utils/tenant-transaction.js";
+import type { Prisma, JobStatus } from "@/generated/prisma/client.js";
+import type { CreateJob, UpdateJob, JobList } from "./job.schema.js";
+import { checkJobTransition } from "./lifecycle.js";
+
+const jobSelect = {
+  id: true, referenceNumber: true, serviceRequestId: true, assignedStaffId: true,
+  description: true, location: true, scheduledStart: true, scheduledEnd: true,
+  status: true, startedAt: true, completedAt: true, createdAt: true, updatedAt: true,
+  customer: { select: { id: true, name: true } },
+  serviceType: { select: { id: true, name: true, basePrice: true } },
+  serviceRequest: { select: { id: true, referenceNumber: true, title: true, status: true } },
+  assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+} satisfies Prisma.JobSelect;
+
+async function openRequest(db: Prisma.TransactionClient, id: string, organizationId: string) {
+  const row = await db.serviceRequest.findFirst({ where: { id, organizationId } });
+  if (!row) throw new AppError(404, "Service request not found");
+  if (row.status === "COMPLETED" || row.status === "CANCELLED") throw new AppError(409, "Closed requests cannot have jobs changed");
+  return row;
+}
+async function activeStaff(db: Prisma.TransactionClient, id: string, organizationId: string) {
+  const staff = await db.user.findFirst({ where: { id, organizationId, status: "ACTIVE", deletedAt: null,
+    role: { organizationId, deletedAt: null } }, select: { id: true } });
+  if (!staff) throw new AppError(404, "Active staff member not found");
+}
+export const jobService = {
+  async list(query: JobList) {
+    const organizationId = tenantOrganization();
+    const where: Prisma.JobWhereInput = {
+      organizationId, status: query.status, serviceRequestId: query.serviceRequestId,
+      ...(query.mine === "true" ? { assignedStaffId: requestContext.getValue("userId") } : {}),
+      ...(query.billable === "true" ? { status: "COMPLETED", invoice: null, AND: [{ OR: [
+        { serviceRequestId: null }, { serviceRequest: { organizationId, status: "COMPLETED" } },
+      ] }] } : {}),
+      ...(query.search ? { OR: [{ referenceNumber: { contains: query.search } },
+        { customer: { organizationId, name: { contains: query.search } } },
+        { serviceRequest: { organizationId, referenceNumber: { contains: query.search } } }] } : {}),
+    };
+    return tenantTransaction(async (db) => {
+      const meta = pagination(query.page, query.pageSize, await db.job.count({ where }));
+      const jobs = await db.job.findMany({ where, select: jobSelect, skip: (meta.page - 1) * meta.pageSize,
+        take: meta.pageSize, orderBy: [{ createdAt: query.sortOrder }, { id: "asc" }] });
+      return { jobs, pagination: meta };
+    });
+  },
+  async staff(query: { page: number; pageSize: number; search: string }) {
+    const organizationId = tenantOrganization();
+    const where: Prisma.UserWhereInput = { organizationId, status: "ACTIVE", deletedAt: null,
+      role: { organizationId, deletedAt: null },
+      ...(query.search ? { OR: [{ firstName: { contains: query.search } }, { lastName: { contains: query.search } }] } : {}),
+    };
+    return tenantTransaction(async (db) => {
+      const meta = pagination(query.page, query.pageSize, await db.user.count({ where }));
+      const staff = await db.user.findMany({ where, select: { id: true, firstName: true, lastName: true },
+        skip: (meta.page - 1) * meta.pageSize, take: meta.pageSize, orderBy: [{ firstName: "asc" }, { id: "asc" }] });
+      return { staff, pagination: meta };
+    });
+  },
+  async get(id: string) {
+    const organizationId = tenantOrganization();
+    return tenantTransaction(async (db) => {
+      const job = await db.job.findFirst({ where: { id, organizationId }, select: { ...jobSelect, internalNotes: true,
+        statusHistory: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: {
+          id: true, fromStatus: true, toStatus: true, note: true, createdAt: true,
+          changedBy: { select: { firstName: true, lastName: true } },
+        } },
+      } });
+      if (!job) throw new AppError(404, "Job not found");
+      return job;
+    });
+  },
+  async create(data: CreateJob) {
+    const organizationId = tenantOrganization();
+    return tenantTransaction(async (db) => {
+      const request = await openRequest(db, data.serviceRequestId, organizationId);
+      if (!await db.customer.findFirst({ where: { id: request.customerId, organizationId, deletedAt: null } })) throw new AppError(404, "Customer not found");
+      if (!await db.serviceType.findFirst({ where: { id: request.serviceTypeId, organizationId } })) throw new AppError(404, "Service type not found");
+      await activeStaff(db, data.assignedStaffId, organizationId);
+      const job = await db.job.create({ data: { ...data, organizationId, customerId: request.customerId,
+        serviceTypeId: request.serviceTypeId, referenceNumber: `JOB-${randomUUID().toUpperCase()}`,
+        statusHistory: { create: { toStatus: "ASSIGNED", changedById: requestContext.getValue("userId"), note: "Job created and assigned" } },
+      }, select: jobSelect });
+      await auditService.recordInTransaction(db, { action: "create.job.success", entity: "Job", entityId: job.id,
+        after: { serviceRequestId: request.id, assignedStaffId: data.assignedStaffId } });
+      return job;
+    });
+  },
+  async update(id: string, data: UpdateJob) {
+    const organizationId = tenantOrganization();
+    return tenantTransaction(async (db) => {
+      const job = await db.job.findFirst({ where: { id, organizationId } });
+      if (!job) throw new AppError(404, "Job not found");
+      if (job.serviceRequestId) await openRequest(db, job.serviceRequestId, organizationId);
+      if (job.status === "COMPLETED" || job.status === "CANCELLED") throw new AppError(409, "Closed jobs cannot be edited");
+      if (data.assignedStaffId !== undefined) await activeStaff(db, data.assignedStaffId, organizationId);
+      const start = data.scheduledStart === undefined ? job.scheduledStart : data.scheduledStart;
+      const end = data.scheduledEnd === undefined ? job.scheduledEnd : data.scheduledEnd;
+      if (end && (!start || end < start)) throw new AppError(400, "Scheduled end must follow scheduled start");
+      const updated = await db.job.update({ where: { id, organizationId }, data, select: jobSelect });
+      await auditService.recordInTransaction(db, { action: data.assignedStaffId && data.assignedStaffId !== job.assignedStaffId ? "assign.job.success" : "update.job.success",
+        entity: "Job", entityId: id, before: { assignedStaffId: job.assignedStaffId },
+        after: { assignedStaffId: updated.assignedStaffId, changedFields: Object.keys(data) } });
+      return updated;
+    });
+  },
+  async status(id: string, status: JobStatus, note: string) {
+    const organizationId = tenantOrganization();
+    return tenantTransaction(async (db) => {
+      const job = await db.job.findFirst({ where: { id, organizationId } });
+      if (!job) throw new AppError(404, "Job not found");
+      const request = job.serviceRequestId ? await openRequest(db, job.serviceRequestId, organizationId) : null;
+      checkJobTransition(job.status, status);
+      if (status === "IN_PROGRESS") {
+        if (!job.assignedStaffId) throw new AppError(409, "Assign staff before starting the job");
+        await activeStaff(db, job.assignedStaffId, organizationId);
+      }
+      const updated = await db.job.update({ where: { id, organizationId }, data: { status,
+        ...(status === "IN_PROGRESS" ? { startedAt: new Date() } : {}),
+        ...(status === "COMPLETED" ? { completedAt: new Date() } : {}),
+        statusHistory: { create: { fromStatus: job.status, toStatus: status, note, changedById: requestContext.getValue("userId") } },
+      }, select: jobSelect });
+      if (status === "IN_PROGRESS" && request?.status === "PENDING") {
+        await db.serviceRequest.update({ where: { id: request.id, organizationId }, data: { status: "IN_PROGRESS" } });
+        await auditService.recordInTransaction(db, { action: "status_change.service_request.success", entity: "ServiceRequest", entityId: request.id,
+          before: { status: "PENDING" }, after: { status: "IN_PROGRESS", jobId: id } });
+      }
+      await auditService.recordInTransaction(db, { action: "status_change.job.success", entity: "Job", entityId: id,
+        before: { status: job.status }, after: { status } });
+      // Request completion remains explicit, even after the last job completes.
+      return status === "IN_PROGRESS" && request?.status === "PENDING"
+        ? db.job.findFirstOrThrow({ where: { id, organizationId }, select: jobSelect }) : updated;
+    });
+  },
+};
