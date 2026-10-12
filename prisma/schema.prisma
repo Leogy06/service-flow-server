@@ -39,6 +39,13 @@ enum JobStatus {
   CANCELLED
 }
 
+enum ServiceRequestPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
 enum InvoiceStatus {
   UNPAID
   PARTIALLY_PAID
@@ -222,7 +229,7 @@ model ServiceType {
   id String @id @default(cuid())
 
   name        String
-  description String?
+  description String? @db.Text
 
   basePrice Decimal @db.Decimal(10, 2) // in php
   isActive  Boolean @default(true)
@@ -235,7 +242,7 @@ model ServiceType {
   organization    Organization     @relation(fields: [organizationId], references: [id])
   organizationId  String
 
-  @@unique([name])
+  @@unique([organizationId, name])
   @@index([isActive])
   @@index([organizationId])
 }
@@ -252,7 +259,10 @@ model ServiceRequest {
   customerId      String
   serviceTypeId   String
 
-  description String?
+  title    String @default("") @db.VarChar(200)
+  priority ServiceRequestPriority @default(NORMAL)
+
+  description String? @db.Text
   location    String?
 
   preferredDate DateTime?
@@ -268,7 +278,7 @@ model ServiceRequest {
   customer    Customer    @relation(fields: [customerId], references: [id])
   serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
 
-  job            Job?
+  jobs           Job[]
   organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String
 
@@ -276,6 +286,9 @@ model ServiceRequest {
   @@index([serviceTypeId])
   @@index([status])
   @@index([referenceNumber])
+  @@index([organizationId, createdAt, id])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, serviceTypeId, createdAt])
 }
 
 // ─────────────────────────────────────────────
@@ -291,7 +304,7 @@ model Job {
   serviceTypeId String
 
   // Service request that generated this job
-  serviceRequestId String? @unique
+  serviceRequestId String?
 
   //assigned staff member for this job  
   assignedStaffId String?
