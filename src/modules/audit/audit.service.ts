@@ -2,6 +2,9 @@ import { prisma } from "@/lib/prisma.js";
 import { requestContext } from "@/lib/requestContext.js";
 import type { Prisma } from "@/generated/prisma/client.js";
 import { logger } from "@/lib/logger.js";
+import { AppError } from "@/utils/AppError.js";
+import { isTenantAdminName } from "@/modules/role/tenant-access-policy.js";
+import type { ListAuditLogsQuery } from "./audit.schema.js";
 
 type RecordAuditInput = {
   action: string;
@@ -12,6 +15,57 @@ type RecordAuditInput = {
 };
 
 export const auditService = {
+  async list(query: ListAuditLogsQuery) {
+    // authenticate reloads the user's active role and organization from the database.
+    // Audit access belongs exclusively to tenant admins, regardless of staff grants.
+    const ctx = requestContext.get();
+    if (!ctx?.userId || !ctx.organizationId || !ctx.role || !isTenantAdminName(ctx.role)) {
+      throw new AppError(403, "Tenant administration is required");
+    }
+    const organizationId = ctx.organizationId;
+    const where: Prisma.AuditLogWhereInput = {
+      organizationId,
+      ...(query.search ? {
+        AND: query.search.split(/\s+/).map((word) => ({ OR: [
+          { action: { contains: word } },
+          { entity: { contains: word } },
+          { entityId: { contains: word } },
+          { actor: { is: { organizationId, OR: [
+            { firstName: { contains: word } },
+            { lastName: { contains: word } },
+          ] } } },
+        ] })),
+      } : {}),
+    };
+    return prisma.$transaction(async (db) => {
+      const total = await db.auditLog.count({ where });
+      const totalPages = Math.max(1, Math.ceil(total / query.pageSize));
+      const page = Math.min(query.page, totalPages);
+      const logs = await db.auditLog.findMany({
+        where,
+        select: {
+          id: true, action: true, entity: true, entityId: true, createdAt: true,
+          actor: { select: { id: true, firstName: true, lastName: true, organizationId: true } },
+        },
+        orderBy: [{ createdAt: query.sortOrder }, { id: query.sortOrder }],
+        skip: (page - 1) * query.pageSize,
+        take: query.pageSize,
+      });
+      return {
+        logs: logs.map(({ actor, ...log }) => ({
+          ...log,
+          // A historical actor may now belong to a different tenant.
+          actor: actor?.organizationId === organizationId
+            ? { id: actor.id, firstName: actor.firstName, lastName: actor.lastName }
+            : null,
+        })),
+        pagination: {
+          page, pageSize: query.pageSize, total, totalPages,
+          hasNextPage: page < totalPages, hasPreviousPage: page > 1,
+        },
+      };
+    }, { isolationLevel: "RepeatableRead" });
+  },
   // Access mutations await this inside their transaction: audit failure rolls back access changes.
   async recordInTransaction(db: Prisma.TransactionClient, input: RecordAuditInput) {
     const ctx = requestContext.get();

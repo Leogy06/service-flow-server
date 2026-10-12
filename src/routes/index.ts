@@ -12,6 +12,7 @@ import rolePermissionRoutes from "@/modules/role-permission/role.permission.rout
 import userRoutes from "@/modules/user/user.routes.js";
 import organizationRoutes from "@/modules/organization/organization.route.js";
 import systemAdminRoutes from "@/modules/user/routes/system-admin.routes.js";
+import auditRoutes from "@/modules/audit/audit.routes.js";
 
 export const router = Router();
 
@@ -27,5 +28,6 @@ router.use("/role-permission", rolePermissionRoutes);
 router.use("/user-permission", userPermissionRoutes);
 router.use("/role", authenticate, roleRoutes);
 router.use("/system-admin", authenticate, systemAdminRoutes);
+router.use("/audit-logs", authenticate, auditRoutes);
 
 router.get("/health", (_req, res) => res.json({ status: "ok" }));
