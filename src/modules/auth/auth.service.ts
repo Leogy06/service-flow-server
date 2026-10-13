@@ -272,7 +272,4 @@ export const authService = {
     await prisma.refreshToken.deleteMany({ where: { token: hashed } });
   },
 
-  async logoutAll(userId: string) {
-    await prisma.refreshToken.deleteMany({ where: { userId } });
-  },
 };

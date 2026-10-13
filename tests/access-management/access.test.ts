@@ -133,7 +133,7 @@ jest.unstable_mockModule("@/utils/tokens.js", () => ({
 }));
 jest.unstable_mockModule("@/middleware/rateLimiter.js", () => {
   const pass = (_req: unknown, _res: unknown, next: () => void) => next();
-  return { writeLimmiter: pass, deleteLimiter: pass, authLimiter: pass };
+  return { writeLimmiter: pass, deleteLimiter: pass, authLimiter: pass, strictLimiter: pass };
 });
 jest.unstable_mockModule("@/lib/email/send-invite", () => ({ sendInviteEmail: jest.fn(async () => {}) }));
 jest.unstable_mockModule("bcryptjs", () => ({ default: { compare: jest.fn(async () => true), hash: jest.fn(async () => "hash") } }));

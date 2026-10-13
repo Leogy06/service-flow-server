@@ -3,6 +3,7 @@ import { authService } from "./auth.service.js";
 import { AppError } from "@/utils/AppError.js";
 import { REFRESH_TOKEN_DAYS } from "@/utils/tokens.js";
 import { sendResponse } from "@/utils/sendResponse.js";
+import { profileService } from "./profile.service.js";
 
 const refreshCookieOptions = {
   httpOnly: true,
@@ -59,9 +60,9 @@ export const authController = {
     }
   },
 
-  async logoutAll(req: Request, res: Response, next: NextFunction) {
+  async logoutAll(_req: Request, res: Response, next: NextFunction) {
     try {
-      await authService.logoutAll(req.user!.id);
+      await profileService.logoutAll();
       res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
       res.json({ message: "Logged out of all devices" });
     } catch (err) {
