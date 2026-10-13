@@ -4,18 +4,20 @@ import process from "node:process";
 import { withBrowser, until, delay } from "../../../frontend/tests/browser-harness.mjs";
 
 export async function runWorkflowBrowser({ app, slug, requestId, staffId, prisma, organizationId, dropNextPayment }) {
-  await withBrowser(createServer(app), `/${slug}/service-requests?requestId=${requestId}`, async ({ call, origin, evaluate, ready, clickText, fill }) => {
+  await withBrowser(createServer(app), `/${slug}/service-requests?requestId=${requestId}`, async ({ call, origin, evaluate, ready, click, clickText, fill }) => {
     const text = (value) => until(() => evaluate(`document.body.textContent.includes(${JSON.stringify(value)})`), "Missing text: " + value);
     const closeDialog = () => until(() => evaluate("!document.querySelector('[data-slot=dialog-content]')"), "Dialog did not close");
     const navigate = async (path) => { await call("Page.navigate", { url: origin + path }); };
-    const select = (selector, value) => evaluate(`(() => { const el=document.querySelector(${JSON.stringify(selector)}); el.value=${JSON.stringify(value)}; el.dispatchEvent(new Event('change',{bubbles:true})); })()`);
     await ready("[data-slot=sheet-content] dl");
     await clickText("[data-slot=sheet-content] button", "Create job");
     await ready("#job-staff");
-    await ready(`#job-staff option[value='${staffId}']`);
     await clickText("[data-slot=dialog-content] button", "Save job");
     await text("Select a staff member");
-    await select("#job-staff", staffId);
+    const staff = await prisma.user.findUniqueOrThrow({ where: { id: staffId }, select: { firstName: true, lastName: true } });
+    await click('document.querySelector("#job-staff")');
+    await ready('input[aria-label="Search staff by name"]');
+    await fill('input[aria-label="Search staff by name"]', staff.firstName);
+    await clickText("#job-staff-options [role=option]", `${staff.firstName} ${staff.lastName}`);
     await fill("#job-description", "Browser completed work");
     await fill("#job-location", "Manila");
     await clickText("[data-slot=dialog-content] button", "Save job");

@@ -31,6 +31,7 @@ export const serviceRequestService = {
       organizationId, status: query.status, serviceTypeId: query.serviceTypeId,
       ...(query.search ? { OR: [
         { referenceNumber: { contains: query.search } },
+        { title: { contains: query.search } },
         { customer: { organizationId, name: { contains: query.search } } },
       ] } : {}),
     };
