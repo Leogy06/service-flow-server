@@ -8,24 +8,22 @@ export const TENANT_ADMIN_PERMISSIONS: readonly string[] = [
   PERMISSIONS.ROLE_CREATE, PERMISSIONS.ROLE_READ, PERMISSIONS.ROLE_UPDATE, PERMISSIONS.ROLE_DELETE,
 ];
 
+export const DEFAULT_ROLE_DEFINITIONS = [
+  { name: "Admin", permissionNames: TENANT_ADMIN_PERMISSIONS },
+  { name: "Manager", permissionNames: TENANT_GRANTABLE_PERMISSIONS.filter((name) => !name.endsWith(":delete")) },
+  { name: "Staff", permissionNames: TENANT_GRANTABLE_PERMISSIONS.filter((name) => name.endsWith(":read") || name.endsWith(":update")) },
+] as const;
+
 export const seedRoles = async (prisma: PrismaClient, organizations: { id: string }[], permissions: { id: string; name: string }[]) => {
   console.log("Seeding roles...");
 
   const roles: { id: string; name: string; organizationId: string | null }[] = [];
 
   for (const org of organizations) {
-    const adminPerms = permissions.filter((p) => TENANT_ADMIN_PERMISSIONS.includes(p.name));
-    const businessPerms = permissions.filter((p) => TENANT_GRANTABLE_PERMISSIONS.includes(p.name));
-    const managerPerms = businessPerms.filter((p) => !p.name.endsWith(":delete"));
-    const staffPerms = businessPerms.filter(
-      (p) => p.name.endsWith(":read") || p.name.endsWith(":update"),
-    );
-
-    const roleDefs = [
-      { name: "Admin", perms: adminPerms },
-      { name: "Manager", perms: managerPerms },
-      { name: "Staff", perms: staffPerms },
-    ];
+    const roleDefs = DEFAULT_ROLE_DEFINITIONS.map((definition) => ({
+      name: definition.name,
+      perms: permissions.filter((permission) => definition.permissionNames.includes(permission.name)),
+    }));
 
     for (const def of roleDefs) {
       const role = await prisma.role.upsert({
