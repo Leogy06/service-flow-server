@@ -7,7 +7,6 @@ import {
   CreateUserInviteSchema,
   CreateUserSchema,
   ResetTokenExpirationDateInvitationSchema,
-  SetPasswordParams,
   SetPasswordSchema,
   UserListQuery,
 } from "./user.schema.js";
@@ -120,12 +119,8 @@ export const userController = {
   async setPassword(req: Request, res: Response, next: NextFunction) {
     try {
       const validated = req.validated.body as SetPasswordSchema;
-      const validatedParams = req.validated.params as SetPasswordParams;
-      const response = await userService.setPassword(
-        validated,
-        validatedParams,
-      );
-      sendResponse(res, 200, "User created successfully", response);
+      const response = await userService.setPassword(validated);
+      sendResponse(res, 200, "Password set successfully", response);
     } catch (err) {
       next(err);
     }

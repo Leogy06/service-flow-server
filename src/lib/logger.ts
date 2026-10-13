@@ -23,6 +23,7 @@ export const logger = pino(
               "req.body.currentPassword",
               "req.body.newPassword",
               "req.body.confirmPassword",
+              "req.body.token",
               "req.body.accessToken",
               "req.body.refreshToken",
             ],

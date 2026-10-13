@@ -11,7 +11,8 @@ import { CreateUserInput } from "@/types/index";
 import crypto from "node:crypto";
 import { sendInviteEmail } from "@/lib/email/send-invite";
 import { auditService } from "@/modules/audit/audit.service";
-import { SetPasswordParams, SetPasswordSchema } from "./user.schema";
+import { SetPasswordSchema } from "./user.schema";
+import { requestContext } from "@/lib/requestContext.js";
 import { UserUpdateInput } from "./types";
 import { userScope } from "@/utils/user-utils/user-scope";
 import { isPrismaError } from "@/utils/errorHelper";
@@ -339,45 +340,58 @@ export const userService = {
     return updatedUser;
   },
 
-  async setPassword(input: SetPasswordSchema, params: SetPasswordParams) {
-    //find user by email
-    //check status if still pending - not set password
-    //check token if expired - not set password
+  async setPassword(input: SetPasswordSchema) {
+    const inviteToken = crypto.createHash("sha256").update(input.token).digest("hex");
+    const invalidInvite = () => new AppError(400, "Invite link is invalid or expired. Please request a new invitation.");
     const user = await prisma.user.findUnique({
       where: {
-        email: params.email,
-        inviteToken: params.token,
+        email: input.email,
+        inviteToken,
         deletedAt: null,
+        status: "PENDING",
+        password: null,
+        inviteTokenExpiry: { gt: new Date() },
+        organization: { status: "ACTIVE" },
+        role: { deletedAt: null },
       },
+      select: { id: true, organizationId: true, role: { select: { organizationId: true } } },
     });
 
-    if (!user) throw new AppError(404, "User not found");
-    if (user.status !== "PENDING")
-      throw new AppError(400, "User is not pending");
-    if (user.inviteTokenExpiry === null || user.inviteTokenExpiry < new Date())
-      throw new AppError(400, "Invite token is expired or invalid");
+    if (!user?.organizationId || user.role.organizationId !== user.organizationId) throw invalidInvite();
 
     //check if password and confirm password match
     if (input.password !== input.confirmPassword)
       throw new AppError(400, "Password and confirm password do not match");
 
-    const password = await hashedPassword(input.password!);
+    const password = await hashedPassword(input.password);
+    const organizationId = user.organizationId;
+    await prisma.$transaction(async (db) => {
+      // Recheck and consume the invitation atomically so concurrent submissions cannot overwrite it.
+      const result = await db.user.updateMany({
+        where: {
+          id: user.id, organizationId, email: input.email, inviteToken,
+          status: "PENDING", password: null, deletedAt: null,
+          inviteTokenExpiry: { gt: new Date() },
+          organization: { status: "ACTIVE" },
+          role: { organizationId, deletedAt: null },
+        },
+        data: { password, status: "ACTIVE", inviteToken: null, inviteTokenExpiry: null },
+      });
+      if (result.count !== 1) throw invalidInvite();
 
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id, deletedAt: null },
-      data: { password },
+      // The verified invitation establishes the actor and tenant for this public operation.
+      await requestContext.run({
+        ...requestContext.get(), requestId: requestContext.getValue("requestId") ?? crypto.randomUUID(),
+        userId: user.id, organizationId,
+      }, () => auditService.recordInTransaction(db, {
+        action: "set.password.success", entity: "User", entityId: user.id,
+        after: { status: "ACTIVE" },
+      }));
     });
 
-    if (!updatedUser) throw new AppError(404, "User not found");
-
-    void auditService.record({
-      action: "set.password.success",
-      entity: "User",
-      entityId: user.id,
-      after: updatedUser,
-    });
-
-    return updatedUser;
+    await invalidateCache(`cache:users:list:${organizationId}:*`);
+    await invalidateCache(`cache:user:byId:${organizationId}:${user.id}:*`);
+    return null;
   },
 
   async update(

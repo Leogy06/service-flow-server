@@ -7,7 +7,6 @@ import {
   createUserInviteSchema,
   createUserSchema,
   resetTokenExpirationDateInvitationSchema,
-  setPasswordParams,
   userUpdateSchema,
   userListQuerySchema,
   assignUserRoleSchema,
@@ -54,11 +53,6 @@ userRoutes.put(
   "/reset-token-expiration-date",
   validate(resetTokenExpirationDateInvitationSchema),
   userController.resetTokenExpirationDateInvitation,
-);
-userRoutes.put(
-  "/set-password/:token/:email",
-  validate(setPasswordParams),
-  userController.setPassword,
 );
 userRoutes.patch("/:id/restore", requirePermission(PERMISSIONS.USER_UPDATE), writeLimmiter, validate(userParamsSchema), userController.restore);
 userRoutes.delete(

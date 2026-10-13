@@ -6,6 +6,8 @@ import { authController } from "@/modules/auth/auth.controller.js";
 import { authLimiter, strictLimiter, writeLimmiter } from "@/middleware/rateLimiter.js";
 import { profileController } from "./profile.controller.js";
 import { updateProfileSchema, changePasswordSchema } from "./profile.schema.js";
+import { setPasswordSchema } from "@/modules/user/user.schema.js";
+import { userController } from "@/modules/user/user.controller.js";
 
 const router = Router();
 
@@ -16,6 +18,7 @@ router.post(
   authController.register,
 );
 router.post("/login", authLimiter, validate(loginSchema), authController.login);
+router.post("/set-password", strictLimiter, validate(setPasswordSchema), userController.setPassword);
 router.post("/refresh", authController.refresh);
 router.post("/logout", authController.logout);
 router.post("/logout-all", authenticate, strictLimiter, authController.logoutAll);

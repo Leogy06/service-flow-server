@@ -1,5 +1,6 @@
 import z from "zod";
 import { resourceId } from "@/modules/role/role.schema.js";
+import { registerSchema } from "@/modules/auth/auth.schema.js";
 
 export const baseUserSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -57,14 +58,16 @@ export const assignUserRoleSchema = z.object({
 });
 export const setPasswordSchema = z.object({
   body: z.object({
-    password: z.string().min(1, "Password is required"),
+    email: z.email("Invalid email").trim(),
+    token: z.string().regex(/^[a-f0-9]{64}$/, "Invalid invite token"),
+    password: registerSchema.shape.body.shape.password.refine(
+      (value) => Buffer.byteLength(value, "utf8") <= 72,
+      "Password must be at most 72 bytes",
+    ),
     confirmPassword: z.string().min(1, "Confirm password is required"),
-  }),
-});
-export const setPasswordParams = z.object({
-  params: z.object({
-    email: z.email("Invalid email").min(1, "Email is required"),
-    token: z.string().min(1, "Token is required"),
+  }).strict().refine((input) => input.password === input.confirmPassword, {
+    message: "Password and confirm password do not match",
+    path: ["confirmPassword"],
   }),
 });
 
@@ -82,6 +85,5 @@ export type CreateUserInviteSchema = z.infer<
 export type ResetTokenExpirationDateInvitationSchema = z.infer<
   typeof resetTokenExpirationDateInvitationSchema
 >["body"];
-export type SetPasswordParams = z.infer<typeof setPasswordParams>["params"];
 export type SetPasswordSchema = z.infer<typeof setPasswordSchema>["body"];
 export type UpdateUserSchema = z.infer<typeof userUpdateSchema>["body"];

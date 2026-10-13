@@ -63,7 +63,12 @@ const db = {
 };
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma: db }));
 jest.unstable_mockModule("@/config/env.js", () => ({ env: { SALT_ROUNDS: 4, ACCESS_TOKEN_EXPIRY: 900 } }));
-jest.unstable_mockModule("@/utils/cache.js", () => ({ invalidateCache: jest.fn(async () => {}) }));
+jest.unstable_mockModule("@/utils/cache.js", () => ({
+  DEFAULT_TTL_SECONDS: 60,
+  getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(),
+  invalidateCache: jest.fn(async () => {}),
+}));
+jest.unstable_mockModule("@/lib/email/send-invite", () => ({ sendInviteEmail: jest.fn(async () => {}) }));
 jest.unstable_mockModule("@/modules/audit/audit.service.js", () => ({ auditService: {
   recordInTransaction: async (_db: unknown, event: unknown) => { if (failAudit) throw new Error("Audit unavailable"); audits.push(event); },
 } }));
