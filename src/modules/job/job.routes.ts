@@ -4,10 +4,11 @@ import { requirePermission } from "@/middleware/require-permission.js";
 import { writeLimmiter } from "@/middleware/rateLimiter.js";
 import { validate } from "@/middleware/validate.js";
 import { jobController as c } from "./job.controller.js";
-import { jobListInput, staffListInput, resourceParams, createJobInput, updateJobInput, jobStatusInput, cancelJobInput } from "./job.schema.js";
+import { jobListInput, jobFiltersInput, staffListInput, resourceParams, createJobInput, updateJobInput, jobStatusInput, cancelJobInput } from "./job.schema.js";
 
 const routes = Router();
 routes.get("/", requirePermission(P.JOB_READ), validate(jobListInput), c.list);
+routes.get("/filters", requirePermission(P.JOB_READ), validate(jobFiltersInput), c.filters);
 // Both creation and reassignment need this minimal staff picker.
 routes.get("/staff", (req, res, next) => {
   if (req.user?.permissions?.includes(P.JOB_CREATE) || req.user?.permissions?.includes(P.JOB_UPDATE)) return next();

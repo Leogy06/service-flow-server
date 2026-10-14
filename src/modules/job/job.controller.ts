@@ -1,9 +1,12 @@
 import type { RequestHandler } from "express";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { jobService } from "./job.service.js";
-import type { CreateJob, UpdateJob, JobList } from "./job.schema.js";
+import type { CreateJob, UpdateJob, JobList, JobFilters } from "./job.schema.js";
 
 export const jobController: Record<string, RequestHandler> = {
+  filters: async (req, res, next) => {
+    try { sendResponse(res, 200, "Job filters fetched", await jobService.filters(req.validated.query as JobFilters)); } catch (error) { next(error); }
+  },
   list: async (req, res, next) => {
     try { sendResponse(res, 200, "Jobs fetched", await jobService.list(req.validated.query as JobList)); } catch (error) { next(error); }
   },

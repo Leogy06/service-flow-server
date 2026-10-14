@@ -9,17 +9,20 @@ export const listQuery = z.object({
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });
 const date = z.iso.datetime({ offset: true }).transform((value) => new Date(value));
+const futureDate = (label: string) => date.refine(
+  (value) => value.getTime() > Date.now(), `${label} must be in the future`,
+);
 const jobFields = z.object({
   assignedStaffId: resourceId,
   description: z.string().trim().max(191).default(""),
   location: z.string().trim().max(191).default(""),
   internalNotes: z.string().trim().max(191).default(""),
-  scheduledStart: date.nullable().optional(),
-  scheduledEnd: date.nullable().optional(),
+  scheduledStart: futureDate("Scheduled start").nullable().optional(),
+  scheduledEnd: futureDate("Scheduled end").nullable().optional(),
 });
 export const createJobInput = z.object({ body: jobFields.extend({ serviceRequestId: resourceId }).refine(
   (value) => !value.scheduledEnd || !!value.scheduledStart && value.scheduledEnd >= value.scheduledStart,
-  "Scheduled end must follow scheduled start",
+  { message: "Scheduled end must follow scheduled start", path: ["scheduledEnd"] },
 ) });
 export const updateJobInput = resourceParams.extend({ body: jobFields.partial().refine(
   (value) => Object.keys(value).length > 0, "At least one field is required",
@@ -27,9 +30,15 @@ export const updateJobInput = resourceParams.extend({ body: jobFields.partial().
 export const jobListInput = z.object({ query: listQuery.extend({
   status: z.enum(["ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).optional(),
   serviceRequestId: resourceId.optional(),
+  customerId: resourceId.optional(),
+  serviceTypeId: resourceId.optional(),
+  assignedStaffId: resourceId.optional(),
   mine: z.enum(["true", "false"]).default("false"),
   billable: z.enum(["true", "false"]).default("false"),
 }) });
+export const jobFiltersInput = z.object({ query: jobListInput.shape.query.pick({
+  serviceRequestId: true, mine: true, billable: true,
+}).strict() });
 export const staffListInput = z.object({ query: listQuery });
 export const jobStatusInput = resourceParams.extend({ body: z.object({
   status: z.enum(["IN_PROGRESS", "COMPLETED"]),
@@ -39,3 +48,4 @@ export const cancelJobInput = resourceParams.extend({ body: z.object({ note: z.s
 export type CreateJob = z.infer<typeof createJobInput>["body"];
 export type UpdateJob = z.infer<typeof updateJobInput>["body"];
 export type JobList = z.infer<typeof jobListInput>["query"];
+export type JobFilters = z.infer<typeof jobFiltersInput>["query"];

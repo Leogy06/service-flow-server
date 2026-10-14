@@ -129,10 +129,17 @@ test("request -> assigned jobs -> completion -> invoice -> payments", { timeout:
       assert.equal((await as(tokenA, () => jobs.list({ ...listParams, search: "Fixture repair" }))).pagination.total, 2);
       assert.equal((await as(tokenB, () => jobs.list({ ...listParams, search: "Fixture repair" }))).pagination.total, 0);
       assert.equal((await as(tokenA, () => jobs.list({ ...listParams, serviceRequestId: otherRequest.id }))).pagination.total, 0);
-      await as(tokenA, () => jobs.update(firstJob.id, { assignedStaffId: admin, description: "Updated repair", location: "Cebu", internalNotes: "Updated notes", scheduledStart: "2026-10-13T08:00:00+08:00", scheduledEnd: "2026-10-13T10:00:00+08:00" }));
+      const scheduledStart = new Date(Date.now() + 86_400_000).toISOString();
+      const scheduledEnd = new Date(Date.now() + 93_600_000).toISOString();
+      await as(tokenA, () => jobs.update(firstJob.id, { assignedStaffId: admin, description: "Updated repair", location: "Cebu", internalNotes: "Updated notes", scheduledStart, scheduledEnd }));
       assert.equal((await as(tokenA, () => jobs.get(firstJob.id))).assignedStaffId, admin);
       assert.equal((await as(staffToken, () => jobs.list({ ...listParams, mine: "true" }))).pagination.total, 1);
-      await denied(() => as(tokenA, () => api.put(`/jobs/${firstJob.id}`, { scheduledStart: "2026-10-14T08:00:00+08:00" })), 400);
+      await denied(() => as(tokenA, () => api.put(`/jobs/${firstJob.id}`, { scheduledStart: new Date(Date.parse(scheduledEnd) + 60_000).toISOString() })), 400);
+      for (const field of ["scheduledStart", "scheduledEnd"]) {
+        const past = new Date(Date.now() - 60_000).toISOString();
+        await denied(() => as(tokenA, () => api.put(`/jobs/${firstJob.id}`, { [field]: past })), 400);
+        await denied(() => as(tokenA, () => jobs.create({ ...jobInput(), [field]: past })), 400);
+      }
     });
     await t.test("enforces permissions and tenant isolation on every job operation", async () => {
       for (const work of [() => jobs.get(firstJob.id), () => jobs.update(firstJob.id, { ...jobInput(), assignedStaffId: foreign }),

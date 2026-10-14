@@ -11,7 +11,9 @@ export const lineItem = z.object({
 });
 const fields = z.object({
   items: z.array(lineItem).min(1, "At least one invoice item is required").max(100),
-  dueAt: z.iso.datetime({ offset: true }).transform((value) => new Date(value)).nullable().optional(),
+  dueAt: z.iso.datetime({ offset: true }).transform((value) => new Date(value))
+    .refine((value) => value.getTime() > Date.now(), "Due date must be today or later")
+    .nullable().optional(),
   notes: z.string().trim().max(191).default(""),
 });
 export const createInvoiceInput = z.object({ body: fields.extend({ jobId: resourceId }) });
