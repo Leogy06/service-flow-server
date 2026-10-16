@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from "@/constants/legal.js";
 
 export const registerSchema = z.object({
   body: z.object({
@@ -31,6 +32,10 @@ export const registerSchema = z.object({
     slug: z.string().trim().toLowerCase().min(2).max(50)
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and single hyphens")
       .refine((value) => !["api", "system-admin", "login", "signup", "register", "no-org", "no_org", "set-password"].includes(value), "Choose another workspace address"),
+    termsAccepted: z.literal(true, { error: "Accept the Terms of Service to request a workspace" }),
+    termsVersion: z.literal(CURRENT_TERMS_VERSION, { error: "The Terms of Service have changed. Reload and review them before submitting" }),
+    privacyAcknowledged: z.literal(true, { error: "Acknowledge that you have read the Privacy Notice" }),
+    privacyVersion: z.literal(CURRENT_PRIVACY_VERSION, { error: "The Privacy Notice has changed. Reload and review it before submitting" }),
   }).strict(),
 });
 

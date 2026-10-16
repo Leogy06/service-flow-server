@@ -2,10 +2,11 @@ import type { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
 import { requirePlatformAuthority } from "@/modules/role/tenant-access-policy.js";
 import { DEFAULT_ROLE_DEFINITIONS } from "@/constants/default-roles.js";
+import { PUBLISHED_PRIVACY_VERSIONS, PUBLISHED_TERMS_VERSIONS } from "@/constants/legal.js";
 import { AppError } from "@/utils/AppError.js";
-import { hashedPassword } from "@/utils/bcrypPassword.js";
+import { comparePassword, hashedPassword } from "@/utils/bcrypPassword.js";
 import { pagination } from "@/utils/tenant-transaction.js";
-import type { RegisterInput } from "@/modules/auth/auth.schema.js";
+import { registerSchema, type RegisterInput } from "@/modules/auth/auth.schema.js";
 import { platformTransaction, recordPlatformAudit } from "./platform-audit.js";
 import { trialPeriod } from "./billing-policy.js";
 import type { SignupListQuery, SignupReviewInput } from "./signup.schema.js";
@@ -13,23 +14,55 @@ import type { SignupListQuery, SignupReviewInput } from "./signup.schema.js";
 const signupSelect = {
   id: true, email: true, firstName: true, lastName: true, middleName: true, suffix: true, phone: true,
   organizationName: true, slug: true, status: true, createdAt: true,
+  termsAcceptedAt: true, termsVersion: true, privacyVersion: true,
   reviewedAt: true, reviewedBy: true, reviewReason: true,
   organization: { select: { id: true, name: true, slug: true, status: true } },
 } satisfies Prisma.SignupRequestSelect;
 
+const signupAcceptanceSelect = {
+  id: true, status: true, passwordHash: true, termsAcceptedAt: true, termsVersion: true, privacyVersion: true,
+} satisfies Prisma.SignupRequestSelect;
+function canRecordLegacyAgreement(application: Prisma.SignupRequestGetPayload<{ select: typeof signupAcceptanceSelect }>) {
+  return application.status === "PENDING" && application.passwordHash &&
+    application.termsAcceptedAt === null && application.termsVersion === null && application.privacyVersion === null;
+}
+
 export const signupService = {
   async submit(input: RegisterInput) {
+    // Enforce acceptance even when the service is called outside the HTTP route.
+    const parsed = registerSchema.shape.body.safeParse(input);
+    if (!parsed.success) throw new AppError(400, parsed.error.issues.map((issue) => issue.message).join(", "));
+    const acceptedInput = parsed.data;
     // Hash even duplicate submissions; never disclose accounts or overwrite pending credentials.
-    const passwordHash = await hashedPassword(input.password);
+    const passwordHash = await hashedPassword(acceptedInput.password);
     try {
       await platformTransaction(async (db) => {
-        const existing = await db.user.findUnique({ where: { email: input.email }, select: { id: true } });
-        const application = await db.signupRequest.findUnique({ where: { email: input.email }, select: { id: true } });
-        if (existing || application) return;
-        const { password: _password, ...details } = input;
-        const request = await db.signupRequest.create({ data: { ...details, passwordHash }, select: { id: true } });
+        const existing = await db.user.findUnique({ where: { email: acceptedInput.email }, select: { id: true } });
+        const application = await db.signupRequest.findUnique({ where: { email: acceptedInput.email }, select: signupAcceptanceSelect });
+        if (existing) return;
+        if (application) {
+          // Only the original applicant can add missing legacy evidence. Preserve
+          // the original identity, credentials and all existing acceptance records.
+          if (!canRecordLegacyAgreement(application)) return;
+          const locked = await db.$queryRaw<Array<{ id: string }>>`SELECT id FROM SignupRequest WHERE id = ${application.id} FOR UPDATE`;
+          if (!locked.length) return;
+          const current = await db.signupRequest.findUnique({ where: { id: application.id }, select: signupAcceptanceSelect });
+          if (!current || !canRecordLegacyAgreement(current) || !await comparePassword(acceptedInput.password, current.passwordHash!)) return;
+          const termsAcceptedAt = new Date();
+          await db.signupRequest.update({ where: { id: current.id }, data: {
+            termsAcceptedAt, termsVersion: acceptedInput.termsVersion, privacyVersion: acceptedInput.privacyVersion,
+          } });
+          await recordPlatformAudit(db, { action: "signup.agreement.recorded", entity: "SignupRequest", entityId: current.id,
+            actorType: "SYSTEM", after: { status: "PENDING", termsAcceptedAt: termsAcceptedAt.toISOString(),
+              termsVersion: acceptedInput.termsVersion, privacyVersion: acceptedInput.privacyVersion, privacyAcknowledged: true } });
+          return;
+        }
+        const { password: _password, termsAccepted: _termsAccepted, privacyAcknowledged: _privacyAcknowledged, ...details } = acceptedInput;
+        const termsAcceptedAt = new Date();
+        const request = await db.signupRequest.create({ data: { ...details, passwordHash, termsAcceptedAt }, select: { id: true } });
         await recordPlatformAudit(db, { action: "signup.requested", entity: "SignupRequest", entityId: request.id,
-          actorType: "SYSTEM", after: { status: "PENDING" } });
+          actorType: "SYSTEM", after: { status: "PENDING", termsAcceptedAt: termsAcceptedAt.toISOString(),
+            termsVersion: details.termsVersion, privacyVersion: details.privacyVersion, privacyAcknowledged: true } });
       });
     } catch (error) {
       // A concurrent identical application has the same public response.
@@ -71,6 +104,10 @@ export const signupService = {
       }
       let organizationId: string | undefined;
       if (input.decision === "APPROVED") {
+        if (!application.termsAcceptedAt || !application.termsVersion || !application.privacyVersion ||
+            !PUBLISHED_TERMS_VERSIONS.includes(application.termsVersion) || !PUBLISHED_PRIVACY_VERSIONS.includes(application.privacyVersion)) {
+          throw new AppError(409, "Recorded agreement to the Terms of Service and acknowledgment of the Privacy Notice are required before approval. Legacy applicants can review the current documents and resubmit using their original signup email and password", "SIGNUP_AGREEMENT_REQUIRED");
+        }
         if (!application.passwordHash) throw new AppError(409, "Signup credentials are unavailable");
         if (await db.user.findUnique({ where: { email: application.email }, select: { id: true } })) {
           throw new AppError(409, "An account already uses this email; reject this request and use account management");

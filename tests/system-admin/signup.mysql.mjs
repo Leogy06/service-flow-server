@@ -21,13 +21,15 @@ const { default: authRoutes } = await import("../../src/modules/auth/auth.routes
 const { authenticate } = await import("../../src/middleware/auth.ts");
 const { withRequestContext } = await import("../../src/middleware/requestContext.middleware.ts");
 const { TENANT_ADMIN_PERMISSIONS } = await import("../../src/constants/default-roles.ts");
+const { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } = await import("../../src/constants/legal.ts");
 
 test("public signup waits for approval and provisions one isolated workspace under real MySQL locks", { timeout: 90000 }, async () => {
   let server;
   const tag = randomUUID().slice(0, 12);
   const password = "SignupPassword123";
   const applicant = (suffix) => ({ firstName: "New", lastName: "Owner", email: `signup-${tag}-${suffix}@example.invalid`, password,
-    organizationName: `Signup ${tag} ${suffix}`, slug: `signup-${tag}-${suffix}` });
+    organizationName: `Signup ${tag} ${suffix}`, slug: `signup-${tag}-${suffix}`,
+    termsAccepted: true, termsVersion: CURRENT_TERMS_VERSION, privacyAcknowledged: true, privacyVersion: CURRENT_PRIVACY_VERSION });
   try {
     // Match the existing seeded global permission definitions without changing their ownership.
     for (const name of TENANT_ADMIN_PERMISSIONS) await prisma.permission.upsert({ where: { name }, update: {}, create: { name } });
@@ -55,6 +57,8 @@ test("public signup waits for approval and provisions one isolated workspace und
     assert.equal(submitted.status, 202); assert.deepEqual(submitted.body.data, { submitted: true }); assert.equal(submitted.cookie, null);
     const application = await prisma.signupRequest.findUniqueOrThrow({ where: { email: details.email } });
     assert.equal(application.status, "PENDING"); assert.ok(application.passwordHash); assert.notEqual(application.passwordHash, password);
+    assert.ok(application.termsAcceptedAt instanceof Date); assert.equal(application.termsVersion, CURRENT_TERMS_VERSION);
+    assert.equal(application.privacyVersion, CURRENT_PRIVACY_VERSION);
     assert.equal(await prisma.user.count({ where: { email: details.email } }), 0);
     assert.equal((await http("/auth/login", "POST", { email: details.email, password })).status, 401);
     await signupService.submit({ ...details, firstName: "Overwrite", password: "ChangedPassword123" });
@@ -65,10 +69,14 @@ test("public signup waits for approval and provisions one isolated workspace und
     assert.equal((await http(`/admin/signup-requests/${application.id}/review`, "POST", body, tenantToken)).status, 403);
     const list = await http("/admin/signup-requests?status=PENDING&search=" + tag, "GET", undefined, operatorToken);
     assert.equal(list.status, 200); assert.equal(list.body.data.items[0].passwordHash, undefined);
+    assert.equal(list.body.data.items[0].termsAcceptedAt, application.termsAcceptedAt.toISOString());
+    assert.equal(list.body.data.items[0].termsVersion, CURRENT_TERMS_VERSION); assert.equal(list.body.data.items[0].privacyVersion, CURRENT_PRIVACY_VERSION);
     const approvals = await asOperator(() => Promise.all([signupService.review(application.id, body), signupService.review(application.id, body)]));
     assert.equal(approvals[0].organization.id, approvals[1].organization.id);
     const reviewed = await prisma.signupRequest.findUniqueOrThrow({ where: { id: application.id }, include: { organization: { include: { subscription: true } } } });
     assert.equal(reviewed.status, "APPROVED"); assert.equal(reviewed.passwordHash, null); assert.equal(reviewed.reviewedBy, actor.id);
+    assert.equal(reviewed.termsAcceptedAt.toISOString(), application.termsAcceptedAt.toISOString());
+    assert.equal(reviewed.termsVersion, CURRENT_TERMS_VERSION); assert.equal(reviewed.privacyVersion, CURRENT_PRIVACY_VERSION);
     assert.notEqual(reviewed.organizationId, otherOrg.id); assert.equal(reviewed.organization.billingEnabled, true);
     assert.equal(reviewed.organization.subscription.status, "TRIALING");
     assert.equal(await prisma.user.count({ where: { organizationId: reviewed.organizationId } }), 1);
@@ -87,6 +95,21 @@ test("public signup waits for approval and provisions one isolated workspace und
     assert.equal((await prisma.signupRequest.findUniqueOrThrow({ where: { id: denied.id } })).passwordHash, null);
     assert.equal(await prisma.user.count({ where: { email: deniedDetails.email } }), 0);
 
+    const legacyDetails = applicant("legacy"); await signupService.submit(legacyDetails);
+    const legacy = await prisma.signupRequest.update({ where: { email: legacyDetails.email },
+      data: { termsAcceptedAt: null, termsVersion: null, privacyVersion: null } });
+    await assert.rejects(asOperator(() => signupService.review(legacy.id, { ...body, slug: legacyDetails.slug })),
+      (error) => error.statusCode === 409 && error.code === "SIGNUP_AGREEMENT_REQUIRED");
+    assert.deepEqual(await signupService.submit({ ...legacyDetails, password: "WrongPassword123" }), { submitted: true });
+    assert.equal((await prisma.signupRequest.findUniqueOrThrow({ where: { id: legacy.id } })).termsAcceptedAt, null);
+    const completed = await Promise.all([signupService.submit(legacyDetails), signupService.submit({ ...legacyDetails, firstName: "Attempted overwrite" })]);
+    assert.deepEqual(completed, [{ submitted: true }, { submitted: true }]);
+    const completedLegacy = await prisma.signupRequest.findUniqueOrThrow({ where: { id: legacy.id } });
+    assert.ok(completedLegacy.termsAcceptedAt); assert.equal(completedLegacy.firstName, legacy.firstName);
+    assert.equal(completedLegacy.passwordHash, legacy.passwordHash);
+    assert.equal(await prisma.auditLog.count({ where: { entityId: legacy.id, action: "signup.agreement.recorded" } }), 1);
+    await asOperator(() => signupService.review(legacy.id, { ...body, slug: legacyDetails.slug }));
+
     const unpaid = applicant("unpaid"); await signupService.submit(unpaid);
     const unpaidRequest = await prisma.signupRequest.findUniqueOrThrow({ where: { email: unpaid.email } });
     await asOperator(() => signupService.review(unpaidRequest.id, { ...body, slug: unpaid.slug, startTrial: false }));
@@ -101,7 +124,7 @@ test("public signup waits for approval and provisions one isolated workspace und
     assert.equal(await prisma.organization.count({ where: { slug: `signup-${tag}-shared` } }), 1);
     const events = await prisma.auditLog.findMany({ where: { entityId: application.id } });
     assert.equal(JSON.stringify(events).includes(application.passwordHash), false); assert.equal(JSON.stringify(events).includes(password), false);
-    console.log("Real signup MySQL checks passed: 202/no session, waiting/no login, duplicate credentials, tenant guards, concurrent approval and slug uniqueness, default permissions, trial login, rejection, payment gating and safe audits.");
+    console.log("Real signup MySQL checks passed: 202/no session, versioned agreement persistence, waiting/no login, duplicate credentials, tenant guards, concurrent approval and slug uniqueness, password-verified legacy agreement recovery, default permissions, trial login, rejection, payment gating and safe audits.");
   } finally {
     if (server) { server.closeAllConnections(); await new Promise((done) => server.close(done)); }
     await prisma.$disconnect(); await redis.quit();

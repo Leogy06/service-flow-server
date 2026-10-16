@@ -94,6 +94,10 @@ model SignupRequest {
   phone String? @db.VarChar(16)
   organizationName String @db.VarChar(100)
   slug String @db.VarChar(50)
+  // Nullable only for applications submitted before versioned acceptance existed.
+  termsAcceptedAt DateTime?
+  termsVersion String? @db.VarChar(32)
+  privacyVersion String? @db.VarChar(32)
   status SignupRequestStatus @default(PENDING)
   reviewedBy String? @db.VarChar(191)
   reviewedAt DateTime?

@@ -28,6 +28,14 @@ reviews, secret selection, atomic provisioning/rollback, duplicates and both
 claims, tenant defaults and trial/payment access). The isolated runner includes
 signup and the existing platform suites:
 
+Signup also covers required true acknowledgments, stale/missing document versions,
+service-boundary validation, server-timestamp evidence, safe review responses,
+approval denial without evidence and audit rollback. Legacy requests may record
+wholly missing evidence only using their original password; tests cover wrong
+passwords, immutable submitted details, partial evidence, reviewed requests and a
+concurrent review recheck. MySQL exercises concurrent legacy completion with one
+audit event, then approval with the preserved evidence.
+
 ```powershell
 $env:PLATFORM_TEST_DATABASE_NAME = 'service_flow_platform_test_signup_20261017'
 npm run test:system-admin:mysql:isolated
@@ -36,7 +44,8 @@ npm run test:system-admin:mysql:isolated
 The runner creates only the named isolated database and deploys migrations there;
 it never drops/resets databases or removes immutable fixtures. Local development
 signup deployment needs `20261017090000_public_signup_requests` plus Prisma client
-generation. Signup rate limits use optional `SIGNUP_RATE_LIMIT_MAX` (default 5)
+generation, and `20261017100000_signup_legal_acceptance` for the new terms contract.
+Existing legacy timestamps/versions intentionally remain null. Signup rate limits use optional `SIGNUP_RATE_LIMIT_MAX` (default 5)
 and `SIGNUP_RATE_LIMIT_WINDOW_MS` (default 600000) through shared Redis middleware.
 
 ```powershell

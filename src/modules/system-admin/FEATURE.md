@@ -20,6 +20,18 @@ and append platform audits without credentials; identical decision retries do no
 duplicate provisioning. Duplicate public emails return the same 202 response and
 never overwrite pending details. Email notifications are not sent.
 
+Signup requires explicit current Terms acceptance and Privacy Notice acknowledgment.
+`constants/legal.ts` identifies matching public document versions. Server timestamp,
+terms version and privacy version are stored with the application and audited in
+the same transaction, exposed only to platform reviewers, and retained on review.
+Legacy null evidence is never backfilled; approval returns 409 until the original
+applicant resubmits their original credentials and current acknowledgments. This
+password-verified, locked recovery changes only wholly missing evidence and appends
+`signup.agreement.recorded`; partial/present evidence is preserved. Keep published
+versions in the retained version lists when releasing new documents so earlier valid
+applications remain reviewable. Deploy `20261017100000_signup_legal_acceptance` and
+regenerate Prisma. Existing tenants do not receive a new login gate.
+
 ## Key files
 
 - `billing.routes.ts`, `billing.schema.ts`, `billing.service.ts`: billing contracts and transactions.
