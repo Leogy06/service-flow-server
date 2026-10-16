@@ -3,6 +3,7 @@ import { RedisStore } from "rate-limit-redis";
 import { Request, Response, NextFunction } from "express";
 import { redis } from "@/lib/redis.js";
 import { AppError } from "@/utils/AppError.js";
+import { env } from "@/config/env.js";
 
 function redisStore(prefix: string) {
   return new RedisStore({
@@ -64,6 +65,16 @@ export const writeLimmiter = rateLimit({
   legacyHeaders: false,
   store: redisStore("write"),
   handler: limitReached,
+});
+
+export const refundLimiter = rateLimit({
+  windowMs: env.REFUND_RATE_LIMIT_WINDOW_MS,
+  limit: env.REFUND_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: redisStore("refund"),
+  handler: limitReached,
+  keyGenerator: (req) => req.user?.id ?? ipKeyGenerator(req.ip ?? "unknown"),
 });
 
 export const deleteLimiter = rateLimit({

@@ -35,12 +35,50 @@ Tenant user deletion/restoration also increment session versions and revoke refr
 | Subscription | Exactly one authoritative subscription per organization (unique key). PENDING → ACTIVE only through payment verification. PENDING may begin a one-time TRIALING period. Manual transitions: ACTIVE → PAST_DUE; PENDING/TRIALING/ACTIVE/PAST_DUE/EXPIRED → CANCELED. Scheduled expiry and verified renewal are audited with history. No arbitrary date extension or manual paid-status bypass. |
 | Renewal | One calendar month or year according to the selected plan. Month-end and leap-day renewals clamp to the last day of the target month. Started, continuously paid ACTIVE/PAST_DUE coverage extends from max(now,expiry). CANCELED/EXPIRED renew fresh from now. Repeated verification of the same payment does not extend again. |
 | Plan changes | Immediate seat ceiling; reject below active occupancy. Current paid price snapshot is preserved; current plan price/currency/billing interval applies to the next confirmed renewal. Retired plans remain historically linked and renewable but cannot be newly assigned. Large seat reductions affecting >1,000 tenants require a replacement-plan rollout. |
-| Seats | Count every undeleted ACTIVE team identity, including owners and blocked accounts. Customers and PENDING invitations do not count. Direct creation, invitation acceptance and restoration check seats under the same organization lock. No account deletion on downgrade. |
+| Seats | Active usage counts every undeleted ACTIVE team identity, including owners and blocked accounts; customers do not count. New accounts and restorations must fit ACTIVE users plus PENDING invitations within the plan ceiling, so pending invitations reserve capacity until activated or deleted (even if the link expires). Invitation acceptance checks active usage only, avoiding double counting and retaining the active ceiling after a downgrade or for legacy excess invitations. All checks use the same organization lock. No account deletion on downgrade. |
 | Payments | PENDING → UNDER_REVIEW/PAID/REJECTED; UNDER_REVIEW → PAID/REJECTED; PAID → REFUNDED. No changes after rejection/refund. New payment records must match the selected plan amount/currency exactly; partial payments and overpayments return 409 without creating a record. Verification rechecks the current selected plan amount/currency and requires explicit trusted evidence, reason and confirmation for PAID. Unique reference and idempotency keys prevent replay. Identical retries return the existing record even if plan pricing changed; changed request bodies cannot reuse keys. |
 | Financial adjustments | Preserve paid records. Correct a finalized financial entry through an explicitly verified full refund and a new payment record, rather than editing the original amount. Partial refunds, proration and arbitrary cash credits are outside this manual billing policy. |
-| Refunds | Full verified payment only, unique payment/refund key, confirmed evidence and reason. Gross receipts stay in reporting; refund events subtract on refund date. Rebuild only the remaining contiguous paid coverage chain. Historical ended-period refunds do not change present entitlement. Refunding the current period can leave future-only coverage; access is denied until that period begins and further renewals are rejected while the gap exists. Resolve such cases by separately verified refunds of remaining future periods before a fresh payment. Canceled paid periods cannot be regranted by refund recomputation. |
+| Refunds | Full verified payment only. Request → approve → complete after funds are returned; requests can also be rejected, including before completing an approval. Only completion creates the immutable financial refund and changes paid coverage. Gross receipts stay in reporting; refund events subtract on completion date. Rebuild only the remaining contiguous paid coverage chain. Historical ended-period refunds do not change present entitlement. Refunding the current period can leave future-only coverage; access is denied until that period begins and further renewals are rejected while the gap exists. Resolve such cases by separately verified refunds of remaining future periods before a fresh payment. Canceled paid periods cannot be regranted by refund recomputation. |
 
 There is no payment gateway integration and no stored card credentials. CARD is only a manual payment-method label. Manual status/plan adjustments and financial corrections retain before/after history; operators must verify evidence outside this application before approving.
+
+## Subscription refund process (16 October 2026)
+
+Apply the additive `20261016140000_subscription_refund_requests` migration and run
+`npm run prisma:generate` before deploying this feature. Existing completed refunds
+remain valid, with a nullable request link; they are neither reopened nor counted twice.
+
+In **System Admin > Payments**, use **Request refund** on a verified payment, enter
+the customer request/evidence reference and reason, then confirm. Review the request
+in the payment details and choose **Approve refund** or **Reject refund**. Approval
+leaves access and revenue unchanged. Return the money through the bank or payment
+provider, then choose **Complete refund** and enter its transaction reference.
+Completion can immediately remove subscription access according to the coverage
+rules above. The app records this transfer; it does not send money.
+
+All stages require an authenticated platform administrator, a reason and explicit
+confirmation. The same administrator may request, approve and complete; separate
+approvers are not required by the current authorization model. Requested, approved,
+rejected and completed history is visible in payment details (latest 20 requests).
+The refund-status filter matches request history. A rejected request remains in
+history and permits a new request; completed requests are final.
+
+Requests and completions have separate immutable retry keys. One open request per
+payment is enforced by a unique nullable active-payment key, alongside the existing
+organization lock and one-refund-per-payment constraint. Reviews are idempotent for
+an identical decision and reason. Audit writes, request state, financial records
+and entitlement changes commit together. No tenant permissions or grants change.
+
+New endpoints are `POST payments/:id/refund-requests` (evidence, idempotencyKey),
+and `POST payments/:id/refund-review` (requestId, APPROVED/REJECTED decision).
+`POST payments/:id/refund` now requires an approved `requestId` in addition to
+the existing evidence/idempotencyKey; direct one-step refund calls return 400.
+Every body also requires reason and confirm. Payment responses include
+`refundRequests`; payment lists accept `refundStatus`. All three writes use
+`writeLimmiter` plus the Redis-backed, per-operator `refundLimiter`, configured by
+`REFUND_RATE_LIMIT_WINDOW_MS` (default one hour) and `REFUND_RATE_LIMIT_MAX`
+(default 10 stage operations). Requests and approvals never appear as refund
+amounts in revenue reports; the existing completed-refund ledger remains authoritative.
 
 ## Free trials (16 October 2026)
 
@@ -89,7 +127,7 @@ All paths below are relative to `/api/system-admin`:
 | GET/POST | plans; subscriptions; payments |
 | GET | subscriptions/:id; payments/:id |
 | PATCH | plans/:id; settings; alerts/:id/read |
-| POST | subscriptions/:id/plan; subscriptions/:id/trial; subscriptions/:id/status; payments/:id/review; payments/:id/refund; alerts/process |
+| POST | subscriptions/:id/plan; subscriptions/:id/trial; subscriptions/:id/status; payments/:id/review; payments/:id/refund-requests; payments/:id/refund-review; payments/:id/refund; alerts/process |
 
 Tenants support name/slug search, organization/subscription status and name/createdAt/expiresAt sort. Users support name/email search, organization, role, invitation/security status and name/email/createdAt sort. Subscription/payment/plan lists have explicit filters and sorting. Detail history is bounded (20–100 latest records); full platform audit is separately paginated. User roles and organization/plan pickers are paginated searches.
 

@@ -3,7 +3,7 @@ import { AppError } from "@/utils/AppError.js";
 import { requestContext } from "@/lib/requestContext.js";
 import { isTenantAdminName, requirePlatformAuthority } from "@/modules/role/tenant-access-policy.js";
 import { platformTransaction, recordPlatformAudit } from "@/modules/system-admin/platform-audit.js";
-import { countActiveSeats } from "@/modules/system-admin/entitlement.js";
+import { countActiveSeats, countReservedSeats } from "@/modules/system-admin/entitlement.js";
 import { entitlementIsCurrent } from "@/modules/system-admin/billing-policy.js";
 import type { OrganizationInput } from "./organization.schema.js";
 
@@ -33,12 +33,17 @@ export const organizationService = {
       const isCurrent = entitlementIsCurrent(subscription, gracePeriodDays, now);
       const graceEndsAt = subscription?.status === "PAST_DUE" && subscription.expiresAt && gracePeriodDays > 0
         ? new Date(subscription.expiresAt.getTime() + gracePeriodDays * 86_400_000) : null;
+      const activeUsers = await countActiveSeats(db, organizationId);
+      const used = await countReservedSeats(db, organizationId);
+      const limit = tenant.billingEnabled ? subscription?.plan.maxActiveUsers ?? null : null;
+      const remaining = limit === null ? null : Math.max(0, limit - used);
       return {
         organizationName: tenant.name,
         billingEnabled: tenant.billingEnabled,
         accessAllowed: !tenant.billingEnabled || isCurrent,
         checkedAt: now,
-        activeUsers: await countActiveSeats(db, organizationId),
+        activeUsers,
+        userCapacity: { used, limit, remaining, canAdd: !tenant.billingEnabled || (isCurrent && remaining !== null && remaining > 0) },
         graceEndsAt,
         subscription: subscription ? {
           ...subscription, price: subscription.price.toFixed(2),

@@ -12,6 +12,7 @@ export const planListSchema = z.object({ query: z.object({ ...paging, status: z.
 export const subscriptionListSchema = z.object({ query: z.object({ ...paging, organizationId: id.optional(), planId: id.optional(),
   status: z.enum(["PENDING", "TRIALING", "ACTIVE", "PAST_DUE", "EXPIRED", "CANCELED"]).optional(), sortBy: z.enum(["createdAt", "expiresAt", "status"]).default("createdAt") }).strict() });
 export const paymentListSchema = z.object({ query: z.object({ ...paging, organizationId: id.optional(), subscriptionId: id.optional(),
+  refundStatus: z.enum(["REQUESTED", "APPROVED", "REJECTED", "COMPLETED"]).optional(),
   status: z.enum(["PENDING", "UNDER_REVIEW", "PAID", "REJECTED", "REFUNDED"]).optional(), sortBy: z.enum(["createdAt", "paidAt", "verifiedAt", "amount", "status"]).default("createdAt") }).strict() });
 export const billingDetailSchema = z.object({ params: z.object({ id }).strict() });
 export const createPlanSchema = z.object({ body: z.object({ ...planFields, ...mutation }).strict() });
@@ -28,7 +29,9 @@ export const recordPaymentSchema = z.object({ body: z.object({ subscriptionId: i
     .refine((value) => value.getTime() <= Date.now() + 60_000, "Payment date must not be in the future"), ...mutation }).strict() });
 const evidence = z.string().trim().min(3).max(1000);
 export const reviewPaymentSchema = z.object({ params: z.object({ id }), body: z.object({ decision: z.enum(["UNDER_REVIEW", "PAID", "REJECTED"]), evidence, ...mutation }).strict() });
-export const refundPaymentSchema = z.object({ params: z.object({ id }), body: z.object({ evidence, idempotencyKey: z.string().trim().min(8).max(100), ...mutation }).strict() });
+export const requestRefundSchema = z.object({ params: z.object({ id }), body: z.object({ evidence, idempotencyKey: z.string().trim().min(8).max(100), ...mutation }).strict() });
+export const reviewRefundSchema = z.object({ params: z.object({ id }), body: z.object({ requestId: id, decision: z.enum(["APPROVED", "REJECTED"]), ...mutation }).strict() });
+export const refundPaymentSchema = z.object({ params: z.object({ id }), body: z.object({ requestId: id, evidence, idempotencyKey: z.string().trim().min(8).max(100), ...mutation }).strict() });
 export type PlanListQuery = z.infer<typeof planListSchema>["query"];
 export type SubscriptionListQuery = z.infer<typeof subscriptionListSchema>["query"];
 export type PaymentListQuery = z.infer<typeof paymentListSchema>["query"];
@@ -41,3 +44,5 @@ export type ChangeStatusInput = z.infer<typeof changeSubscriptionStatusSchema>["
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>["body"];
 export type ReviewPaymentInput = z.infer<typeof reviewPaymentSchema>["body"];
 export type RefundPaymentInput = z.infer<typeof refundPaymentSchema>["body"];
+export type RequestRefundInput = z.infer<typeof requestRefundSchema>["body"];
+export type ReviewRefundInput = z.infer<typeof reviewRefundSchema>["body"];

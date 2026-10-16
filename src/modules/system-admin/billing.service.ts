@@ -7,11 +7,12 @@ import { billingPeriod, assertExactPayment, assertManualSubscriptionTransition, 
 import { countActiveSeats } from "./entitlement.js";
 import { lockOrganization, platformTransaction, recordPlatformAudit } from "./platform-audit.js";
 import type { PlanListQuery, SubscriptionListQuery, PaymentListQuery, CreatePlanInput, UpdatePlanInput, AssignSubscriptionInput,
-  ChangePlanInput, ChangeStatusInput, RecordPaymentInput, ReviewPaymentInput, RefundPaymentInput, StartTrialInput } from "./billing.schema.js";
+  ChangePlanInput, ChangeStatusInput, RecordPaymentInput, ReviewPaymentInput, RefundPaymentInput, RequestRefundInput, ReviewRefundInput, StartTrialInput } from "./billing.schema.js";
 
 const organizationSelect = { id: true, name: true, slug: true, status: true } satisfies Prisma.OrganizationSelect;
 const subscriptionInclude = { plan: true, organization: { select: organizationSelect }, history: { orderBy: { createdAt: "desc" }, take: 20 } } satisfies Prisma.SubscriptionInclude;
-const paymentInclude = { organization: { select: organizationSelect }, subscription: { select: { id: true, status: true, startsAt: true, expiresAt: true, price: true, billingInterval: true, currency: true, plan: true } }, refund: true } satisfies Prisma.SubscriptionPaymentInclude;
+const paymentInclude = { organization: { select: organizationSelect }, subscription: { select: { id: true, status: true, startsAt: true, expiresAt: true, price: true, billingInterval: true, currency: true, plan: true } }, refund: true,
+  refundRequests: { take: 20, orderBy: [{ createdAt: "desc" }, { id: "desc" }] } } satisfies Prisma.SubscriptionPaymentInclude;
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 function snapshot(subscription: Subscription) {
   return { id: subscription.id, planId: subscription.planId, status: subscription.status,
@@ -79,6 +80,7 @@ export const billingService = {
   async listPayments(query: PaymentListQuery) {
     await requirePlatformAuthority();
     const where: Prisma.SubscriptionPaymentWhereInput = { organizationId: query.organizationId, subscriptionId: query.subscriptionId, status: query.status,
+      ...(query.refundStatus ? { refundRequests: { some: { status: query.refundStatus } } } : {}),
       ...(query.search ? { OR: [{ referenceNumber: { contains: query.search } }, { organization: { name: { contains: query.search } } }, { organization: { slug: { contains: query.search } } }] } : {}) };
     return prisma.$transaction((db) => page(query, () => db.subscriptionPayment.count({ where }), (skip) => db.subscriptionPayment.findMany({ where, skip, take: query.pageSize,
       include: paymentInclude, orderBy: [{ [query.sortBy]: query.sortOrder }, { id: "asc" }] })), { isolationLevel: "RepeatableRead" });
@@ -256,6 +258,47 @@ export const billingService = {
       return payment;
     });
   },
+  async requestRefund(id: string, input: RequestRefundInput) {
+    await requirePlatformAuthority();
+    const organizationId = await paymentOrganization(id);
+    return platformTransaction(async (db) => {
+      const actor = await requirePlatformAuthority(db);
+      await lockOrganization(db, organizationId);
+      const existing = await db.subscriptionRefundRequest.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+      if (existing) {
+        if (existing.paymentId !== id || existing.reason !== input.reason || existing.evidence !== input.evidence) throw new AppError(409, "Idempotency key was already used for a different refund request");
+        return existing;
+      }
+      const payment = await db.subscriptionPayment.findUnique({ where: { id } });
+      if (!payment) throw new AppError(404, "Payment not found");
+      if (payment.status !== "PAID") throw new AppError(409, "Only a verified, unrefunded payment can have a refund requested");
+      if (await db.subscriptionRefundRequest.findUnique({ where: { activePaymentId: id } })) throw new AppError(409, "This payment already has an open refund request");
+      const request = await db.subscriptionRefundRequest.create({ data: { paymentId: id, activePaymentId: id, status: "REQUESTED",
+        idempotencyKey: input.idempotencyKey, reason: input.reason, evidence: input.evidence, actorId: actor.id } });
+      await recordPlatformAudit(db, { action: "platform.refund.request", entity: "SubscriptionRefundRequest", entityId: request.id,
+        organizationId, after: json(request) });
+      return request;
+    });
+  },
+  async reviewRefund(id: string, input: ReviewRefundInput) {
+    await requirePlatformAuthority();
+    const organizationId = await paymentOrganization(id);
+    return platformTransaction(async (db) => {
+      const actor = await requirePlatformAuthority(db);
+      await lockOrganization(db, organizationId);
+      const request = await db.subscriptionRefundRequest.findFirst({ where: { id: input.requestId, paymentId: id } });
+      if (!request) throw new AppError(404, "Refund request not found");
+      if (request.status === input.decision && request.reviewReason === input.reason) return request;
+      if (request.status !== "REQUESTED" && !(request.status === "APPROVED" && input.decision === "REJECTED")) throw new AppError(409, "This refund request cannot be reviewed in its current state");
+      const payment = await db.subscriptionPayment.findUnique({ where: { id } });
+      if (payment?.status !== "PAID") throw new AppError(409, "Only a verified, unrefunded payment can have a refund reviewed");
+      const updated = await db.subscriptionRefundRequest.update({ where: { id: request.id }, data: { status: input.decision,
+        activePaymentId: input.decision === "REJECTED" ? null : id, reviewReason: input.reason, reviewedBy: actor.id, reviewedAt: new Date() } });
+      await recordPlatformAudit(db, { action: input.decision === "APPROVED" ? "platform.refund.approve" : "platform.refund.reject",
+        entity: "SubscriptionRefundRequest", entityId: request.id, organizationId, before: json(request), after: json(updated) });
+      return updated;
+    });
+  },
   async refundPayment(id: string, input: RefundPaymentInput) {
     await requirePlatformAuthority();
     const organizationId = await paymentOrganization(id);
@@ -264,17 +307,21 @@ export const billingService = {
       await lockOrganization(db, organizationId);
       const existing = await db.subscriptionRefund.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
       if (existing) {
-        if (existing.paymentId !== id || existing.reason !== input.reason || existing.evidence !== input.evidence) throw new AppError(409, "Idempotency key was already used for a different refund request");
+        if (existing.paymentId !== id || existing.requestId !== input.requestId || existing.reason !== input.reason || existing.evidence !== input.evidence) throw new AppError(409, "Idempotency key was already used for a different refund request");
         return existing;
       }
       const payment = await db.subscriptionPayment.findUnique({ where: { id } });
       if (!payment) throw new AppError(404, "Payment not found");
       if (payment.status !== "PAID") throw new AppError(409, "Only a verified, unrefunded payment can be refunded");
+      const request = await db.subscriptionRefundRequest.findFirst({ where: { id: input.requestId, paymentId: id } });
+      if (!request) throw new AppError(404, "Refund request not found");
+      if (request.status !== "APPROVED") throw new AppError(409, "Approve the refund request before recording the returned funds");
       const before = await requireSubscription(db, payment.subscriptionId);
       const refund = await db.subscriptionRefund.create({ data: { paymentId: id, amount: payment.amount, currency: payment.currency,
-        idempotencyKey: input.idempotencyKey, reason: input.reason, evidence: input.evidence, actorId: actor.id } });
+        requestId: request.id, idempotencyKey: input.idempotencyKey, reason: input.reason, evidence: input.evidence, actorId: actor.id } });
       await db.subscriptionPayment.update({ where: { id }, data: { status: "REFUNDED" } });
       const now = new Date();
+      await db.subscriptionRefundRequest.update({ where: { id: request.id }, data: { status: "COMPLETED", activePaymentId: null, completedAt: now } });
       let after: Subscription = before;
       // An ended historic period cannot change the present subscription. Current
       // and future refunds rebuild continuous coverage from immutable paid intervals.

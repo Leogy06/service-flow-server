@@ -34,7 +34,9 @@ test("real operations records, dashboard/refund reporting, alerts deduplication,
       const sub = await billingService.assignSubscription({ organizationId: org.id, planId: plan.id, confirm: true, reason: "Isolated operations test" });
       const p = await billingService.recordPayment({ subscriptionId: sub.id, amount: "123.45", currency: "PHP", paymentMethod: "BANK_TRANSFER", referenceNumber: `ops-ref-${tag}`, idempotencyKey: `ops-pay-${tag}`, paidAt: new Date(), confirm: true, reason: "Isolated operations test" });
       await billingService.reviewPayment(p.id, { decision: "PAID", evidence: "isolated-trusted-evidence", confirm: true, reason: "Isolated verification test" });
-      await billingService.refundPayment(p.id, { evidence: "isolated-confirmed-refund", idempotencyKey: `ops-refund-${tag}`, confirm: true, reason: "Isolated refund test" });
+      const refundRequest = await billingService.requestRefund(p.id, { evidence: "isolated-refund-request", idempotencyKey: `ops-request-${tag}`, confirm: true, reason: "Isolated refund request" });
+      await billingService.reviewRefund(p.id, { requestId: refundRequest.id, decision: "APPROVED", confirm: true, reason: "Isolated refund approval" });
+      await billingService.refundPayment(p.id, { requestId: refundRequest.id, evidence: "isolated-confirmed-refund", idempotencyKey: `ops-refund-${tag}`, confirm: true, reason: "Isolated refund test" });
       const after = await operationsService.dashboard({});
       const previous = before.revenue.find((r) => r.currency === "PHP") ?? { gross: "0", refunds: "0", net: "0" };
       const current = after.revenue.find((r) => r.currency === "PHP");

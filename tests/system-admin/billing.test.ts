@@ -3,7 +3,7 @@ import { jest } from "@jest/globals";
 // Repository transactions are serialized here to exercise idempotent business behavior.
 // Real lock/unique-constraint races are covered by the opt-in MySQL harness.
 type Row = Record<string, any>;
-let state: { plans: Row[]; subscriptions: Row[]; payments: Row[]; refunds: Row[]; history: Row[]; organizations: Row[]; users: Row[]; audits: Row[] };
+let state: { plans: Row[]; subscriptions: Row[]; payments: Row[]; refunds: Row[]; refundRequests: Row[]; history: Row[]; organizations: Row[]; users: Row[]; audits: Row[] };
 let failAudit = false;
 let queue = Promise.resolve();
 const normalize = (value: any): any => {
@@ -52,6 +52,7 @@ function delegate(name: keyof typeof state) {
 const db = {
   plan: delegate("plans"), subscription: delegate("subscriptions"), subscriptionPayment: delegate("payments"),
   subscriptionRefund: delegate("refunds"), subscriptionHistory: delegate("history"), organization: delegate("organizations"),
+  subscriptionRefundRequest: delegate("refundRequests"),
   user: delegate("users"), platformSettings: { findUnique: jest.fn(async () => ({ gracePeriodDays: 0 })) },
   $queryRaw: jest.fn(async () => []),
 };
@@ -80,6 +81,11 @@ const reason = { reason: "Verified bank evidence", confirm: true as const };
 const paymentInput = { ...reason, subscriptionId: "sub-a", amount: "2999.00", currency: "PHP", paymentMethod: "BANK_TRANSFER" as const,
   referenceNumber: "BANK-2026-A", idempotencyKey: "payment-key-a", paidAt: new Date(Date.now() - 1000) };
 const reviewInput = { ...reason, decision: "PAID" as const, evidence: "bank-statement:2026-10-15:A" };
+async function approvedRefundRequest(paymentId: string) {
+  const request = await billingService.requestRefund(paymentId, { ...reason, evidence: "customer-request-reference", idempotencyKey: `request-${paymentId}` });
+  await billingService.reviewRefund(paymentId, { ...reason, requestId: request.id, decision: "APPROVED" });
+  return request.id;
+}
 beforeEach(() => {
   jest.clearAllMocks(); failAudit = false; queue = Promise.resolve();
   state = { plans: [{ id: "plan-a", name: "Starter", price: "2999.00", billingInterval: "YEARLY", currency: "PHP", maxActiveUsers: 3, isActive: true },
@@ -88,7 +94,7 @@ beforeEach(() => {
       startsAt: null, expiresAt: null, currentPeriodPaymentId: null, version: 0 }],
     organizations: [{ id: "org-a", billingEnabled: true, status: "ACTIVE" }],
     users: [{ id: "owner-a", organizationId: "org-a", status: "ACTIVE", platformRole: "NONE", securityStatus: "ACTIVE", deletedAt: null }],
-    payments: [], refunds: [], history: [], audits: [] };
+    payments: [], refunds: [], refundRequests: [], history: [], audits: [] };
 });
 
 test("initial trial enrollment grants 14 days, enables billing, audits and creates no financial records", async () => {
@@ -165,7 +171,7 @@ test("verified payment converts a trial immediately and refund never grants anot
   const { billingPeriod } = await import("@/modules/system-admin/billing-policy.js");
   expect(state.subscriptions[0]).toMatchObject({ status: "ACTIVE", startsAt: state.payments[0].verifiedAt, trialStartedAt, trialExpiresAt });
   expect(state.subscriptions[0].expiresAt).toEqual(billingPeriod(state.payments[0].verifiedAt, null, "YEARLY").expiresAt);
-  await billingService.refundPayment(paid.id, { ...reason, evidence: "confirmed-conversion-refund", idempotencyKey: "trial-refund-key" });
+  await billingService.refundPayment(paid.id, { ...reason, requestId: await approvedRefundRequest(paid.id), evidence: "confirmed-conversion-refund", idempotencyKey: "trial-refund-key" });
   expect(state.subscriptions[0]).toMatchObject({ status: "CANCELED", trialStartedAt, trialExpiresAt });
   await expect(billingService.startTrial("sub-a", reason)).rejects.toMatchObject({ statusCode: 409 });
   await expect(assertTenantEntitlement(tx, "org-a")).rejects.toMatchObject({ statusCode: 403 });
@@ -211,7 +217,7 @@ test("switching yearly to monthly preserves coverage until the next verified ren
   const { billingPeriod } = await import("@/modules/system-admin/billing-policy.js");
   expect(state.subscriptions[0].expiresAt).toEqual(billingPeriod(state.payments[1].verifiedAt, yearlyExpiration, "MONTHLY").expiresAt);
   expect(state.subscriptions[0].billingInterval).toBe("MONTHLY");
-  await billingService.refundPayment(monthlyPayment.id, { ...reason, evidence: "confirmed-refund-monthly", idempotencyKey: "refund-monthly-key" });
+  await billingService.refundPayment(monthlyPayment.id, { ...reason, requestId: await approvedRefundRequest(monthlyPayment.id), evidence: "confirmed-refund-monthly", idempotencyKey: "refund-monthly-key" });
   expect(state.subscriptions[0]).toMatchObject({ billingInterval: "YEARLY", price: "2999.00", expiresAt: yearlyExpiration });
 });
 
@@ -316,7 +322,7 @@ test("idempotency keys cannot be replayed against another subscription or refund
   await billingService.reviewPayment(first.id, reviewInput);
   const second = await billingService.recordPayment({ ...paymentInput, referenceNumber: "BANK-SECOND", idempotencyKey: "second-key" });
   await billingService.reviewPayment(second.id, reviewInput);
-  const refund = { ...reason, evidence: "refund-target-review", idempotencyKey: "shared-refund-key" };
+  const refund = { ...reason, requestId: await approvedRefundRequest(first.id), evidence: "refund-target-review", idempotencyKey: "shared-refund-key" };
   await billingService.refundPayment(first.id, refund);
   await expect(billingService.refundPayment(second.id, refund)).rejects.toMatchObject({ statusCode: 409 });
   expect(state.payments[1].status).toBe("PAID");
@@ -350,7 +356,7 @@ test("downgrades and seat activation include the owner and blocked active accoun
   await expect(enforceSeatLimit(tx, "org-a")).rejects.toMatchObject({ statusCode: 409 });
 });
 
-test("pending invites, deleted users and platform identities do not consume seats", async () => {
+test("pending invites, deleted users and platform identities do not consume active seats", async () => {
   state.users.push({ id: "invite", organizationId: "org-a", status: "PENDING", platformRole: "NONE", deletedAt: null },
     { id: "deleted", organizationId: "org-a", status: "ACTIVE", platformRole: "NONE", deletedAt: new Date() },
     { id: "operator", organizationId: "org-a", status: "ACTIVE", platformRole: "SYSTEM_ADMIN", deletedAt: null });
@@ -369,13 +375,116 @@ test("audit failure rolls back payment verification and renewal", async () => {
 test("full refunds are separate, idempotent records and revoke current entitlement", async () => {
   const payment = await billingService.recordPayment(paymentInput);
   await billingService.reviewPayment(payment.id, reviewInput);
-  const input = { ...reason, evidence: "bank-refund:confirmation:A", idempotencyKey: "refund-key-a" };
+  const input = { ...reason, requestId: await approvedRefundRequest(payment.id), evidence: "bank-refund:confirmation:A", idempotencyKey: "refund-key-a" };
   const refund = await billingService.refundPayment(payment.id, input);
   expect(new Prisma.Decimal(refund.amount).toFixed(2)).toBe("2999.00");
   expect(state.payments[0].status).toBe("REFUNDED");
   expect(state.subscriptions[0].status).toBe("CANCELED");
   expect((await billingService.refundPayment(payment.id, input)).id).toBe(refund.id);
   expect(state.refunds).toHaveLength(1);
+  expect(state.refundRequests[0]).toMatchObject({ status: "COMPLETED", activePaymentId: null });
+  expect(state.refundRequests[0].completedAt).toBeInstanceOf(Date);
+  expect(refund.requestId).toBe(input.requestId);
+});
+
+const requestInput = { ...reason, evidence: "customer-refund-request:ABC", idempotencyKey: "refund-request-key" };
+async function verifiedPayment() {
+  const payment = await billingService.recordPayment(paymentInput);
+  await billingService.reviewPayment(payment.id, reviewInput);
+  return payment;
+}
+
+test("refund request and approval preserve revenue, payment and subscription entitlement", async () => {
+  const payment = await verifiedPayment();
+  const before = structuredClone(state.subscriptions[0]);
+  const request = await billingService.requestRefund(payment.id, requestInput);
+  expect(request).toMatchObject({ status: "REQUESTED", paymentId: payment.id, activePaymentId: payment.id });
+  expect((await billingService.requestRefund(payment.id, requestInput)).id).toBe(request.id);
+  await expect(billingService.requestRefund(payment.id, { ...requestInput, reason: "Changed request details" })).rejects.toMatchObject({ statusCode: 409 });
+  const review = { ...reason, requestId: request.id, decision: "APPROVED" as const };
+  await billingService.reviewRefund(payment.id, review);
+  await billingService.reviewRefund(payment.id, review);
+  expect(state.refundRequests).toHaveLength(1);
+  expect(state.refunds).toHaveLength(0);
+  expect(state.payments[0].status).toBe("PAID");
+  expect(state.subscriptions[0]).toEqual(before);
+  expect(state.audits.filter((event) => event.action === "platform.refund.request")).toHaveLength(1);
+  expect(state.audits.filter((event) => event.action === "platform.refund.approve")).toHaveLength(1);
+});
+
+test("concurrent duplicate and distinct refund requests cannot create multiple open requests", async () => {
+  const payment = await verifiedPayment();
+  const identical = await Promise.all([billingService.requestRefund(payment.id, requestInput), billingService.requestRefund(payment.id, requestInput)]);
+  expect(identical[0].id).toBe(identical[1].id);
+  await expect(billingService.requestRefund(payment.id, { ...requestInput, idempotencyKey: "another-request-key" })).rejects.toMatchObject({ statusCode: 409 });
+  expect(state.refundRequests).toHaveLength(1);
+});
+
+test.each(["REQUESTED", "APPROVED"] as const)("rejecting a %s request preserves history and allows a new request", async (status) => {
+  const payment = await verifiedPayment();
+  const request = await billingService.requestRefund(payment.id, requestInput);
+  if (status === "APPROVED") await billingService.reviewRefund(payment.id, { ...reason, requestId: request.id, decision: "APPROVED" });
+  await billingService.reviewRefund(payment.id, { ...reason, requestId: request.id, decision: "REJECTED" });
+  expect(state.refundRequests[0]).toMatchObject({ status: "REJECTED", activePaymentId: null, reviewedBy: "platform-actor" });
+  await expect(billingService.reviewRefund(payment.id, { ...reason, requestId: request.id, decision: "APPROVED" })).rejects.toMatchObject({ statusCode: 409 });
+  await billingService.requestRefund(payment.id, { ...requestInput, idempotencyKey: "fresh-request-key" });
+  expect(state.refundRequests).toHaveLength(2);
+  expect(state.payments[0].status).toBe("PAID");
+  expect(state.subscriptions[0].status).toBe("ACTIVE");
+  expect(state.refunds).toHaveLength(0);
+});
+
+test("unapproved requests and requests belonging to another payment cannot complete", async () => {
+  const payment = await verifiedPayment();
+  const request = await billingService.requestRefund(payment.id, requestInput);
+  const completion = { ...reason, requestId: request.id, evidence: "bank-return-reference", idempotencyKey: "complete-refund-key" };
+  await expect(billingService.refundPayment(payment.id, completion)).rejects.toMatchObject({ statusCode: 409 });
+  const other = await billingService.recordPayment({ ...paymentInput, referenceNumber: "OTHER-PAYMENT", idempotencyKey: "other-payment-key" });
+  await billingService.reviewPayment(other.id, reviewInput);
+  await expect(billingService.reviewRefund(other.id, { ...reason, requestId: request.id, decision: "APPROVED" })).rejects.toMatchObject({ statusCode: 404 });
+  await expect(billingService.refundPayment(other.id, completion)).rejects.toMatchObject({ statusCode: 404 });
+  await expect(billingService.requestRefund(other.id, requestInput)).rejects.toMatchObject({ statusCode: 409 });
+  expect(state.refunds).toHaveLength(0);
+});
+
+test.each(["PENDING", "REJECTED", "REFUNDED"])("payment status %s cannot start a refund", async (status) => {
+  const payment = await billingService.recordPayment(paymentInput);
+  state.payments[0].status = status;
+  await expect(billingService.requestRefund(payment.id, requestInput)).rejects.toMatchObject({ statusCode: 409 });
+  expect(state.refundRequests).toHaveLength(0);
+});
+
+test("refund completion retries are exact and completed requests cannot be rejected", async () => {
+  const payment = await verifiedPayment();
+  const requestId = await approvedRefundRequest(payment.id);
+  const input = { ...reason, requestId, evidence: "bank-return-reference", idempotencyKey: "complete-refund-key" };
+  const [first, second] = await Promise.all([billingService.refundPayment(payment.id, input), billingService.refundPayment(payment.id, input)]);
+  expect(first.id).toBe(second.id);
+  await expect(billingService.refundPayment(payment.id, { ...input, requestId: "different-request" })).rejects.toMatchObject({ statusCode: 409 });
+  await expect(billingService.refundPayment(payment.id, { ...input, evidence: "changed-return-reference" })).rejects.toMatchObject({ statusCode: 409 });
+  await expect(billingService.reviewRefund(payment.id, { ...reason, requestId, decision: "REJECTED" })).rejects.toMatchObject({ statusCode: 409 });
+  expect(state.refunds).toHaveLength(1);
+});
+
+test("audit failure rolls back requests, reviews, refund ledger, completion and subscription changes", async () => {
+  const payment = await verifiedPayment();
+  failAudit = true;
+  await expect(billingService.requestRefund(payment.id, requestInput)).rejects.toThrow("Audit unavailable");
+  expect(state.refundRequests).toHaveLength(0);
+  failAudit = false;
+  const request = await billingService.requestRefund(payment.id, requestInput);
+  failAudit = true;
+  await expect(billingService.reviewRefund(payment.id, { ...reason, requestId: request.id, decision: "APPROVED" })).rejects.toThrow("Audit unavailable");
+  expect(state.refundRequests[0].status).toBe("REQUESTED");
+  failAudit = false;
+  await billingService.reviewRefund(payment.id, { ...reason, requestId: request.id, decision: "APPROVED" });
+  const before = structuredClone(state.subscriptions[0]);
+  failAudit = true;
+  await expect(billingService.refundPayment(payment.id, { ...reason, requestId: request.id, evidence: "bank-return-reference", idempotencyKey: "complete-refund-key" })).rejects.toThrow("Audit unavailable");
+  expect(state.refundRequests[0].status).toBe("APPROVED");
+  expect(state.refunds).toHaveLength(0);
+  expect(state.payments[0].status).toBe("PAID");
+  expect(state.subscriptions[0]).toEqual(before);
 });
 
 test("initial assignment atomically enrolls billing and prevents overlapping subscriptions", async () => {
@@ -393,7 +502,7 @@ test("refunding a future renewal restores the still-paid previous period", async
   const previousExpiry = state.subscriptions[0].expiresAt;
   const second = await billingService.recordPayment({ ...paymentInput, referenceNumber: "BANK-FUTURE", idempotencyKey: "future-key" });
   await billingService.reviewPayment(second.id, reviewInput);
-  await billingService.refundPayment(second.id, { ...reason, evidence: "future-renewal-refund", idempotencyKey: "future-refund-key" });
+  await billingService.refundPayment(second.id, { ...reason, requestId: await approvedRefundRequest(second.id), evidence: "future-renewal-refund", idempotencyKey: "future-refund-key" });
   expect(state.subscriptions[0]).toMatchObject({ status: "ACTIVE", currentPeriodPaymentId: first.id, expiresAt: previousExpiry });
 });
 
@@ -410,9 +519,9 @@ test("historic refunds preserve the present period and refunded history cannot b
   state.subscriptions[0].startsAt = state.payments[1].periodStartsAt;
   state.subscriptions[0].expiresAt = state.payments[1].periodExpiresAt;
   const currentExpiry = state.subscriptions[0].expiresAt;
-  await billingService.refundPayment(first.id, { ...reason, evidence: "historic-refund-review", idempotencyKey: "historic-refund-key" });
+  await billingService.refundPayment(first.id, { ...reason, requestId: await approvedRefundRequest(first.id), evidence: "historic-refund-review", idempotencyKey: "historic-refund-key" });
   expect(state.subscriptions[0]).toMatchObject({ status: "ACTIVE", currentPeriodPaymentId: second.id, expiresAt: currentExpiry });
-  await billingService.refundPayment(second.id, { ...reason, evidence: "future-renewal-refund", idempotencyKey: "future-refund-key" });
+  await billingService.refundPayment(second.id, { ...reason, requestId: await approvedRefundRequest(second.id), evidence: "future-renewal-refund", idempotencyKey: "future-refund-key" });
   expect(state.subscriptions[0].status).toBe("CANCELED");
 });
 
@@ -421,7 +530,7 @@ test("refunding current coverage cannot grant access during a gap before a futur
   await billingService.reviewPayment(first.id, reviewInput);
   const second = await billingService.recordPayment({ ...paymentInput, referenceNumber: "BANK-FUTURE", idempotencyKey: "future-key" });
   await billingService.reviewPayment(second.id, reviewInput);
-  await billingService.refundPayment(first.id, { ...reason, evidence: "current-period-refund", idempotencyKey: "current-refund-key" });
+  await billingService.refundPayment(first.id, { ...reason, requestId: await approvedRefundRequest(first.id), evidence: "current-period-refund", idempotencyKey: "current-refund-key" });
   expect(new Date(state.subscriptions[0].startsAt).getTime()).toBeGreaterThan(Date.now());
   expect(state.subscriptions[0].currentPeriodPaymentId).toBe(second.id);
   const third = await billingService.recordPayment({ ...paymentInput, referenceNumber: "BANK-GAP", idempotencyKey: "gap-key-a" });
@@ -438,7 +547,7 @@ test("renewing a canceled future entitlement starts a fresh annual period", asyn
   expect(state.subscriptions[0].startsAt).toEqual(state.payments[1].periodStartsAt);
   expect(state.payments[1].periodStartsAt.getTime()).toBeLessThan(oldExpiration.getTime());
   expect(state.subscriptions[0].expiresAt.getTime()).toBeLessThan(oldExpiration.getTime() + 86_400_000);
-  await billingService.refundPayment(second.id, { ...reason, evidence: "restart-period-refund", idempotencyKey: "restart-refund-key" });
+  await billingService.refundPayment(second.id, { ...reason, requestId: await approvedRefundRequest(second.id), evidence: "restart-period-refund", idempotencyKey: "restart-refund-key" });
   expect(state.payments[0].status).toBe("PAID");
   expect(state.subscriptions[0].status).toBe("CANCELED");
 });

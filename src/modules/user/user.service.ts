@@ -205,7 +205,7 @@ export const userService = {
     const user = await accessTransaction(async (db) => {
       const currentActor = await requireTenantAdmin(db, PERMISSIONS.USER_CREATE);
       await requireAssignableRole(db, input.roleId, currentActor);
-      await enforceSeatLimit(db, currentActor.organizationId);
+      await enforceSeatLimit(db, currentActor.organizationId, 1, { includePending: true });
       const created = await db.user.create({
       data: {
         firstName: input.firstName,
@@ -252,7 +252,8 @@ export const userService = {
     const user = await accessTransaction(async (db) => {
       const currentActor = await requireTenantAdmin(db, PERMISSIONS.USER_CREATE);
       await requireAssignableRole(db, input.roleId, currentActor);
-      return db.user.create({
+      await enforceSeatLimit(db, currentActor.organizationId, 1, { includePending: true });
+      const created = await db.user.create({
       data: {
         firstName: input.firstName,
         lastName: input.lastName,
@@ -278,13 +279,8 @@ export const userService = {
         },
       },
       });
-    });
-
-    void auditService.record({
-      action: "create.user.success",
-      entity: "User",
-      entityId: user.id,
-      after: stripSecrets(user),
+      await auditService.recordInTransaction(db, { action: "create.user.success", entity: "User", entityId: created.id, after: stripSecrets(created) });
+      return created;
     });
 
     await this.invalidateUserCache();
@@ -516,7 +512,7 @@ export const userService = {
         await lockOrganization(db, authUserOrg);
         const current = await db.user.findFirst({ where: { id, ...userScope(authUserOrg, { deleted: true }), platformRole: "NONE" } });
         if (!current) throw new AppError(404, "User not found");
-        await enforceSeatLimit(db, authUserOrg, current.status === "ACTIVE" ? 1 : 0);
+        await enforceSeatLimit(db, authUserOrg, 1, { includePending: true });
         const restored = await db.user.update({
           where: { id, ...userScope(authUserOrg, { deleted: true }), platformRole: "NONE" },
           data: { deletedAt: null, sessionVersion: { increment: 1 } },

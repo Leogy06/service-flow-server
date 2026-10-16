@@ -10,10 +10,12 @@ type PermissionRow = { id: string; name: string; organizationId: string | null; 
 let roles: RoleRow[];
 let users: UserRow[];
 let permissions: PermissionRow[];
+let billingEnabled = false;
 const grant = (permissionId: string, isActive = true) => ({ permissionId, isActive });
 const record = jest.fn(async (_event: unknown) => {});
 
 function resetData() {
+  billingEnabled = false;
   permissions = [
     ["read", PERMISSIONS.CUSTOMER_READ], ["update", PERMISSIONS.CUSTOMER_UPDATE],
     ["role-read", PERMISSIONS.ROLE_READ], ["role-create", PERMISSIONS.ROLE_CREATE],
@@ -44,7 +46,7 @@ function roleView(role: RoleRow) {
 function userView(user: UserRow) {
   return { ...user, email: user.id + "@example.com", firstName: user.id, lastName: "Test", middleName: null, suffix: null, password: "hash",
     platformRole: user.platformRole ?? "NONE", securityStatus: "ACTIVE", sessionVersion: 0,
-    organization: user.organizationId ? { id: user.organizationId, slug: user.organizationId, status: "ACTIVE", billingEnabled: false } : null,
+    organization: user.organizationId ? { id: user.organizationId, slug: user.organizationId, status: "ACTIVE", billingEnabled } : null,
     role: roleView(roles.find((r) => r.id === user.roleId)!), userPermissions: grantViews(user.grants, false),
   };
 }
@@ -64,6 +66,10 @@ function matchesRole(role: RoleRow, where: any) {
 const transaction = jest.fn<(work: any) => Promise<any>>();
 const db = {
   user: {
+    count: jest.fn(async ({ where }: any) => users.filter((user) =>
+      user.organizationId === where.organizationId && user.deletedAt === where.deletedAt &&
+      (user.platformRole ?? "NONE") === where.platformRole &&
+      (typeof where.status === "string" ? user.status === where.status : where.status.in.includes(user.status))).length),
     findMany: jest.fn(async ({ where }: any) => users.filter((u) => u.organizationId === where.organizationId && !u.deletedAt).map(userView)),
     findUnique: jest.fn(async ({ where }: any) => { const user = users.find((u) => u.id === where.id); return user ? userView(user) : null; }),
     findFirst: jest.fn(async ({ where }: any) => {
@@ -113,7 +119,10 @@ const db = {
     findUnique: jest.fn(async () => ({ id: "refresh", userId: "staff-a", organizationId: "org-a", expiresAt: new Date(Date.now() + 60000), user: userView(users.find((u) => u.id === "staff-a")!) })),
     delete: jest.fn(async () => ({})), create: jest.fn(async () => ({})),
   },
-  organization: { findUnique: jest.fn(async ({ where }: any) => ({ id: where.id })) },
+  organization: { findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, billingEnabled })) },
+  subscription: { findUnique: jest.fn(async () => ({ status: "ACTIVE", startsAt: new Date(Date.now() - 86_400_000),
+    expiresAt: new Date(Date.now() + 86_400_000), plan: { maxActiveUsers: 3 } })) },
+  $queryRaw: jest.fn(async (_strings: TemplateStringsArray, id: string) => [{ id }]),
   auditLog: { create: jest.fn(async ({ data }: any) => record(data)) },
   $transaction: transaction,
 };
@@ -555,6 +564,26 @@ describe("Tri-state staff permission overrides", () => {
 });
 
 describe("Authentication and invitation integration", () => {
+  it("returns a safe 409 from the invitation route when the third user already fills the plan", async () => {
+    billingEnabled = true;
+    const body = { firstName: "New", lastName: "User", email: "new@example.com", roleId: "staff-role-a" };
+    const final = await request("/users/invite-email", "POST", body);
+    expect(final.status).toBe(201);
+    expect(final.body.data).toMatchObject({ status: "PENDING", organizationId: "org-a" });
+    const excess = await request("/users/invite-email", "POST", { ...body, email: "excess@example.com" });
+    expect(excess.status).toBe(409);
+    expect(excess.body.error).toContain("maximum 3, including pending invitations");
+    expect(db.user.create).toHaveBeenCalledTimes(1);
+    // Direct creation cannot bypass an invitation's reservation either.
+    expect((await request("/users", "POST", { ...body, email: "direct@example.com", password: "Password123!" })).status).toBe(409);
+  });
+  it("retains tenant authorization and related-role ownership on the invitation route", async () => {
+    billingEnabled = true;
+    const body = { firstName: "New", lastName: "User", email: "new@example.com", roleId: "staff-role-a" };
+    expect((await request("/users/invite-email", "POST", body, "staff-a")).status).toBe(403);
+    expect((await request("/users/invite-email", "POST", { ...body, roleId: "staff-role-b" })).status).toBe(404);
+    expect(db.user.create).not.toHaveBeenCalled();
+  });
   it("rejects role/tenant assignment through public registration", async () => {
     expect((await request("/auth/register", "POST", { email: "new@example.com", password: "Password123", firstName: "New", lastName: "User", role: "global-role", organizationId: "org-b" })).status).toBe(400);
     expect(db.user.create).not.toHaveBeenCalled();

@@ -1,4 +1,4 @@
-import { createPlanSchema, updatePlanSchema, recordPaymentSchema, reviewPaymentSchema, refundPaymentSchema, changeSubscriptionStatusSchema, assignSubscriptionSchema, startTrialSchema, subscriptionListSchema } from "@/modules/system-admin/billing.schema.js";
+import { createPlanSchema, updatePlanSchema, recordPaymentSchema, reviewPaymentSchema, refundPaymentSchema, requestRefundSchema, reviewRefundSchema, paymentListSchema, changeSubscriptionStatusSchema, assignSubscriptionSchema, startTrialSchema, subscriptionListSchema } from "@/modules/system-admin/billing.schema.js";
 const mutation = { reason: "Confirmed billing adjustment", confirm: true };
 const plan = { ...mutation, name: "Starter", price: "2999.00", currency: "PHP", maxActiveUsers: 3 };
 const payment = { ...mutation, subscriptionId: "sub-a", amount: "2999.00", currency: "PHP", paymentMethod: "BANK_TRANSFER",
@@ -52,6 +52,21 @@ test("strict schemas reject client privilege and payment-state assignment", () =
 });
 
 test("full refund schema rejects partial amounts and future payment dates", () => {
-  expect(refundPaymentSchema.safeParse({ params: { id: "payment-a" }, body: { ...mutation, evidence: "refund:A", idempotencyKey: "refund-key-a", amount: "1.00" } }).success).toBe(false);
+  expect(refundPaymentSchema.safeParse({ params: { id: "payment-a" }, body: { ...mutation, requestId: "request-a", evidence: "refund:A", idempotencyKey: "refund-key-a", amount: "1.00" } }).success).toBe(false);
   expect(recordPaymentSchema.safeParse({ body: { ...payment, paidAt: new Date(Date.now() + 86_400_000).toISOString() } }).success).toBe(false);
+});
+
+test("refund stages require confirmation and server-controlled states, amounts and ownership", () => {
+  const params = { id: "payment-a" };
+  const request = { ...mutation, evidence: "customer-request:A", idempotencyKey: "request-key-a" };
+  expect(requestRefundSchema.safeParse({ params, body: request }).success).toBe(true);
+  for (const extra of [{ amount: "1" }, { organizationId: "foreign" }, { status: "APPROVED" }, { actorId: "someone" }, { confirm: false }, { reason: "" }]) {
+    expect(requestRefundSchema.safeParse({ params, body: { ...request, ...extra } }).success).toBe(false);
+  }
+  expect(refundPaymentSchema.safeParse({ params, body: request }).success).toBe(false);
+  expect(refundPaymentSchema.safeParse({ params, body: { ...request, requestId: "request-a" } }).success).toBe(true);
+  expect(reviewRefundSchema.safeParse({ params, body: { ...mutation, requestId: "request-a", decision: "APPROVED" } }).success).toBe(true);
+  expect(reviewRefundSchema.safeParse({ params, body: { ...mutation, requestId: "request-a", decision: "COMPLETED" } }).success).toBe(false);
+  expect(paymentListSchema.parse({ query: { refundStatus: "REQUESTED" } }).query.refundStatus).toBe("REQUESTED");
+  expect(paymentListSchema.safeParse({ query: { refundStatus: "invalid" } }).success).toBe(false);
 });

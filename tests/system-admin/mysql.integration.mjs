@@ -57,6 +57,26 @@ test("MySQL constraints, verification locks, seat limits and immutable platform 
       await billingService.reviewPayment(payment.id, review);
       assert.deepEqual((await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } })).expiresAt, expiration);
 
+      // Pending invitations reserve capacity under the same lock as active seats.
+      const invitations = await Promise.allSettled([1, 2].map((index) => platformTransaction(async (db) => {
+        await enforceSeatLimit(db, orgId, 1, { includePending: true });
+        return db.user.create({ data: { id: `platform-it-invite-${index}-${tag}`, email: `invite-${index}-${tag}@example.invalid`,
+          firstName: "Invite", lastName: "Fixture", roleId, organizationId: orgId, status: "PENDING" } });
+      })));
+      assert.equal(invitations.filter((result) => result.status === "fulfilled").length, 1);
+      assert.equal(invitations.find((result) => result.status === "rejected").reason.statusCode, 409);
+      const invited = invitations.find((result) => result.status === "fulfilled").value;
+      await assert.rejects(() => platformTransaction((db) => enforceSeatLimit(db, orgId, 1, { includePending: true })), { statusCode: 409 });
+      await platformTransaction(async (db) => {
+        await enforceSeatLimit(db, orgId); // Acceptance does not double count the reserved invitation.
+        await db.user.update({ where: { id: invited.id, organizationId: orgId }, data: { status: "ACTIVE" } });
+      });
+      assert.equal(await prisma.user.count({ where: { organizationId: orgId, status: "ACTIVE", deletedAt: null } }), 2);
+      await platformTransaction(async (db) => {
+        await enforceSeatLimit(db, orgId, 0);
+        await db.user.update({ where: { id: invited.id, organizationId: orgId }, data: { deletedAt: new Date() } });
+      }); // Removing the temporary invitation's user frees capacity for the active-seat race below.
+
       const seats = await Promise.allSettled([1, 2].map((index) => platformTransaction(async (db) => {
         await enforceSeatLimit(db, orgId);
         return db.user.create({ data: { id: `platform-it-seat-${index}-${tag}`, email: `seat-${index}-${tag}@example.invalid`,
@@ -66,7 +86,20 @@ test("MySQL constraints, verification locks, seat limits and immutable platform 
       assert.equal(seats.find((result) => result.status === "rejected").reason.statusCode, 409);
       assert.equal(await prisma.user.count({ where: { organizationId: orgId, status: "ACTIVE", deletedAt: null, platformRole: "NONE" } }), 2);
 
-      const refundInput = { ...reason, evidence: `test-refund-confirmation:${tag}`, idempotencyKey: `refund-${tag}` };
+      const requestInput = { ...reason, evidence: `test-refund-request:${tag}`, idempotencyKey: `refund-request-${tag}` };
+      const beforeRefund = await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } });
+      const identicalRequests = await Promise.all([billingService.requestRefund(payment.id, requestInput), billingService.requestRefund(payment.id, requestInput)]);
+      assert.equal(identicalRequests[0].id, identicalRequests[1].id);
+      assert.equal(await prisma.subscriptionRefundRequest.count({ where: { paymentId: payment.id } }), 1);
+      await assert.rejects(() => billingService.requestRefund(payment.id, { ...requestInput, idempotencyKey: `duplicate-request-${tag}` }), { statusCode: 409 });
+      await assert.rejects(() => billingService.refundPayment(payment.id, { ...reason, requestId: identicalRequests[0].id, evidence: `bank-refund:${tag}`, idempotencyKey: `unapproved-${tag}` }), { statusCode: 409 });
+      await billingService.reviewRefund(payment.id, { ...reason, requestId: identicalRequests[0].id, decision: "REJECTED" });
+      const refundRequest = await billingService.requestRefund(payment.id, { ...requestInput, idempotencyKey: `new-request-${tag}` });
+      assert.equal((await prisma.subscriptionPayment.findUniqueOrThrow({ where: { id: payment.id } })).status, "PAID");
+      await billingService.reviewRefund(payment.id, { ...reason, requestId: refundRequest.id, decision: "APPROVED" });
+      assert.deepEqual(await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } }), beforeRefund);
+      assert.equal(await prisma.subscriptionRefund.count({ where: { paymentId: payment.id } }), 0);
+      const refundInput = { ...reason, requestId: refundRequest.id, evidence: `test-refund-confirmation:${tag}`, idempotencyKey: `refund-${tag}` };
       const refunds = await Promise.allSettled([
         billingService.refundPayment(payment.id, refundInput), billingService.refundPayment(payment.id, refundInput),
       ]);
@@ -93,7 +126,9 @@ test("MySQL constraints, verification locks, seat limits and immutable platform 
       assert.equal(verifiedMonthly.billingInterval, "MONTHLY");
       assert.deepEqual(monthlySubscription.expiresAt, billingPeriod(verifiedMonthly.verifiedAt, null, "MONTHLY").expiresAt);
       assert.equal(await prisma.subscriptionHistory.count({ where: { paymentId: monthlyPayment.id } }), 1);
-      await billingService.refundPayment(monthlyPayment.id, { ...refundInput, idempotencyKey: `monthly-refund-${tag}` });
+      const monthlyRefundRequest = await billingService.requestRefund(monthlyPayment.id, { ...reason, evidence: `monthly-request:${tag}`, idempotencyKey: `monthly-refund-request-${tag}` });
+      await billingService.reviewRefund(monthlyPayment.id, { ...reason, requestId: monthlyRefundRequest.id, decision: "APPROVED" });
+      await billingService.refundPayment(monthlyPayment.id, { ...refundInput, requestId: monthlyRefundRequest.id, idempotencyKey: `monthly-refund-${tag}` });
       assert.equal((await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } })).status, "CANCELED");
 
       const audit = await prisma.auditLog.findFirstOrThrow({ where: { scope: "PLATFORM", organizationId: orgId } });

@@ -239,6 +239,7 @@ test("subscription summary scopes tenant and seat reads to the authenticated adm
   const result = await request("/organization/subscription", "GET", undefined, "admin-a");
   expect(result.status).toBe(200);
   expect(result.body.data).toMatchObject({ organizationName: "Tenant a", billingEnabled: true, accessAllowed: true, activeUsers: 1,
+    userCapacity: { used: 1, limit: 3, remaining: 2, canAdd: true },
     subscription: { status: "ACTIVE", effectiveStatus: "ACTIVE", price: "299.00", billingInterval: "MONTHLY", plan: { name: "Starter Monthly", maxActiveUsers: 3 } } });
   expect(db.user.count).toHaveBeenCalledWith({ where: { organizationId: "org-a", status: "ACTIVE", deletedAt: null, platformRole: "NONE" } });
   for (const secret of ["private-payment", "private-platform-note", "private-plan-data", "Tenant b"]) expect(JSON.stringify(result.body)).not.toContain(secret);
@@ -247,6 +248,32 @@ test("subscription summary scopes tenant and seat reads to the authenticated adm
   expect(otherTenant.status).toBe(200);
   expect(otherTenant.body.data).toMatchObject({ organizationName: "Tenant b", subscription: null, accessAllowed: true });
   expect(JSON.stringify(otherTenant.body)).not.toContain("Starter Monthly");
+});
+
+test("user availability reserves pending invitations, counts blocked users and excludes deleted and foreign accounts", async () => {
+  assignSummarySubscription();
+  const owner = users[1];
+  users.push({ ...owner, id: "pending-a", status: "PENDING" },
+    { ...owner, id: "blocked-a", securityStatus: "BLOCKED" },
+    { ...owner, id: "deleted-a", deletedAt: new Date() },
+    { ...owner, id: "platform-a", platformRole: "SYSTEM_ADMIN" },
+    { ...owner, id: "pending-b", organizationId: "org-b", status: "PENDING" });
+  const full = await request("/organization/subscription", "GET", undefined, "admin-a");
+  expect(full.status).toBe(200);
+  expect(full.body.data).toMatchObject({ activeUsers: 2, userCapacity: { used: 3, limit: 3, remaining: 0, canAdd: false } });
+  users.find((user) => user.id === "pending-a")!.deletedAt = new Date();
+  const freed = await request("/organization/subscription", "GET", undefined, "admin-a");
+  expect(freed.body.data.userCapacity).toEqual({ used: 2, limit: 3, remaining: 1, canAdd: true });
+});
+
+test("user availability reports legacy excess users and immediately reflects plan upgrades", async () => {
+  const subscription = assignSummarySubscription();
+  users.push(...[1, 2, 3].map((index) => ({ ...users[1], id: `pending-${index}`, status: "PENDING" })));
+  expect((await request("/organization/subscription", "GET", undefined, "admin-a")).body.data.userCapacity)
+    .toEqual({ used: 4, limit: 3, remaining: 0, canAdd: false });
+  subscription.plan.maxActiveUsers = 5;
+  expect((await request("/organization/subscription", "GET", undefined, "admin-a")).body.data.userCapacity)
+    .toEqual({ used: 4, limit: 5, remaining: 1, canAdd: true });
 });
 
 test("subscription summary denies staff, platform identities, unauthenticated users and revoked sessions", async () => {
@@ -264,7 +291,8 @@ test.each(["organizationId=org-b", "subscriptionId=foreign", "status=ACTIVE"])("
 test("legacy organization summary distinguishes missing subscription from missing tenant", async () => {
   const result = await request("/organization/subscription", "GET", undefined, "admin-a");
   expect(result.status).toBe(200);
-  expect(result.body.data).toMatchObject({ billingEnabled: false, subscription: null, accessAllowed: true, graceEndsAt: null });
+  expect(result.body.data).toMatchObject({ billingEnabled: false, subscription: null, accessAllowed: true, graceEndsAt: null,
+    userCapacity: { used: 1, limit: null, remaining: null, canAdd: true } });
 });
 
 test("trial summaries expose trial dates and expiry still denies protected access", async () => {

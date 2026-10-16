@@ -24,6 +24,8 @@ const envSchema = z.object({
 
   //redis
   REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
+  REFUND_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60 * 60 * 1000),
+  REFUND_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
 
   //resend
   RESEND_API_KEY: z.string().min(1),

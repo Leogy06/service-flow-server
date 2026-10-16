@@ -9,6 +9,10 @@ export function countActiveSeats(db: Prisma.TransactionClient, organizationId: s
   return db.user.count({ where: activeSeatWhere(organizationId) });
 }
 
+export function countReservedSeats(db: Prisma.TransactionClient, organizationId: string) {
+  return db.user.count({ where: { ...activeSeatWhere(organizationId), status: { in: ["ACTIVE", "PENDING"] } } });
+}
+
 export async function assertTenantEntitlement(db: Prisma.TransactionClient, organizationId: string) {
   const organization = await db.organization.findUnique({ where: { id: organizationId }, select: { billingEnabled: true } });
   if (!organization) throw new AppError(403, "Subscription access is unavailable", "SUBSCRIPTION_REQUIRED");
@@ -21,7 +25,12 @@ export async function assertTenantEntitlement(db: Prisma.TransactionClient, orga
   }
 }
 
-export async function enforceSeatLimit(db: Prisma.TransactionClient, organizationId: string, additionalSeats = 1) {
+export async function enforceSeatLimit(
+  db: Prisma.TransactionClient,
+  organizationId: string,
+  additionalSeats = 1,
+  options: { includePending?: boolean } = {},
+) {
   if (!Number.isInteger(additionalSeats) || additionalSeats < 0) throw new AppError(400, "Seat count is invalid");
   await lockOrganization(db, organizationId);
   const organization = await db.organization.findUnique({ where: { id: organizationId }, select: { billingEnabled: true } });
@@ -29,7 +38,14 @@ export async function enforceSeatLimit(db: Prisma.TransactionClient, organizatio
   if (!organization.billingEnabled) return;
   const subscription = await db.subscription.findUnique({ where: { organizationId }, include: { plan: true } });
   if (!subscription) throw new AppError(409, "Assign a subscription plan before activating accounts");
-  if (await countActiveSeats(db, organizationId) + additionalSeats > subscription.plan.maxActiveUsers) {
+  // New/restored accounts reserve capacity while pending; acceptance checks active seats only.
+  const occupiedSeats = options.includePending
+    ? await countReservedSeats(db, organizationId)
+    : await countActiveSeats(db, organizationId);
+  if (occupiedSeats + additionalSeats > subscription.plan.maxActiveUsers) {
+    if (options.includePending) {
+      throw new AppError(409, `The plan's user limit has been reached (maximum ${subscription.plan.maxActiveUsers}, including pending invitations). Delete an unused user or upgrade the plan.`);
+    }
     throw new AppError(409, "The subscription active-user limit would be exceeded");
   }
 }

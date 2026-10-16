@@ -1,12 +1,12 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { validate } from "@/middleware/validate.js";
-import { writeLimmiter } from "@/middleware/rateLimiter.js";
+import { writeLimmiter, refundLimiter } from "@/middleware/rateLimiter.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { billingService as service } from "./billing.service.js";
 import { planListSchema, subscriptionListSchema, paymentListSchema, billingDetailSchema, createPlanSchema, updatePlanSchema,
-  startTrialSchema, assignSubscriptionSchema, changePlanSchema, changeSubscriptionStatusSchema, recordPaymentSchema, reviewPaymentSchema, refundPaymentSchema,
+  startTrialSchema, assignSubscriptionSchema, changePlanSchema, changeSubscriptionStatusSchema, recordPaymentSchema, reviewPaymentSchema, refundPaymentSchema, requestRefundSchema, reviewRefundSchema,
   type PlanListQuery, type SubscriptionListQuery, type PaymentListQuery, type CreatePlanInput, type UpdatePlanInput,
-  type StartTrialInput, type AssignSubscriptionInput, type ChangePlanInput, type ChangeStatusInput, type RecordPaymentInput, type ReviewPaymentInput, type RefundPaymentInput } from "./billing.schema.js";
+  type StartTrialInput, type AssignSubscriptionInput, type ChangePlanInput, type ChangeStatusInput, type RecordPaymentInput, type ReviewPaymentInput, type RefundPaymentInput, type RequestRefundInput, type ReviewRefundInput } from "./billing.schema.js";
 const router = Router();
 const handle = (work: (req: Request) => Promise<unknown>, message: string, status = 200) => async (req: Request, res: Response, next: NextFunction) => {
   try { sendResponse(res, status, message, await work(req)); } catch (error) { next(error); }
@@ -25,5 +25,7 @@ router.get("/payments", validate(paymentListSchema), handle((req) => service.lis
 router.get("/payments/:id", validate(billingDetailSchema), handle((req) => service.payment(id(req)), "Payment fetched"));
 router.post("/payments", writeLimmiter, validate(recordPaymentSchema), handle((req) => service.recordPayment(req.validated.body as RecordPaymentInput), "Payment recorded", 201));
 router.post("/payments/:id/review", writeLimmiter, validate(reviewPaymentSchema), handle((req) => service.reviewPayment(id(req), req.validated.body as ReviewPaymentInput), "Payment reviewed"));
-router.post("/payments/:id/refund", writeLimmiter, validate(refundPaymentSchema), handle((req) => service.refundPayment(id(req), req.validated.body as RefundPaymentInput), "Payment refunded"));
+router.post("/payments/:id/refund-requests", writeLimmiter, refundLimiter, validate(requestRefundSchema), handle((req) => service.requestRefund(id(req), req.validated.body as RequestRefundInput), "Refund requested", 201));
+router.post("/payments/:id/refund-review", writeLimmiter, refundLimiter, validate(reviewRefundSchema), handle((req) => service.reviewRefund(id(req), req.validated.body as ReviewRefundInput), "Refund reviewed"));
+router.post("/payments/:id/refund", writeLimmiter, refundLimiter, validate(refundPaymentSchema), handle((req) => service.refundPayment(id(req), req.validated.body as RefundPaymentInput), "Refund completed"));
 export default router;

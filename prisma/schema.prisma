@@ -58,6 +58,13 @@ enum SubscriptionPaymentStatus {
   REFUNDED
 }
 
+enum SubscriptionRefundRequestStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
 enum UserStatus {
   ACTIVE
   PENDING
@@ -639,6 +646,7 @@ model SubscriptionPayment {
   subscription Subscription @relation(fields: [subscriptionId], references: [id])
   history SubscriptionHistory[]
   refund SubscriptionRefund?
+  refundRequests SubscriptionRefundRequest[]
   @@index([status, createdAt])
   @@index([organizationId, createdAt])
   @@index([subscriptionId])
@@ -654,9 +662,33 @@ model SubscriptionRefund {
   reason String @db.VarChar(1000)
   evidence String @db.VarChar(1000)
   actorId String
+  requestId String? @unique
   createdAt DateTime @default(now())
   payment SubscriptionPayment @relation(fields: [paymentId], references: [id])
+  request SubscriptionRefundRequest? @relation(fields: [requestId], references: [id])
   @@index([createdAt])
+}
+
+model SubscriptionRefundRequest {
+  id String @id @default(cuid())
+  paymentId String
+  // Only open requests hold this key; rejected/completed requests retain history.
+  activePaymentId String? @unique
+  idempotencyKey String @unique @db.VarChar(100)
+  status SubscriptionRefundRequestStatus @default(REQUESTED)
+  reason String @db.VarChar(1000)
+  evidence String @db.VarChar(1000)
+  actorId String
+  reviewReason String? @db.VarChar(1000)
+  reviewedBy String?
+  reviewedAt DateTime?
+  completedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  payment SubscriptionPayment @relation(fields: [paymentId], references: [id])
+  refund SubscriptionRefund?
+  @@index([paymentId, createdAt])
+  @@index([status, createdAt])
 }
 
 model PlatformAlert {

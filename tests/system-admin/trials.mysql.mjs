@@ -88,7 +88,9 @@ test("trials enforce one grant, real authentication expiry, no revenue, conversi
       assert.equal((await tenantRequest()).status, 200);
       await scan();
       assert.equal(await prisma.platformAlert.count({ where: { targetId: subscription.id, kind: "TRIAL_EXPIRED", resolvedAt: null } }), 0);
-      await billingService.refundPayment(payment.id, { ...reason, evidence: "isolated-trial-refund", idempotencyKey: `trial-refund-${tag}` });
+      const refundRequest = await billingService.requestRefund(payment.id, { ...reason, evidence: "isolated-trial-refund-request", idempotencyKey: `trial-request-${tag}` });
+      await billingService.reviewRefund(payment.id, { ...reason, requestId: refundRequest.id, decision: "APPROVED" });
+      await billingService.refundPayment(payment.id, { ...reason, requestId: refundRequest.id, evidence: "isolated-trial-refund", idempotencyKey: `trial-refund-${tag}` });
       assert.equal((await tenantRequest()).status, 403);
       await assert.rejects(() => billingService.startTrial(subscription.id, reason), { statusCode: 409 });
 
