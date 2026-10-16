@@ -23,6 +23,7 @@ try {
     ["node_modules/prisma/build/index.js", "migrate", "deploy"],
     ["--import", "tsx", "tests/system-admin/mysql.integration.mjs"],
     ["--import", "tsx", "tests/system-admin/trials.mysql.mjs"],
+    ["--import", "tsx", "tests/user/password-reset.mysql.mjs"],
     ["--import", "tsx", "tests/system-admin/operations.mysql.mjs"],
     ["--import", "tsx", "tests/system-admin/cli.mysql.mjs"],
   ]) {

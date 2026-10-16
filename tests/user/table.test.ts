@@ -114,7 +114,7 @@ jest.unstable_mockModule("@/utils/tokens.js", () => ({
 }));
 jest.unstable_mockModule("@/middleware/rateLimiter.js", () => {
   const pass = (_req: unknown, _res: unknown, next: () => void) => next();
-  return { writeLimmiter: pass, deleteLimiter: pass };
+  return { writeLimmiter: pass, deleteLimiter: pass, strictLimiter: pass };
 });
 jest.unstable_mockModule("@/lib/email/send-invite", () => ({ sendInviteEmail: jest.fn(async () => {}) }));
 const { authenticate } = await import("@/middleware/auth.js");

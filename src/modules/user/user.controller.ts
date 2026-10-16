@@ -11,8 +11,17 @@ import {
   UserListQuery,
 } from "./user.schema.js";
 import { UserUpdateInput } from "./types.js";
+import { userPasswordService } from "./user-password.service.js";
+import type { ResetStaffPasswordInput } from "./user-password.schema.js";
 
 export const userController = {
+  async resetStaffPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = (req.validated.params as { id: string }).id;
+      const result = await userPasswordService.resetStaffPassword(id, req.validated.body as ResetStaffPasswordInput);
+      sendResponse(res, 200, "Staff password reset successfully", result);
+    } catch (error) { next(error); }
+  },
   async listRoles(_req: Request, res: Response, next: NextFunction) {
     try {
       const organizationId = requestContext.getValue("organizationId") as string;

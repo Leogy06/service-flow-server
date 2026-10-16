@@ -12,7 +12,8 @@ import {
   assignUserRoleSchema,
   userParamsSchema,
 } from "./user.schema.js";
-import { deleteLimiter, writeLimmiter } from "@/middleware/rateLimiter.js";
+import { deleteLimiter, strictLimiter, writeLimmiter } from "@/middleware/rateLimiter.js";
+import { resetStaffPasswordSchema } from "./user-password.schema.js";
 import { userPermissionController } from "@/modules/user-permission/user.permission.controller.js";
 
 //already authenticate in index route
@@ -20,6 +21,7 @@ const userRoutes = Router();
 
 userRoutes.get("/", requirePermission(PERMISSIONS.USER_READ), validate(userListQuerySchema), userController.list);
 userRoutes.get("/roles", requirePermission(PERMISSIONS.USER_READ), userController.listRoles);
+userRoutes.post("/:id/reset-password", requirePermission(PERMISSIONS.USER_UPDATE), strictLimiter, validate(resetStaffPasswordSchema), userController.resetStaffPassword);
 userRoutes.patch("/:id/role", requirePermission(PERMISSIONS.USER_UPDATE), writeLimmiter, validate(assignUserRoleSchema), userPermissionController.assignRole);
 userRoutes.post(
   "/",
