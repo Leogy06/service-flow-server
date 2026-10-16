@@ -295,6 +295,59 @@ After completing a task, report:
 
 Keep reports concise and factual.
 
+### Rate Limit Rules
+1. Always fill in the **Rate limit** field, even when the answer is "None hit".
+2. If you hit a rate limit, **stop and log it**. Do not keep retrying in a loop.
+3. Retry at most **3 times** with exponential backoff (e.g. 5s, 15s, 45s). If it still fails, set Status to `Rate-limited`.
+4. Record exactly where you stopped (file, step, or command) so the next agent can resume without redoing work.
+5. Never leave files half-edited when stopping. Finish the current edit or revert it, and say which in the notes.
+6. If a reset time is provided by the API or tool (e.g. `Retry-After` header), record it in **Resets at**.
+7. At the start of work, if the latest entry says `Rate-limited` and the reset time hasn't passed, tell the user instead of starting heavy work.
+8. Prefer fewer, larger operations over many small ones to avoid burning through limits (batch reads, avoid redundant searches).
+
+### General Rules
+1. Never skip the log entry, even if no files were changed. Record what was investigated.
+2. Never delete or rewrite earlier entries. Only add new ones.
+3. Keep entries short and factual (3-8 lines). No fluff.
+4. Be honest about the status. If something is unfinished, broken, or untested, say so.
+5. Use the current date and time. Don't guess or reuse an old timestamp.
+6. If you made a decision that isn't obvious from the code, explain why in the notes.
+
+
+## API Rate Limiting (Required)
+
+Every API endpoint that is created or modified must be protected by rate limiting, applied **at the middleware level**, not inside individual handlers.
+
+### Rules
+1. **Use middleware.** Register rate limiting as shared middleware (global default plus per-route overrides). Never copy-paste limiter logic into route handlers.
+2. **Check every new endpoint.** When adding or changing a route, confirm it is covered by a limiter. If it isn't, add one before finishing.
+3. **Stricter limits for sensitive and write operations.** Suggested starting points (adjust to the project):
+
+| Endpoint type | Example limit | Key by |
+|---|---|---|
+| Login / authentication | 5 per minute | IP + username/email |
+| Signup, password reset, OTP/verification | 3 to 5 per 10 minutes | IP + email/phone |
+| POST / PUT / PATCH / DELETE (writes) | 30 per minute | User ID (fallback: IP) |
+| Authenticated reads (GET) | 100 per minute | User ID |
+| Public / unauthenticated reads | 60 per minute | IP |
+| File uploads, exports, expensive queries | 5 to 10 per minute | User ID |
+
+4. **Key correctly.** Use user ID for authenticated routes and IP for anonymous ones. Respect the real client IP behind proxies (`X-Forwarded-For`) only if the proxy is trusted.
+5. **Return proper responses.** On limit exceeded, respond with `429 Too Many Requests` and include `Retry-After` (and `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` if supported).
+6. **Use a shared store in production.** Use Redis (or equivalent) so limits work across multiple instances. In-memory limiters are for local development only.
+7. **Never exempt silently.** Health checks and internal webhooks may be exempted, but each exemption must be commented with the reason. Webhooks should be verified by signature instead.
+8. **Don't weaken existing limits.** Never raise or remove a limit to make a test pass. Ask first, or mock the limiter in tests.
+9. **Make limits configurable.** Put values in config or environment variables, not hardcoded in routes.
+10. **Log it.** In your `ACTIVITY.md` entry, note which endpoints were added or changed and which limiter covers them.
+
+### Checklist before finishing
+- [ ] Every new or changed route goes through the rate-limit middleware
+- [ ] Auth and write endpoints have stricter limits than reads
+- [ ] 429 responses include `Retry-After`
+- [ ] Limits come from config, not hardcoded values
+- [ ] Tests cover the 429 case for any new sensitive endpoint
+
+
 ## Activity Footprint (Required)
 
 Every agent must leave a footprint of its latest activity **every single time** it works in this repo, no exceptions, even for small changes.
