@@ -6,6 +6,7 @@ import { platformTransaction, recordPlatformAudit } from "@/modules/system-admin
 import { countActiveSeats, countReservedSeats } from "@/modules/system-admin/entitlement.js";
 import { entitlementIsCurrent } from "@/modules/system-admin/billing-policy.js";
 import type { OrganizationInput } from "./organization.schema.js";
+import { tenantUpgradeSelect } from "./subscription-upgrade.service.js";
 
 export const organizationService = {
   async subscription() {
@@ -22,6 +23,7 @@ export const organizationService = {
           status: true, startsAt: true, expiresAt: true, trialStartedAt: true, trialExpiresAt: true,
           price: true, currency: true, billingInterval: true,
           plan: { select: { name: true, maxActiveUsers: true } },
+          upgradeRequests: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: tenantUpgradeSelect },
         } } },
       });
       if (!organization) throw new AppError(404, "Organization not found");
@@ -43,10 +45,16 @@ export const organizationService = {
         accessAllowed: !tenant.billingEnabled || isCurrent,
         checkedAt: now,
         activeUsers,
+        upgradeRequest: subscription?.upgradeRequests?.[0] ? {
+          ...subscription.upgradeRequests[0], price: subscription.upgradeRequests[0].price.toFixed(2),
+        } : null,
         userCapacity: { used, limit, remaining, canAdd: !tenant.billingEnabled || (isCurrent && remaining !== null && remaining > 0) },
         graceEndsAt,
         subscription: subscription ? {
-          ...subscription, price: subscription.price.toFixed(2),
+          status: subscription.status, startsAt: subscription.startsAt, expiresAt: subscription.expiresAt,
+          trialStartedAt: subscription.trialStartedAt, trialExpiresAt: subscription.trialExpiresAt,
+          currency: subscription.currency, billingInterval: subscription.billingInterval, plan: subscription.plan,
+          price: subscription.price.toFixed(2),
           // Expiry is enforced at request time, even before the alert worker runs.
           effectiveStatus: !isCurrent && ["ACTIVE", "TRIALING", "PAST_DUE"].includes(subscription.status) &&
             subscription.expiresAt && subscription.expiresAt <= now ? "EXPIRED" as const : subscription.status,

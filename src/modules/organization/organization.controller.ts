@@ -1,9 +1,26 @@
 import { organizationService } from "./organization.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { NextFunction, Request, Response } from "express";
-import type { OrganizationInput } from "./organization.schema.js";
+import type { OrganizationInput, RequestSubscriptionUpgradeInput } from "./organization.schema.js";
+import { subscriptionUpgradeService } from "./subscription-upgrade.service.js";
 
 export const organizationController = {
+  async requestUpgrade(req: Request, res: Response, next: NextFunction) {
+    try {
+      sendResponse(res, 201, "Upgrade requested successfully", await subscriptionUpgradeService.request(req.validated.body as RequestSubscriptionUpgradeInput));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async upgradePlans(_req: Request, res: Response, next: NextFunction) {
+    try {
+      sendResponse(res, 200, "Upgrade plans fetched successfully", await subscriptionUpgradeService.plans());
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async subscription(_req: Request, res: Response, next: NextFunction) {
     try {
       const summary = await organizationService.subscription();

@@ -3,6 +3,8 @@ import { validate } from "@/middleware/validate.js";
 import { writeLimmiter, refundLimiter } from "@/middleware/rateLimiter.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { billingService as service } from "./billing.service.js";
+import { subscriptionUpgradeService } from "@/modules/organization/subscription-upgrade.service.js";
+import { reviewUpgradeSchema, type ReviewUpgradeInput } from "./billing.schema.js";
 import { planListSchema, subscriptionListSchema, paymentListSchema, billingDetailSchema, createPlanSchema, updatePlanSchema,
   startTrialSchema, assignSubscriptionSchema, changePlanSchema, changeSubscriptionStatusSchema, recordPaymentSchema, reviewPaymentSchema, refundPaymentSchema, requestRefundSchema, reviewRefundSchema,
   type PlanListQuery, type SubscriptionListQuery, type PaymentListQuery, type CreatePlanInput, type UpdatePlanInput,
@@ -20,6 +22,7 @@ router.get("/subscriptions/:id", validate(billingDetailSchema), handle((req) => 
 router.post("/subscriptions", writeLimmiter, validate(assignSubscriptionSchema), handle((req) => service.assignSubscription(req.validated.body as AssignSubscriptionInput), "Subscription assigned", 201));
 router.post("/subscriptions/:id/trial", writeLimmiter, validate(startTrialSchema), handle((req) => service.startTrial(id(req), req.validated.body as StartTrialInput), "Free trial started"));
 router.post("/subscriptions/:id/plan", writeLimmiter, validate(changePlanSchema), handle((req) => service.changePlan(id(req), req.validated.body as ChangePlanInput), "Subscription plan updated"));
+router.post("/subscriptions/:id/upgrade-review", writeLimmiter, validate(reviewUpgradeSchema), handle((req) => subscriptionUpgradeService.review(id(req), req.validated.body as ReviewUpgradeInput), "Upgrade request reviewed"));
 router.post("/subscriptions/:id/status", writeLimmiter, validate(changeSubscriptionStatusSchema), handle((req) => service.changeStatus(id(req), req.validated.body as ChangeStatusInput), "Subscription status updated"));
 router.get("/payments", validate(paymentListSchema), handle((req) => service.listPayments(req.validated.query as PaymentListQuery), "Payments fetched"));
 router.get("/payments/:id", validate(billingDetailSchema), handle((req) => service.payment(id(req)), "Payment fetched"));

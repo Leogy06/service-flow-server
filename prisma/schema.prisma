@@ -65,6 +65,12 @@ enum SubscriptionRefundRequestStatus {
   COMPLETED
 }
 
+enum SubscriptionUpgradeRequestStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+}
+
 enum UserStatus {
   ACTIVE
   PENDING
@@ -143,6 +149,7 @@ model Organization {
   roles       Role[]
   permissions Permission[]
   subscription Subscription?
+  subscriptionUpgradeRequests SubscriptionUpgradeRequest[]
   subscriptionPayments SubscriptionPayment[]
   platformAlerts PlatformAlert[]
 
@@ -580,6 +587,7 @@ model Plan {
   updatedAt DateTime @updatedAt
   subscriptions Subscription[]
   settings PlatformSettings[]
+  upgradeRequests SubscriptionUpgradeRequest[]
 }
 
 model Subscription {
@@ -603,8 +611,39 @@ model Subscription {
   plan Plan @relation(fields: [planId], references: [id])
   payments SubscriptionPayment[]
   history SubscriptionHistory[]
+  upgradeRequests SubscriptionUpgradeRequest[]
   @@index([status, expiresAt])
   @@index([planId])
+}
+
+model SubscriptionUpgradeRequest {
+  id String @id @default(cuid())
+  organizationId String
+  subscriptionId String
+  activeSubscriptionId String? @unique
+  planId String
+  sourcePlanId String
+  subscriptionVersion Int
+  planName String @db.VarChar(100)
+  price Decimal @db.Decimal(12, 2)
+  currency String @db.Char(3)
+  billingInterval BillingInterval
+  maxActiveUsers Int
+  status SubscriptionUpgradeRequestStatus @default(REQUESTED)
+  reason String @db.VarChar(1000)
+  actorId String
+  idempotencyKey String @db.VarChar(100)
+  reviewReason String? @db.VarChar(1000)
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id])
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+  plan Plan @relation(fields: [planId], references: [id])
+  @@unique([organizationId, idempotencyKey])
+  @@index([subscriptionId, createdAt])
+  @@index([status, createdAt])
 }
 
 model SubscriptionHistory {

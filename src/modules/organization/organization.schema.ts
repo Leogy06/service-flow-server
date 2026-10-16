@@ -19,3 +19,13 @@ export type OrganizationInput = z.infer<typeof organizationSchema>["body"];
 
 // This endpoint always uses the authenticated tenant; selectors are not accepted.
 export const subscriptionSummarySchema = z.object({ query: z.object({}).strict() });
+
+export const requestSubscriptionUpgradeSchema = z.object({
+  body: z.object({
+    planId: z.string().trim().min(1).max(191),
+    planUpdatedAt: z.iso.datetime(),
+    reason: z.string().trim().min(5).max(1000),
+    idempotencyKey: z.string().trim().min(8).max(100),
+  }).strict(),
+});
+export type RequestSubscriptionUpgradeInput = z.infer<typeof requestSubscriptionUpgradeSchema>["body"];

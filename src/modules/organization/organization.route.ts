@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { organizationController } from "./organization.controller.js";
 import { validate } from "@/middleware/validate.js";
-import { organizationSchema, subscriptionSummarySchema } from "./organization.schema.js";
+import { organizationSchema, subscriptionSummarySchema, requestSubscriptionUpgradeSchema } from "./organization.schema.js";
 import { writeLimmiter } from "@/middleware/rateLimiter.js";
 import { authenticate } from "@/middleware/auth.js";
 import { requireSystemAdmin } from "@/middleware/require-platform-admin.js";
@@ -9,6 +9,8 @@ import { requireSystemAdmin } from "@/middleware/require-platform-admin.js";
 
 organizationRoutes.get("/", authenticate, requireSystemAdmin, organizationController.list);
 organizationRoutes.get("/subscription", authenticate, validate(subscriptionSummarySchema), organizationController.subscription);
+organizationRoutes.get("/subscription/plans", authenticate, validate(subscriptionSummarySchema), organizationController.upgradePlans);
+organizationRoutes.post("/subscription/upgrade-requests", authenticate, writeLimmiter, validate(requestSubscriptionUpgradeSchema), organizationController.requestUpgrade);
 organizationRoutes.post(
   "/",
   authenticate,

@@ -10,7 +10,8 @@ import type { PlanListQuery, SubscriptionListQuery, PaymentListQuery, CreatePlan
   ChangePlanInput, ChangeStatusInput, RecordPaymentInput, ReviewPaymentInput, RefundPaymentInput, RequestRefundInput, ReviewRefundInput, StartTrialInput } from "./billing.schema.js";
 
 const organizationSelect = { id: true, name: true, slug: true, status: true } satisfies Prisma.OrganizationSelect;
-const subscriptionInclude = { plan: true, organization: { select: organizationSelect }, history: { orderBy: { createdAt: "desc" }, take: 20 } } satisfies Prisma.SubscriptionInclude;
+const subscriptionInclude = { plan: true, organization: { select: organizationSelect }, history: { orderBy: { createdAt: "desc" }, take: 20 },
+  upgradeRequests: { where: { status: "REQUESTED" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1 } } satisfies Prisma.SubscriptionInclude;
 const paymentInclude = { organization: { select: organizationSelect }, subscription: { select: { id: true, status: true, startsAt: true, expiresAt: true, price: true, billingInterval: true, currency: true, plan: true } }, refund: true,
   refundRequests: { take: 20, orderBy: [{ createdAt: "desc" }, { id: "desc" }] } } satisfies Prisma.SubscriptionPaymentInclude;
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
