@@ -8,9 +8,11 @@ type UserRow = {
   id: string; firstName: string; lastName: string; email: string; phone: string | null;
   organizationId: string; roleId: string; status: "ACTIVE" | "PENDING";
   createdAt: Date; deletedAt: Date | null; overrides: { name: string; isActive: boolean }[];
+  sessionVersion: number;
 };
 let roles: RoleRow[];
 let users: UserRow[];
+let refreshTokens: { userId: string }[];
 const record = jest.fn(async (_event: unknown) => {});
 const invalidateCache = jest.fn(async (_key: string) => {});
 
@@ -30,13 +32,15 @@ function resetData() {
   ].map(([id, firstName, lastName, organizationId, roleId, status, date]) => ({
     id, firstName, lastName, email: id + "@example.com", organizationId, roleId,
     status: status as UserRow["status"], phone: null, createdAt: new Date(date!),
-    deletedAt: id === "deleted-a" ? new Date() : null, overrides: [],
+    deletedAt: id === "deleted-a" ? new Date() : null, overrides: [], sessionVersion: 0,
   }));
+  refreshTokens = [{ userId: "admin-a" }, { userId: "staff-a" }];
 }
 function view(user: UserRow) {
   const role = roles.find((r) => r.id === user.roleId)!;
   return { ...user, password: "private-hash", inviteToken: "private-token", inviteTokenExpiry: new Date(),
-    organization: { slug: user.organizationId },
+    platformRole: "NONE", securityStatus: "ACTIVE",
+    organization: { id: user.organizationId, slug: user.organizationId, status: "ACTIVE", billingEnabled: false },
     role: { ...role, permissions: role.permissions.map((name) => ({ permission: { id: name, name, organizationId: null } })) },
     userPermissions: user.overrides.map(({ name, isActive }) => ({ isActive, permission: { id: name, name, organizationId: null } })),
   };
@@ -44,7 +48,7 @@ function view(user: UserRow) {
 function matches(user: UserRow, where: any): boolean {
   const role = roles.find((r) => r.id === user.roleId)!;
   const fields = view(user);
-  return ["id", "email", "phone", "organizationId", "roleId", "status"].every((field) => where[field] === undefined || fields[field as keyof typeof fields] === where[field]) &&
+  return ["id", "email", "phone", "organizationId", "roleId", "status", "platformRole", "securityStatus"].every((field) => where[field] === undefined || fields[field as keyof typeof fields] === where[field]) &&
     (where.deletedAt === undefined || (where.deletedAt === null ? !user.deletedAt : !!user.deletedAt)) &&
     (!where.role || ((!where.role.organizationId || role.organizationId === where.role.organizationId) &&
       (where.role.deletedAt !== null || !role.deletedAt) && (!where.role.name || role.name === where.role.name))) &&
@@ -57,6 +61,10 @@ function select(row: Record<string, unknown>, selection?: Record<string, unknown
 }
 const db = {
   user: {
+    findFirst: jest.fn(async ({ where, select: selection }: any) => {
+      const user = users.find((u) => matches(u, where));
+      return user ? select(view(user), selection) : null;
+    }),
     findUnique: jest.fn(async ({ where, select: selection }: any) => {
       const user = users.find((u) => matches(u, where));
       return user ? select(view(user), selection) : null;
@@ -73,24 +81,36 @@ const db = {
     update: jest.fn(async ({ where, data }: any) => {
       const user = users.find((u) => matches(u, where));
       if (!user) throw new Error("Unscoped or missing update target");
-      Object.assign(user, data);
+      const { sessionVersion, ...fields } = data;
+      Object.assign(user, fields);
+      if (sessionVersion) user.sessionVersion += sessionVersion.increment;
       return view(user);
     }),
   },
   role: { findMany: jest.fn(async ({ where, select: selection }: any) => roles
     .filter((r) => r.organizationId === where.organizationId && !r.deletedAt)
     .sort((a, b) => a.name.localeCompare(b.name)).map((r) => select(r, selection))) },
+  organization: { findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, billingEnabled: false })) },
+  refreshToken: { deleteMany: jest.fn(async ({ where }: any) => {
+    const before = refreshTokens.length;
+    refreshTokens = refreshTokens.filter((token) => token.userId !== where.userId);
+    return { count: before - refreshTokens.length };
+  }) },
+  $queryRaw: jest.fn(async (_strings: TemplateStringsArray, id: string) => [{ id }]),
   $transaction: jest.fn(async (work: any, _options: unknown) => work(db)),
 };
 jest.unstable_mockModule("@/config/env.js", () => ({ env: { SALT_ROUNDS: 10 } }));
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma: db }));
-jest.unstable_mockModule("@/modules/audit/audit.service.js", () => ({ auditService: { record } }));
+jest.unstable_mockModule("@/modules/audit/audit.service.js", () => ({ auditService: { record, recordInTransaction: async (_db: unknown, event: unknown) => record(event) } }));
 jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, invalidateCache,
   getOrSetCache: async (_key: string, _ttl: number, loader: () => Promise<unknown>) => loader(),
 }));
 jest.unstable_mockModule("@/utils/tokens.js", () => ({
   // Deliberately incorrect token tenant: authorization must load the trusted user's organization.
-  verifyAccessToken: (sub: string) => ({ sub, organizationId: "org-b", permissions: [] }),
+  verifyAccessToken: (token: string) => {
+    const [sub, version] = token.split(":");
+    return { sub, sessionVersion: Number(version ?? 0), organizationId: "org-b", permissions: [] };
+  },
 }));
 jest.unstable_mockModule("@/middleware/rateLimiter.js", () => {
   const pass = (_req: unknown, _res: unknown, next: () => void) => next();
@@ -109,7 +129,7 @@ beforeEach(() => { jest.clearAllMocks(); resetData(); });
 const get = (path: string, actor = "admin-a") => request(app).get(path).set("Authorization", "Bearer " + actor);
 const remove = (id: string, actor = "admin-a") => request(app).delete("/users/" + id).set("Authorization", "Bearer " + actor);
 const restore = (id: string, actor = "admin-a") => request(app).patch("/users/" + id + "/restore").set("Authorization", "Bearer " + actor);
-const update = (id: string, body: unknown, actor = "admin-a") => request(app).put("/users/" + id).set("Authorization", "Bearer " + actor).send(body);
+const update = (id: string, body: object, actor = "admin-a") => request(app).put("/users/" + id).set("Authorization", "Bearer " + actor).send(body);
 const edit = { id: "staff-a", firstName: "Updated", lastName: "Able", email: "staff-a@example.com", phone: "" };
 
 describe("User table API", () => {
@@ -173,6 +193,18 @@ describe("User table API", () => {
     expect((await remove("deleted-a")).status).toBe(404);
     expect((await restore("staff-a")).status).toBe(404);
     expect(db.user.update).not.toHaveBeenCalled();
+  });
+  it("keeps pre-deletion access and refresh sessions invalid after restoration", async () => {
+    users.find((user) => user.id === "staff-a")!.overrides.push({ name: PERMISSIONS.USER_READ, isActive: true });
+    expect((await get("/users", "staff-a")).status).toBe(200);
+    expect((await remove("staff-a")).status).toBe(200);
+    expect(users.find((user) => user.id === "staff-a")!.sessionVersion).toBe(1);
+    expect(refreshTokens.some((token) => token.userId === "staff-a")).toBe(false);
+    expect((await restore("staff-a")).status).toBe(200);
+    expect(users.find((user) => user.id === "staff-a")!.sessionVersion).toBe(2);
+    expect((await get("/users", "staff-a")).status).toBe(401);
+    expect((await get("/users", "staff-a:2")).status).toBe(200);
+    expect(refreshTokens).toEqual([{ userId: "admin-a" }]);
   });
   it("conceals foreign users during update, delete and restore", async () => {
     expect((await update("staff-b", { ...edit, id: "staff-b" })).status).toBe(404);

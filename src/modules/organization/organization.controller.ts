@@ -1,6 +1,7 @@
 import { organizationService } from "./organization.service.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { NextFunction, Request, Response } from "express";
+import type { OrganizationInput } from "./organization.schema.js";
 
 export const organizationController = {
   async list(_req: Request, res: Response, next: NextFunction) {
@@ -19,7 +20,7 @@ export const organizationController = {
 
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const organization = await organizationService.create(req.body);
+      const organization = await organizationService.create(req.validated.body as OrganizationInput);
       sendResponse(res, 201, "Organization created successfully", organization);
     } catch (err) {
       next(err);

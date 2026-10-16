@@ -1,4 +1,4 @@
-import { jest } from "@jest/globals";
+﻿import { jest } from "@jest/globals";
 import express, { type ErrorRequestHandler } from "express";
 import request from "supertest";
 import { Prisma } from "../../src/generated/prisma/client.js";
@@ -10,7 +10,8 @@ let sessions: Record<string, any>;
 let jobs: any[], requests: any[], invoices: any[], payments: any[], customers: any[];
 function session(id: string, role: string, organizationId: string | null) {
   return { id, email: `${id}@example.com`, firstName: "Test", lastName: "User", status: "ACTIVE", deletedAt: null,
-    organizationId, organization: organizationId ? { slug: organizationId } : null,
+    platformRole: id === "platform" ? "SYSTEM_ADMIN" : "NONE", securityStatus: "ACTIVE", sessionVersion: 0,
+    organizationId, organization: organizationId ? { id: organizationId, slug: organizationId, status: "ACTIVE", billingEnabled: false } : null,
     role: { id: `role-${id}`, name: role, organizationId, deletedAt: null,
       permissions: Object.values(P).map((name) => ({ permission: { id: name, name, organizationId: null } })) }, userPermissions: [] };
 }

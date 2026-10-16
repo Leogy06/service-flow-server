@@ -20,6 +20,8 @@ import { stripSecrets } from "@/utils/user-utils/stripSecrets";
 import { PERMISSIONS } from "@/constants/permission.constants.js";
 import { accessTransaction, requireAssignableRole, requireTenantAdmin } from "@/modules/role/tenant-access-policy.js";
 import { authorizationSelect, resolvePermissions } from "@/modules/auth/authorization.js";
+import { assertTenantEntitlement, enforceSeatLimit } from "@/modules/system-admin/entitlement.js";
+import { lockOrganization } from "@/modules/system-admin/platform-audit.js";
 
 const DEFAULT_USER_SELECT = {
   id: true,
@@ -203,7 +205,8 @@ export const userService = {
     const user = await accessTransaction(async (db) => {
       const currentActor = await requireTenantAdmin(db, PERMISSIONS.USER_CREATE);
       await requireAssignableRole(db, input.roleId, currentActor);
-      return db.user.create({
+      await enforceSeatLimit(db, currentActor.organizationId);
+      const created = await db.user.create({
       data: {
         firstName: input.firstName,
         lastName: input.lastName,
@@ -212,6 +215,7 @@ export const userService = {
         email: input.email,
         phone: input.phone,
         password,
+        status: "ACTIVE",
         role: {
           connect: {
             id: input.roleId,
@@ -224,9 +228,10 @@ export const userService = {
         },
       },
       });
+      await auditService.recordInTransaction(db, { action: "create.user.success", entity: "User", entityId: created.id, after: stripSecrets(created) });
+      return created;
     });
 
-    await auditService.record({ action: "create.user.success", entity: "User", entityId: user.id, after: stripSecrets(user) });
     await this.invalidateUserCache();
 
     return stripSecrets(user);
@@ -257,6 +262,8 @@ export const userService = {
         phone: input.phone,
         password: null,
         status: "PENDING",
+        securityStatus: "ACTIVE",
+        platformRole: "NONE",
         inviteToken: hashedToken,
         inviteTokenExpiry,
         role: {
@@ -349,6 +356,8 @@ export const userService = {
         inviteToken,
         deletedAt: null,
         status: "PENDING",
+        securityStatus: "ACTIVE",
+        platformRole: "NONE",
         password: null,
         inviteTokenExpiry: { gt: new Date() },
         organization: { status: "ACTIVE" },
@@ -366,11 +375,14 @@ export const userService = {
     const password = await hashedPassword(input.password);
     const organizationId = user.organizationId;
     await prisma.$transaction(async (db) => {
+      await enforceSeatLimit(db, organizationId);
+      await assertTenantEntitlement(db, organizationId);
       // Recheck and consume the invitation atomically so concurrent submissions cannot overwrite it.
       const result = await db.user.updateMany({
         where: {
           id: user.id, organizationId, email: input.email, inviteToken,
           status: "PENDING", password: null, deletedAt: null,
+          securityStatus: "ACTIVE", platformRole: "NONE",
           inviteTokenExpiry: { gt: new Date() },
           organization: { status: "ACTIVE" },
           role: { organizationId, deletedAt: null },
@@ -387,7 +399,7 @@ export const userService = {
         action: "set.password.success", entity: "User", entityId: user.id,
         after: { status: "ACTIVE" },
       }));
-    });
+    }, { isolationLevel: "Serializable" });
 
     await invalidateCache(`cache:users:list:${organizationId}:*`);
     await invalidateCache(`cache:user:byId:${organizationId}:${user.id}:*`);
@@ -463,14 +475,23 @@ export const userService = {
       throw new AppError(400, "You cannot delete your own account.");
     }
 
-    const existing = await this.getById(id, authUserOrg);
+    await this.getById(id, authUserOrg);
 
     let user;
 
     try {
-      user = await prisma.user.update({
-        where: { id, ...userScope(authUserOrg) },
-        data: { deletedAt: new Date() },
+      user = await accessTransaction(async (db) => {
+        await lockOrganization(db, authUserOrg);
+        const current = await db.user.findFirst({ where: { id, ...userScope(authUserOrg), platformRole: "NONE" } });
+        if (!current) throw new AppError(404, "User not found");
+        const deleted = await db.user.update({
+          where: { id, ...userScope(authUserOrg), platformRole: "NONE" },
+          data: { deletedAt: new Date(), sessionVersion: { increment: 1 } },
+        });
+        const revoked = await db.refreshToken.deleteMany({ where: { userId: id } });
+        await auditService.recordInTransaction(db, { action: "delete.user.success", entity: "User", entityId: deleted.id,
+          before: stripSecrets(current), after: { ...stripSecrets(deleted), sessionsRevoked: revoked.count } });
+        return deleted;
       });
     } catch (error) {
       if (isPrismaError(error, "P2025"))
@@ -481,14 +502,6 @@ export const userService = {
 
     const safe = stripSecrets(user);
 
-    void auditService.record({
-      action: "delete.user.success",
-      entity: "User",
-      entityId: user.id,
-      before: JSON.stringify(existing),
-      after: JSON.stringify(safe),
-    });
-
     await this.invalidateUserCache(id);
 
     return safe;
@@ -496,12 +509,22 @@ export const userService = {
 
   async restore(id: string, authUserOrg: string) {
     //check if existing and not deleted
-    const existing = await this.getById(id, authUserOrg, {deleted:true});
+    await this.getById(id, authUserOrg, {deleted:true});
     let user;
     try {
-      user = await prisma.user.update({
-        where: { id, ...userScope(authUserOrg, {deleted:true}) },
-        data: { deletedAt: null },
+      user = await accessTransaction(async (db) => {
+        await lockOrganization(db, authUserOrg);
+        const current = await db.user.findFirst({ where: { id, ...userScope(authUserOrg, { deleted: true }), platformRole: "NONE" } });
+        if (!current) throw new AppError(404, "User not found");
+        await enforceSeatLimit(db, authUserOrg, current.status === "ACTIVE" ? 1 : 0);
+        const restored = await db.user.update({
+          where: { id, ...userScope(authUserOrg, { deleted: true }), platformRole: "NONE" },
+          data: { deletedAt: null, sessionVersion: { increment: 1 } },
+        });
+        const revoked = await db.refreshToken.deleteMany({ where: { userId: id } });
+        await auditService.recordInTransaction(db, { action: "restore.user.success", entity: "User", entityId: restored.id,
+          before: stripSecrets(current), after: { ...stripSecrets(restored), sessionsRevoked: revoked.count } });
+        return restored;
       });
     } catch(error) {
       if(isPrismaError(error, "P2025"))
@@ -510,14 +533,6 @@ export const userService = {
     }
 
     const safe = stripSecrets(user);
-
-    void auditService.record({
-      action: "restore.user.success",
-      entity: "User",
-      entityId: user.id,
-      before: JSON.stringify(existing),
-      after: JSON.stringify(safe),
-    }).catch((err) => console.error("audit failed:", err));
 
     await this.invalidateUserCache(id);
     

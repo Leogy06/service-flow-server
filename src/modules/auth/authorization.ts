@@ -1,13 +1,15 @@
 import type { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
 import { AppError } from "@/utils/AppError.js";
+import { assertTenantEntitlement } from "@/modules/system-admin/entitlement.js";
+import { PERMISSIONS } from "@/constants/permission.constants.js";
 
 // User overrides take precedence over role defaults for login, refresh and requests.
 export const authorizationSelect = {
   id: true, email: true, firstName: true, lastName: true,
   middleName: true, suffix: true, status: true, deletedAt: true,
-  organizationId: true,
-  organization: { select: { slug: true } },
+  organizationId: true, platformRole: true, securityStatus: true, sessionVersion: true,
+  organization: { select: { id: true, slug: true, status: true, billingEnabled: true } },
   role: { select: {
     id: true, name: true, organizationId: true, deletedAt: true,
     permissions: { where: { isActive: true }, select: {
@@ -21,10 +23,13 @@ export const authorizationSelect = {
 } satisfies Prisma.UserSelect;
 
 export type AuthorizationUser = Prisma.UserGetPayload<{ select: typeof authorizationSelect }>;
+export const isPlatformPermissionName = (name: string) => name === PERMISSIONS.SYSTEM_ADMIN_READ || name === PERMISSIONS.SYSTEM_ADMIN_UPDATE;
 
-export function resolvePermissions(user: AuthorizationUser) {
-  const visible = (permission: { organizationId: string | null }) =>
-    permission.organizationId === null || permission.organizationId === user.organizationId;
+export function resolvePermissions(user: Pick<AuthorizationUser, "platformRole" | "role" | "userPermissions" | "organizationId">) {
+  // Platform authority never comes from editable tenant roles or permission grants.
+  if (user.platformRole === "SYSTEM_ADMIN") return { inherited: [], direct: [], overrides: [], names: [] as string[] };
+  const visible = (permission: { organizationId: string | null; name: string }) =>
+    !isPlatformPermissionName(permission.name) && (permission.organizationId === null || permission.organizationId === user.organizationId);
   const inherited = !user.role.deletedAt && user.role.organizationId === user.organizationId
     ? user.role.permissions.map((grant) => grant.permission).filter(visible)
     : [];
@@ -37,10 +42,18 @@ export function resolvePermissions(user: AuthorizationUser) {
 
 export async function loadAuthorization(id: string, db: Prisma.TransactionClient = prisma) {
   const user = await db.user.findUnique({ where: { id }, select: authorizationSelect });
-  if (!user || user.deletedAt || user.role.deletedAt || user.status !== "ACTIVE" ||
-    user.role.organizationId !== user.organizationId) {
+  if (!user || user.deletedAt || user.status !== "ACTIVE" || user.securityStatus !== "ACTIVE") {
     throw new AppError(401, "Session is no longer valid");
   }
+  if (user.platformRole === "SYSTEM_ADMIN") {
+    if (user.organizationId !== null) throw new AppError(401, "Session is no longer valid");
+    return user;
+  }
+  if (!user.organizationId || !user.organization || user.organization.status !== "ACTIVE" ||
+    user.role.deletedAt || user.role.organizationId !== user.organizationId) {
+    throw new AppError(401, "Session is no longer valid");
+  }
+  if (user.organization.billingEnabled) await assertTenantEntitlement(db, user.organizationId);
   return user;
 }
 
@@ -50,5 +63,6 @@ export function sessionUser(user: AuthorizationUser) {
     middleName: user.middleName, suffix: user.suffix, role: user.role.name,
     organizationId: user.organizationId ?? undefined,
     slug: user.organization?.slug, permissions: resolvePermissions(user).names,
+    platformRole: user.platformRole, securityStatus: user.securityStatus, sessionVersion: user.sessionVersion,
   };
 }

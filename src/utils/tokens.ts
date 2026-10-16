@@ -27,6 +27,8 @@ export function generateAccessToken(user: {
   permissions?: string[];
   slug?: string | null;
   organization?: { slug: string } | null;
+  platformRole?: "NONE" | "SYSTEM_ADMIN";
+  sessionVersion?: number;
 }): string {
   const payload: AccessTokenPayload = {
     sub: user.id,
@@ -39,6 +41,8 @@ export function generateAccessToken(user: {
     email: user.email,
     slug: user.slug ?? user.organization?.slug,
     permissions: user.permissions || [],
+    platformRole: user.platformRole ?? "NONE",
+    sessionVersion: user.sessionVersion ?? 0,
   };
   const options: SignOptions = { expiresIn: ACCESS_EXPIRY };
 

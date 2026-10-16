@@ -6,7 +6,7 @@ export function withRequestContext(
   res: Response,
   next: NextFunction,
 ) {
-  const requestId = crypto.randomUUID();
+  const requestId = req.id ? String(req.id) : crypto.randomUUID();
   res.setHeader("X-Request-Id", requestId);
 
   requestContext.run(

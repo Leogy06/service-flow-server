@@ -4,6 +4,7 @@ import { AppError } from "@/utils/AppError.js";
 import { PERMISSIONS } from "@/constants/permission.constants.js";
 import type { Prisma } from "@/generated/prisma/client.js";
 import type { ListRolesQuery, RestoreRoleInput } from "./role.schema.js";
+import { isPlatformPermissionName } from "@/modules/auth/authorization.js";
 import {
   accessTransaction, findTenantRole, isReservedRoleName, managedRoleSelect,
   requireAssignableRole, requireTenantAdmin, roleIsProtected, validateGrants,
@@ -14,7 +15,7 @@ function view(role: ManagedRole, actor: TenantActor) {
   const protectedRole = roleIsProtected(role, actor);
   return {
     id: role.id, name: role.name, organizationId: role.organizationId, deletedAt: role.deletedAt,
-    permissions: role.permissions.filter(({ permission: p }) => p.organizationId === null || p.organizationId === actor.organizationId)
+    permissions: role.permissions.filter(({ permission: p }) => !isPlatformPermissionName(p.name) && (p.organizationId === null || p.organizationId === actor.organizationId))
       .map((grant) => ({ id: grant.permission.id, name: grant.permission.name })),
     userCount: role._count.users, protected: protectedRole, assignable: !protectedRole && !role.deletedAt,
   };

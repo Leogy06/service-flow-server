@@ -5,3 +5,5 @@ export async function requirePlatformAdmin(_req: Request, _res: Response, next: 
   try { await requirePlatformAuthority(); next(); }
   catch (error) { next(error); }
 }
+
+export const requireSystemAdmin = requirePlatformAdmin;

@@ -18,6 +18,38 @@ enum OrganizationStatus {
   ACTIVE
   INACTIVE
   SUSPENDED
+  ARCHIVED
+}
+
+enum PlatformRole {
+  NONE
+  SYSTEM_ADMIN
+}
+
+enum AccountSecurityStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum AuditScope {
+  TENANT
+  PLATFORM
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  EXPIRED
+  CANCELED
+}
+
+enum SubscriptionPaymentStatus {
+  PENDING
+  UNDER_REVIEW
+  PAID
+  REJECTED
+  REFUNDED
 }
 
 enum UserStatus {
@@ -78,6 +110,10 @@ model Organization {
   name   String
   slug   String             @unique
   status OrganizationStatus @default(ACTIVE)
+  billingEnabled Boolean @default(false)
+  statusReason String? @db.VarChar(1000)
+  statusChangedAt DateTime?
+  statusChangedBy String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -93,6 +129,11 @@ model Organization {
 
   roles       Role[]
   permissions Permission[]
+  subscription Subscription?
+  subscriptionPayments SubscriptionPayment[]
+  platformAlerts PlatformAlert[]
+
+  @@index([status, createdAt])
 }
 
 // ─────────────────────────────────────────────
@@ -116,6 +157,12 @@ model User {
 
   roleId String
   status UserStatus @default(PENDING)
+  platformRole PlatformRole @default(NONE)
+  securityStatus AccountSecurityStatus @default(ACTIVE)
+  securityReason String? @db.VarChar(1000)
+  securityChangedAt DateTime?
+  securityChangedBy String?
+  sessionVersion Int @default(0)
 
   updatedAt         DateTime  @updatedAt
   deletedAt         DateTime?
@@ -133,6 +180,8 @@ model User {
   @@index([roleId])
   @@index([status])
   @@index([organizationId])
+  @@index([organizationId, status, deletedAt])
+  @@index([platformRole, securityStatus])
 }
 
 //role
@@ -466,6 +515,8 @@ model Payment {
 // ─────────────────────────────────────────────
 model AuditLog {
   id String @id @default(cuid())
+  scope AuditScope @default(TENANT)
+  actorType String @default("USER")
 
   actorId String? //	Who did it — a User (staff/admin). Nullable because some actions are automated (system cron job, webhook, no human involved).
 
@@ -498,6 +549,133 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([action])
   @@index([createdAt])
+  @@index([scope, createdAt, id])
+  @@index([scope, organizationId, createdAt])
+}
+
+// Platform billing is intentionally separate from tenant customer invoices/payments.
+model Plan {
+  id String @id @default(cuid())
+  name String @unique @db.VarChar(100)
+  description String? @db.VarChar(1000)
+  annualPrice Decimal @db.Decimal(12, 2)
+  currency String @default("PHP") @db.Char(3)
+  maxActiveUsers Int
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  subscriptions Subscription[]
+  settings PlatformSettings[]
+}
+
+model Subscription {
+  id String @id @default(cuid())
+  organizationId String @unique
+  planId String
+  status SubscriptionStatus @default(PENDING)
+  startsAt DateTime?
+  expiresAt DateTime?
+  renewalType String @default("MANUAL") @db.VarChar(20)
+  annualPrice Decimal @db.Decimal(12, 2)
+  currency String @db.Char(3)
+  version Int @default(0)
+  currentPeriodPaymentId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id])
+  plan Plan @relation(fields: [planId], references: [id])
+  payments SubscriptionPayment[]
+  history SubscriptionHistory[]
+  @@index([status, expiresAt])
+  @@index([planId])
+}
+
+model SubscriptionHistory {
+  id String @id @default(cuid())
+  subscriptionId String
+  kind String @db.VarChar(80)
+  before Json?
+  after Json?
+  paymentId String? @unique
+  actorId String?
+  reason String @db.VarChar(1000)
+  createdAt DateTime @default(now())
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+  payment SubscriptionPayment? @relation(fields: [paymentId], references: [id])
+  @@index([subscriptionId, createdAt])
+}
+
+model SubscriptionPayment {
+  id String @id @default(cuid())
+  organizationId String
+  subscriptionId String
+  amount Decimal @db.Decimal(12, 2)
+  currency String @db.Char(3)
+  paymentMethod PaymentMethod
+  referenceNumber String @unique @db.VarChar(150)
+  idempotencyKey String @unique @db.VarChar(100)
+  status SubscriptionPaymentStatus @default(PENDING)
+  paidAt DateTime
+  verifiedAt DateTime?
+  verifiedBy String?
+  verificationReason String? @db.VarChar(1000)
+  evidence String? @db.VarChar(1000)
+  periodStartsAt DateTime?
+  periodExpiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id])
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+  history SubscriptionHistory[]
+  refund SubscriptionRefund?
+  @@index([status, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([subscriptionId])
+  @@index([verifiedAt])
+}
+
+model SubscriptionRefund {
+  id String @id @default(cuid())
+  paymentId String @unique
+  amount Decimal @db.Decimal(12, 2)
+  currency String @db.Char(3)
+  idempotencyKey String @unique @db.VarChar(100)
+  reason String @db.VarChar(1000)
+  evidence String @db.VarChar(1000)
+  actorId String
+  createdAt DateTime @default(now())
+  payment SubscriptionPayment @relation(fields: [paymentId], references: [id])
+  @@index([createdAt])
+}
+
+model PlatformAlert {
+  id String @id @default(cuid())
+  deduplicationKey String @unique @db.VarChar(191)
+  organizationId String?
+  kind String @db.VarChar(80)
+  severity String @db.VarChar(20)
+  message String @db.VarChar(1000)
+  targetType String @db.VarChar(80)
+  targetId String
+  readAt DateTime?
+  resolvedAt DateTime?
+  createdAt DateTime @default(now())
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  @@index([resolvedAt, createdAt])
+  @@index([organizationId])
+}
+
+model PlatformSettings {
+  id String @id @default("singleton")
+  reminderIntervals Json
+  gracePeriodDays Int @default(0)
+  paymentInstructions String @db.Text
+  supportEmail String? @db.VarChar(254)
+  supportPhone String? @db.VarChar(50)
+  maintenanceMessage String @db.Text
+  defaultPlanId String?
+  defaultPlan Plan? @relation(fields: [defaultPlanId], references: [id])
+  updatedAt DateTime @updatedAt
 }
 
 model RefreshToken {

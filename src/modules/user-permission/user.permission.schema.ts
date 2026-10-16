@@ -18,3 +18,12 @@ export const updateUserPermissionSchema = z.object({
   params: z.object({ userId: resourceId }),
   body: userPermissionUpdateBody,
 });
+const platformMutation = { reason: z.string().trim().min(3).max(1000), confirm: z.literal(true) };
+export const platformUserPermissionSchema = z.object({
+  params: z.object({ userId: resourceId }),
+  body: z.union([
+    z.object({ overrides: overridesSchema, ...platformMutation }).strict(),
+    z.object({ permissionIds: permissionIdsSchema, ...platformMutation }).strict(),
+  ]),
+});
+export type PlatformUserPermissionUpdate = z.infer<typeof platformUserPermissionSchema>["body"];

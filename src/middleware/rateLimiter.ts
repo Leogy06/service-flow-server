@@ -31,11 +31,13 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   store: redisStore("auth"),
   handler: limitReached,
-  keyGenerator: (req) => req.ip ?? ipKeyGenerator(req.ip ?? "unknown"),
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? "unknown"),
 });
 
 // Looser — general authenticated API traffic
 export const apiLimiter = rateLimit({
+  // Keep the authorized dependency probe reachable during a Redis outage.
+  skip: (req) => req.method === "GET" && req.path === "/system-admin/monitoring",
   windowMs: 15 * 60 * 1000,
   limit: 300,
   standardHeaders: true,

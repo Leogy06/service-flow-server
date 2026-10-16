@@ -20,7 +20,9 @@ export const systemAdminSchema = z.object({
 });
 
 export const systemAdminCreateSchema = z.object({
-  body: systemAdminSchema.omit({ organizationId: true }),
+  body: systemAdminSchema.omit({ organizationId: true }).extend({
+    reason: z.string().trim().min(3).max(1000), confirm: z.literal(true),
+  }).strict(),
 }); // extends systemAdminSchema;
 export type SystemAdminCreateInput = z.infer<
   typeof systemAdminCreateSchema

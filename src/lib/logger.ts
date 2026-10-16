@@ -3,6 +3,12 @@ import { env } from "@/config/env";
 
 const isTest = env.NODE_ENV === "test";
 const isProduction = env.NODE_ENV === "production";
+const sensitiveRedaction = {
+  paths: ["req.headers.authorization", "req.headers.cookie", "res.headers[\"set-cookie\"]", "req.body.password",
+    "req.body.currentPassword", "req.body.newPassword", "req.body.confirmPassword", "req.body.token",
+    "req.body.accessToken", "req.body.refreshToken"],
+  censor: "[REDACTED]",
+};
 
 export const logger = pino(
   isTest
@@ -15,20 +21,7 @@ export const logger = pino(
 
           timestamp: pino.stdTimeFunctions.isoTime,
 
-          redact: {
-            paths: [
-              "req.headers.authorization",
-              "req.headers.cookie",
-              "req.body.password",
-              "req.body.currentPassword",
-              "req.body.newPassword",
-              "req.body.confirmPassword",
-              "req.body.token",
-              "req.body.accessToken",
-              "req.body.refreshToken",
-            ],
-            censor: "[REDACTED]",
-          },
+          redact: sensitiveRedaction,
 
           transport: {
             targets: [
@@ -49,6 +42,7 @@ export const logger = pino(
         }
       : {
           level: env.LOG_LEVEL || "debug",
+          redact: sensitiveRedaction,
 
           transport: {
             target: "pino-pretty",

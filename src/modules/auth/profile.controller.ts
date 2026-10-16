@@ -15,6 +15,7 @@ export const profileController = {
   async changePassword(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await profileService.changePassword(req.validated.body as ChangePasswordInput);
+      res.clearCookie("refreshToken", { path: "/api/auth" });
       res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
       sendResponse(res, 200, "Password changed. Sign in again with your new password", result);
     } catch (error) { next(error); }

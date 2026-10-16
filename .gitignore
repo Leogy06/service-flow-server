@@ -5,3 +5,7 @@ build/
 /src/generated/prisma
 logs/*
 TODO.md
+scripts/
+!scripts/
+scripts/*
+!scripts/run-platform-mysql-tests.mjs

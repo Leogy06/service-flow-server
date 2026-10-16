@@ -11,7 +11,7 @@ import invoiceRoutes from "@/modules/invoice/invoice.routes.js";
 import rolePermissionRoutes from "@/modules/role-permission/role.permission.routes.js";
 import userRoutes from "@/modules/user/user.routes.js";
 import organizationRoutes from "@/modules/organization/organization.route.js";
-import systemAdminRoutes from "@/modules/user/routes/system-admin.routes.js";
+import systemAdminRoutes from "@/modules/system-admin/system-admin.routes.js";
 import auditRoutes from "@/modules/audit/audit.routes.js";
 import dashboardRoutes from "@/modules/dashboard/dashboard.routes.js";
 
@@ -28,7 +28,7 @@ router.use("/permission", permissionRoutes);
 router.use("/role-permission", rolePermissionRoutes);
 router.use("/user-permission", userPermissionRoutes);
 router.use("/role", authenticate, roleRoutes);
-router.use("/system-admin", authenticate, systemAdminRoutes);
+router.use("/system-admin", systemAdminRoutes);
 router.use("/audit-logs", authenticate, auditRoutes);
 router.use("/dashboard", authenticate, dashboardRoutes);
 

@@ -1,11 +1,11 @@
-import { jest } from "@jest/globals";
+﻿import { jest } from "@jest/globals";
 import express, { type ErrorRequestHandler } from "express";
 import request from "supertest";
 import { PERMISSIONS } from "../../src/constants/permission.constants.js";
 
 type Actor = { id: string; firstName: string; lastName: string; organizationId: string };
 type LogRow = {
-  id: string; action: string; entity: string; entityId: string;
+  id: string; action: string; entity: string; entityId: string; scope: string;
   organizationId: string | null; createdAt: Date; actor: Actor | null;
   metadata: { password: string }; ipAddress: string; userAgent: string;
 };
@@ -16,7 +16,8 @@ function session(id: string, role: string, organizationId: string | null) {
   return {
     id, email: id + "@example.com", firstName: "Test", lastName: "User",
     status: "ACTIVE", deletedAt: null, organizationId,
-    organization: organizationId ? { slug: organizationId } : null,
+    platformRole: id === "platform" ? "SYSTEM_ADMIN" : "NONE", securityStatus: "ACTIVE", sessionVersion: 0,
+    organization: organizationId ? { id: organizationId, slug: organizationId, status: "ACTIVE", billingEnabled: false } : null,
     role: { id: "role-" + id, name: role, organizationId, deletedAt: null,
       permissions: Object.values(PERMISSIONS).map((name) => ({ permission: { id: name, name, organizationId: null } })),
     },
@@ -41,7 +42,7 @@ function resetData() {
     { id: "b-1", organizationId: "org-b", action: "delete.customer.success", entity: "Customer", entityId: "private-b", actor: actor("org-b") },
     { id: "global", organizationId: null, action: "create.user.success", entity: "User", entityId: "platform-user", actor: null },
   ].map((row, index) => ({ ...row, createdAt: new Date(Date.UTC(2026, 9, index + 1)),
-    metadata: { password: "must-never-be-returned" }, ipAddress: "127.0.0.1", userAgent: "private user agent",
+    scope: "TENANT", metadata: { password: "must-never-be-returned" }, ipAddress: "127.0.0.1", userAgent: "private user agent",
   }));
 }
 
@@ -113,7 +114,7 @@ describe("Read-only tenant audit logs", () => {
   });
 
   it.each(["staff-a", "manager-a", "platform", "no-org"])("denies %s even with administrative permissions", async (actor) => {
-    expect((await get("", actor)).status).toBe(403);
+    expect((await get("", actor)).status).toBe(actor === "no-org" ? 401 : 403);
     expect(db.auditLog.count).not.toHaveBeenCalled();
     expect(db.auditLog.findMany).not.toHaveBeenCalled();
     expect(db.auditLog.groupBy).not.toHaveBeenCalled();
@@ -248,5 +249,13 @@ describe("Read-only tenant audit logs", () => {
   it("rejects direct service use without authenticated tenant context", async () => {
     await expect(auditService.list({ page: 1, pageSize: 10, search: "", sortOrder: "desc" }))
       .rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("does not expose platform security audit rows or filter choices through a tenant organization relation", async () => {
+    logs.push({ ...logs[0], id: "platform-security", scope: "PLATFORM", action: "user.security.changed", entity: "PlatformSecurity", metadata: { password: "private platform audit" } });
+    const response = await get();
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(response.body)).not.toContain("platform-security");
+    expect(JSON.stringify(response.body)).not.toContain("PlatformSecurity");
+    expect(response.body.data.pagination.total).toBe(3);
   });
 });

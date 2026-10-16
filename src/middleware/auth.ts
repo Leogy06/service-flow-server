@@ -26,7 +26,12 @@ export async function authenticate(
 
   try {
     const payload = verifyAccessToken(token);
-    req.user = sessionUser(await loadAuthorization(payload.sub));
+    const user = await loadAuthorization(payload.sub);
+    // Pre-migration JWTs represent version zero and stop working after revocation.
+    if ((payload.sessionVersion ?? 0) !== user.sessionVersion) {
+      throw new AppError(401, "Session is no longer valid", "SESSION_REVOKED");
+    }
+    req.user = sessionUser(user);
 
     const ctx = requestContext.get();
     if (ctx) {

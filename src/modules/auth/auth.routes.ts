@@ -19,7 +19,7 @@ router.post(
 );
 router.post("/login", authLimiter, validate(loginSchema), authController.login);
 router.post("/set-password", strictLimiter, validate(setPasswordSchema), userController.setPassword);
-router.post("/refresh", authController.refresh);
+router.post("/refresh", authLimiter, authController.refresh);
 router.post("/logout", authController.logout);
 router.post("/logout-all", authenticate, strictLimiter, authController.logoutAll);
 router.get("/me", authenticate, authController.me);

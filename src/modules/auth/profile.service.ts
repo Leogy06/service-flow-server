@@ -12,7 +12,7 @@ import type { ChangePasswordInput, UpdateProfileInput } from "./profile.schema.j
 
 const profileSelect = {
   id: true, email: true, firstName: true, lastName: true, middleName: true,
-  suffix: true, phone: true, status: true, createdAt: true,
+  suffix: true, phone: true, status: true, createdAt: true, platformRole: true, securityStatus: true,
   organization: { select: { id: true, name: true, slug: true, status: true } },
 } satisfies Prisma.UserSelect;
 
@@ -96,7 +96,7 @@ export const profileService = {
     const password = await hashedPassword(input.newPassword);
     return profileMutation(async (db) => {
       await self(db);
-      const updated = await db.user.updateMany({ where: { ...where, password: credentials.password }, data: { password } });
+      const updated = await db.user.updateMany({ where: { ...where, password: credentials.password }, data: { password, sessionVersion: { increment: 1 } } });
       if (updated.count !== 1) throw new AppError(409, "Your account changed. Try again with your current password");
       const revoked = await db.refreshToken.deleteMany({ where: { userId: actor.id, organizationId: actor.organizationId } });
       await auditService.recordInTransaction(db, {
@@ -109,6 +109,7 @@ export const profileService = {
   logoutAll() {
     return profileMutation(async (db) => {
       const actor = await self(db);
+      await db.user.updateMany({ where: { id: actor.id, organizationId: actor.organizationId }, data: { sessionVersion: { increment: 1 } } });
       const revoked = await db.refreshToken.deleteMany({ where: { userId: actor.id, organizationId: actor.organizationId } });
       await auditService.recordInTransaction(db, {
         action: "auth.logout.all.success", entity: "User", entityId: actor.id,

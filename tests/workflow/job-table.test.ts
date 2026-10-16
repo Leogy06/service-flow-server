@@ -1,4 +1,4 @@
-import { jest } from "@jest/globals";
+﻿import { jest } from "@jest/globals";
 import express, { type ErrorRequestHandler, type RequestHandler } from "express";
 import request from "supertest";
 import { PERMISSIONS as P } from "../../src/constants/permission.constants.js";
@@ -7,7 +7,8 @@ let sessions: Record<string, any>;
 let jobs: any[];
 function session(id: string, organizationId: string | null) {
   return { id, email: `${id}@example.com`, firstName: id, lastName: "User", status: "ACTIVE", deletedAt: null,
-    organizationId, organization: organizationId ? { slug: organizationId } : null,
+    platformRole: id === "platform" ? "SYSTEM_ADMIN" : "NONE", securityStatus: "ACTIVE", sessionVersion: 0,
+    organizationId, organization: organizationId ? { id: organizationId, slug: organizationId, status: "ACTIVE", billingEnabled: false } : null,
     role: { id: `role-${id}`, name: "Staff", organizationId, deletedAt: null,
       permissions: [{ permission: { id: P.JOB_READ, name: P.JOB_READ, organizationId: null } }] }, userPermissions: [] };
 }

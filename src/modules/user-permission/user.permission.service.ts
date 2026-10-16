@@ -9,7 +9,8 @@ import {
   accessTransaction, findManagedUser, requireAssignableRole, requireTenantAdmin,
   userIsProtected, validateGrants, requirePlatformAuthority,
 } from "@/modules/role/tenant-access-policy.js";
-import type { PermissionOverride, UserPermissionUpdate } from "./user.permission.schema.js";
+import type { PermissionOverride, UserPermissionUpdate, PlatformUserPermissionUpdate } from "./user.permission.schema.js";
+import { recordPlatformAudit } from "@/modules/system-admin/platform-audit.js";
 
 function overrideSnapshot(user: AuthorizationUser) {
   return resolvePermissions(user).overrides.map(({ permission, isActive }) => ({ permissionId: permission.id, isActive }));
@@ -86,7 +87,7 @@ export const userPermissionService = {
       return { id: user.id, roleId: role.id };
     });
   },
-  async systemAdminUpdatePermission(userId: string, input: UserPermissionUpdate) {
+  async systemAdminUpdatePermission(userId: string, input: PlatformUserPermissionUpdate) {
     return accessTransaction(async (db) => {
       await requirePlatformAuthority(db);
       const user = await db.user.findFirst({ where: { id: userId, deletedAt: null }, select: {
@@ -103,7 +104,8 @@ export const userPermissionService = {
       const before = user.userPermissions.map(({ permissionId, isActive }) => ({ permissionId, isActive }));
       await persistOverrides(db, user.id, input);
       const after = await db.userPermission.findMany({ where: { userId: user.id }, select: { permissionId: true, isActive: true } });
-      await auditService.recordInTransaction(db, { action: "update.platform.user.permissions.success", entity: "User", entityId: user.id, before, after });
+      await recordPlatformAudit(db, { action: "update.platform.user.permissions.success", entity: "User", entityId: user.id,
+        organizationId: user.organizationId, before, after: { overrides: after, reason: input.reason } });
       return { id: user.id, overrides: after, permissionIds: after.filter((override) => override.isActive).map((override) => override.permissionId) };
     });
   },

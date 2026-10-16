@@ -9,7 +9,7 @@ const oldHash = await bcrypt.hash(oldPassword, 4);
 type UserRow = {
   id: string; email: string; firstName: string; lastName: string; middleName: string | null; suffix: string | null;
   phone: string | null; status: string; organizationId: string | null; deletedAt: Date | null; createdAt: Date;
-  password: string | null; inviteToken: string; role: { id: string; name: string; organizationId: string | null; deletedAt: Date | null; permissions: { permission: { id: string; name: string; organizationId: string | null } }[] };
+  password: string | null; inviteToken: string; platformRole: string; securityStatus: string; sessionVersion: number; role: { id: string; name: string; organizationId: string | null; deletedAt: Date | null; permissions: { permission: { id: string; name: string; organizationId: string | null } }[] };
   userPermissions: { isActive: boolean; permission: { id: string; name: string; organizationId: string | null } }[];
 };
 let users: UserRow[];
@@ -21,7 +21,7 @@ function resetData() {
   users = ["a", "b"].map((tenant) => ({
     id: `staff-${tenant}`, email: `${tenant}@example.invalid`, firstName: "Alex", lastName: "Santos", middleName: null, suffix: null,
     phone: null, status: "ACTIVE", organizationId: `org-${tenant}`, deletedAt: null, createdAt: new Date("2026-01-01"),
-    password: oldHash, inviteToken: "private-invite",
+    password: oldHash, inviteToken: "private-invite", platformRole: "NONE", securityStatus: "ACTIVE", sessionVersion: 0,
     role: { id: `role-${tenant}`, name: "Staff", organizationId: `org-${tenant}`, deletedAt: null,
       permissions: [{ permission: permission("customer:read") }, { permission: permission("job:read") }] },
     userPermissions: [{ isActive: false, permission: permission("customer:read") }, { isActive: true, permission: permission("invoice:read") }, { isActive: true, permission: permission("role:update", "foreign-org") }],
@@ -37,19 +37,19 @@ function matches(user: UserRow, where: any) {
   return user.id === where.id && user.organizationId === where.organizationId && !user.deletedAt && user.status === "ACTIVE" && (where.password === undefined || user.password === where.password);
 }
 function selected(user: UserRow, select: any) {
-  const row = { ...user, organization: user.organizationId ? { id: user.organizationId, name: user.organizationId, slug: user.organizationId, status: "ACTIVE" } : null };
+  const row = { ...user, organization: user.organizationId ? { id: user.organizationId, name: user.organizationId, slug: user.organizationId, status: "ACTIVE", billingEnabled: false } : null };
   return Object.fromEntries(Object.keys(select).map((key) => [key, row[key as keyof typeof row]]));
 }
 const db = {
   user: {
-    findUnique: jest.fn(async ({ where }: any) => users.find((user) => user.id === where.id) ?? null),
+    findUnique: jest.fn(async ({ where }: any) => { const user = users.find((user) => user.id === where.id); return user ? { ...user, organization: { id: user.organizationId, slug: user.organizationId, status: "ACTIVE", billingEnabled: false } } : null; }),
     findFirst: jest.fn(async ({ where, select }: any) => { const user = users.find((user) => matches(user, where)); return user ? selected(user, select) : null; }),
     update: jest.fn(async ({ where, data }: any) => {
       const user = users.find((user) => matches(user, where))!;
       if (data.phone && users.some((other) => other.id !== user.id && other.phone === data.phone)) throw new Prisma.PrismaClientKnownRequestError("Duplicate phone", { code: "P2002", clientVersion: "test" });
       Object.assign(user, data); return { id: user.id };
     }),
-    updateMany: jest.fn(async ({ where, data }: any) => { const user = users.find((user) => matches(user, where)); if (!user) return { count: 0 }; Object.assign(user, data); return { count: 1 }; }),
+    updateMany: jest.fn(async ({ where, data }: any) => { const user = users.find((user) => matches(user, where)); if (!user) return { count: 0 }; Object.assign(user, { ...data, ...(data.sessionVersion ? { sessionVersion: user.sessionVersion + data.sessionVersion.increment } : {}) }); return { count: 1 }; }),
   },
   refreshToken: {
     count: jest.fn(async ({ where }: any) => tokens.filter((token) => token.userId === where.userId && token.organizationId === where.organizationId && token.expiresAt > where.expiresAt.gt).length),

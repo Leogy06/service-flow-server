@@ -24,6 +24,7 @@ export const auditService = {
     }
     const organizationId = ctx.organizationId;
     const where: Prisma.AuditLogWhereInput = {
+      scope: "TENANT",
       organizationId,
       ...(query.action ? { action: query.action } : {}),
       ...(query.entity ? { entity: query.entity } : {}),
@@ -55,8 +56,8 @@ export const auditService = {
       });
       // Options include the tenant's full history, independent of the current page or filters.
       const [actions, entities] = await Promise.all([
-        db.auditLog.groupBy({ by: ["action"], where: { organizationId }, orderBy: { action: "asc" } }),
-        db.auditLog.groupBy({ by: ["entity"], where: { organizationId }, orderBy: { entity: "asc" } }),
+        db.auditLog.groupBy({ by: ["action"], where: { organizationId, scope: "TENANT" }, orderBy: { action: "asc" } }),
+        db.auditLog.groupBy({ by: ["entity"], where: { organizationId, scope: "TENANT" }, orderBy: { entity: "asc" } }),
       ]);
       return {
         filters: {

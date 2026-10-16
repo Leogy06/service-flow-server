@@ -9,6 +9,8 @@ export interface AccessTokenPayload {
   email: string;
   slug?: string | null;
   permissions?: string[];
+  platformRole?: "NONE" | "SYSTEM_ADMIN";
+  sessionVersion?: number;
 }
 
 declare global {
@@ -26,6 +28,9 @@ declare global {
         email: string;
         slug?: string | null;
         permissions?: string[];
+        platformRole?: "NONE" | "SYSTEM_ADMIN";
+        securityStatus?: "ACTIVE" | "BLOCKED";
+        sessionVersion?: number;
       };
       validated: {
         body: unknown;

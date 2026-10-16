@@ -12,7 +12,7 @@ export default [
   ...tseslint.configs.recommended,
 
   {
-    files: ["**/*.ts"],
+    files: ["**/*.ts", "scripts/*.mjs", "tests/system-admin/*.mjs"],
     languageOptions: {
       globals: {
         ...globals.node,

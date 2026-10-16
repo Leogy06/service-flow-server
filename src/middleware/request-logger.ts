@@ -6,8 +6,8 @@ import { logger } from "@/lib/logger";
 export const requestLogger = pinoHttp({
   logger,
 
-  genReqId: (req) => {
-    return req.headers["x-request-id"]?.toString() ?? crypto.randomUUID();
+  genReqId: (_req) => {
+    return crypto.randomUUID();
   },
 
   customLogLevel: (_req, res, error) => {

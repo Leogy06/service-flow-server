@@ -8,6 +8,7 @@ const rawToken = "a".repeat(64);
 const hash = (value: string) => crypto.createHash("sha256").update(value).digest("hex");
 type InviteUser = {
   id: string; email: string; organizationId: string; status: string;
+  securityStatus: string; platformRole: string;
   password: string | null; inviteToken: string | null; inviteTokenExpiry: Date | null;
   deletedAt: Date | null; organization: { status: string };
   role: { organizationId: string; deletedAt: Date | null };
@@ -16,18 +17,20 @@ let users: InviteUser[];
 let audits: unknown[];
 let failAudit: boolean;
 let loseRace: boolean;
+let billingEnabled: boolean;
+let activeSeats: number;
 const invalidateCache = jest.fn(async (_key: string) => {});
 function resetData() {
   users = ["a", "b"].map((tenant) => ({
     id: `user-${tenant}`, email: `${tenant}@example.com`, organizationId: `org-${tenant}`,
-    status: "PENDING", password: null, inviteToken: hash(tenant.repeat(64)),
+    status: "PENDING", securityStatus: "ACTIVE", platformRole: "NONE", password: null, inviteToken: hash(tenant.repeat(64)),
     inviteTokenExpiry: new Date(Date.now() + 60_000), deletedAt: null,
     organization: { status: "ACTIVE" }, role: { organizationId: `org-${tenant}`, deletedAt: null },
   }));
-  audits = []; failAudit = false; loseRace = false;
+  audits = []; failAudit = false; loseRace = false; billingEnabled = false; activeSeats = 1;
 }
 function matches(user: InviteUser, where: any) {
-  return ["id", "email", "organizationId", "status", "password", "inviteToken", "deletedAt"]
+  return ["id", "email", "organizationId", "status", "securityStatus", "platformRole", "password", "inviteToken", "deletedAt"]
     .every((key) => where[key] === undefined || user[key as keyof InviteUser] === where[key]) &&
     (!where.inviteTokenExpiry || (!!user.inviteTokenExpiry && user.inviteTokenExpiry > where.inviteTokenExpiry.gt)) &&
     (!where.organization || user.organization.status === where.organization.status) &&
@@ -35,7 +38,11 @@ function matches(user: InviteUser, where: any) {
       (!where.role.organizationId || user.role.organizationId === where.role.organizationId)));
 }
 const db = {
+  organization: { findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, billingEnabled })) },
+  subscription: { findUnique: jest.fn(async () => ({ status: "ACTIVE", startsAt: new Date(Date.now() - 86_400_000), expiresAt: new Date(Date.now() + 86_400_000), plan: { maxActiveUsers: 2 } })) },
+  $queryRaw: jest.fn(async (_strings: TemplateStringsArray, id: string) => [{ id }]),
   user: {
+    count: jest.fn(async () => activeSeats),
     findUnique: jest.fn(async ({ where }: any) => users.find((user) => matches(user, where)) ?? null),
     updateMany: jest.fn(async ({ where, data }: any) => {
       const user = users.find((row) => matches(row, where));
@@ -80,7 +87,7 @@ const errors: ErrorRequestHandler = (error, _req, res, _next) => {
 };
 app.use(errors);
 const body = { email: "a@example.com", token: rawToken, password: "Welcome123!", confirmPassword: "Welcome123!" };
-const submit = (input: unknown = body) => request(app).post("/api/auth/set-password").send(input);
+const submit = (input: object = body) => request(app).post("/api/auth/set-password").send(input);
 beforeEach(() => { jest.clearAllMocks(); resetData(); });
 
 test("public invite acceptance hashes the emailed token, activates only its tenant user, and returns no private data", async () => {
@@ -154,4 +161,27 @@ test("audit failure rolls back password activation and invitation consumption", 
   expect((await submit()).status).toBe(500);
   expect(users).toEqual(before);
   expect(invalidateCache).not.toHaveBeenCalled();
+});
+
+test("accepting an invitation cannot exceed the active-user limit", async () => {
+  billingEnabled = true; activeSeats = 2;
+  expect((await submit()).status).toBe(409);
+  expect(users[0]!.status).toBe("PENDING");
+  expect(users[0]!.password).toBeNull();
+  expect(audits).toHaveLength(0);
+  expect(db.user.updateMany).not.toHaveBeenCalled();
+});
+
+test("a valid invitation can consume the final available subscription seat", async () => {
+  billingEnabled = true; activeSeats = 1;
+  expect((await submit()).status).toBe(200);
+  expect(users[0]!.status).toBe("ACTIVE");
+  expect(db.user.count).toHaveBeenCalledWith({ where: { organizationId: "org-a", status: "ACTIVE", deletedAt: null, platformRole: "NONE" } });
+});
+
+test("blocked invitations cannot activate or overwrite platform security state", async () => {
+  users[0]!.securityStatus = "BLOCKED";
+  expect((await submit()).status).toBe(400);
+  expect(users[0]!.status).toBe("PENDING");
+  expect(db.user.updateMany).not.toHaveBeenCalled();
 });

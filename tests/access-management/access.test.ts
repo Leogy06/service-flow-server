@@ -5,7 +5,7 @@ import { PERMISSIONS } from "../../src/constants/permission.constants.js";
 
 type Grant = { permissionId: string; isActive: boolean };
 type RoleRow = { id: string; name: string; organizationId: string | null; deletedAt?: Date | null; grants: Grant[] };
-type UserRow = { id: string; roleId: string; organizationId: string | null; status: string; deletedAt: Date | null; grants: Grant[] };
+type UserRow = { id: string; roleId: string; organizationId: string | null; platformRole?: "NONE" | "SYSTEM_ADMIN"; status: string; deletedAt: Date | null; grants: Grant[] };
 type PermissionRow = { id: string; name: string; organizationId: string | null; description: string };
 let roles: RoleRow[];
 let users: UserRow[];
@@ -43,7 +43,8 @@ function roleView(role: RoleRow) {
 }
 function userView(user: UserRow) {
   return { ...user, email: user.id + "@example.com", firstName: user.id, lastName: "Test", middleName: null, suffix: null, password: "hash",
-    organization: user.organizationId ? { slug: user.organizationId } : null,
+    platformRole: user.platformRole ?? "NONE", securityStatus: "ACTIVE", sessionVersion: 0,
+    organization: user.organizationId ? { id: user.organizationId, slug: user.organizationId, status: "ACTIVE", billingEnabled: false } : null,
     role: roleView(roles.find((r) => r.id === user.roleId)!), userPermissions: grantViews(user.grants, false),
   };
 }
@@ -109,10 +110,11 @@ const db = {
     upsert: jest.fn(async ({ create }: any) => { upsertGrant(users.find((u) => u.id === create.userId)!.grants, create.permissionId, create.isActive); }),
   },
   refreshToken: {
-    findUnique: jest.fn(async () => ({ id: "refresh", userId: "staff-a", expiresAt: new Date(Date.now() + 60000), user: userView(users.find((u) => u.id === "staff-a")!) })),
+    findUnique: jest.fn(async () => ({ id: "refresh", userId: "staff-a", organizationId: "org-a", expiresAt: new Date(Date.now() + 60000), user: userView(users.find((u) => u.id === "staff-a")!) })),
     delete: jest.fn(async () => ({})), create: jest.fn(async () => ({})),
   },
   organization: { findUnique: jest.fn(async ({ where }: any) => ({ id: where.id })) },
+  auditLog: { create: jest.fn(async ({ data }: any) => record(data)) },
   $transaction: transaction,
 };
 transaction.mockImplementation(async (work: any) => {
@@ -393,19 +395,31 @@ describe("Tenant access management routes", () => {
     expect(JSON.stringify(user.body)).not.toContain(PERMISSIONS.INVOICE_DELETE);
   });
   it("preserves explicit platform authority while prohibiting platform self-grants", async () => {
-    users.push({ id: "platform-user", roleId: "global-role", organizationId: null, status: "ACTIVE", deletedAt: null, grants: [] });
-    expect((await request("/user-permission/system-admin/staff-a", "PATCH", { permissionIds: ["update"] }, "platform-user")).status).toBe(200);
+    users.push({ id: "platform-user", roleId: "global-role", organizationId: null, platformRole: "SYSTEM_ADMIN", status: "ACTIVE", deletedAt: null, grants: [] });
+    expect((await request("/user-permission/system-admin/staff-a", "PATCH", { permissionIds: ["update"], reason: "Approved access review", confirm: true }, "platform-user")).status).toBe(200);
     expect(users.find((u) => u.id === "staff-a")!.grants).toEqual([grant("update")]);
-    expect((await request("/user-permission/system-admin/platform-user", "PATCH", { permissionIds: ["update"] }, "platform-user")).status).toBe(403);
+    expect((await request("/user-permission/system-admin/platform-user", "PATCH", { permissionIds: ["update"], reason: "Approved access review", confirm: true }, "platform-user")).status).toBe(403);
+  });
+  it("hides legacy platform permission grants from tenant sessions, role projections and permission detail without changing stored grants", async () => {
+    permissions.push({ id: "system-read", name: PERMISSIONS.SYSTEM_ADMIN_READ, organizationId: null, description: "Legacy platform access" });
+    roles.find((role) => role.id === "staff-role-a")!.grants.push(grant("system"), grant("system-read"));
+    users.find((user) => user.id === "staff-a")!.grants.push(grant("system"), grant("system-read"));
+    for (const response of [await request("/auth/me"), await request("/role/staff-role-a"), await request("/user-permission/staff-a")]) {
+      expect(response.status).toBe(200);
+      expect(JSON.stringify(response.body)).not.toContain(PERMISSIONS.SYSTEM_ADMIN_READ);
+      expect(JSON.stringify(response.body)).not.toContain(PERMISSIONS.SYSTEM_ADMIN_UPDATE);
+    }
+    expect(users.find((user) => user.id === "staff-a")!.grants).toContainEqual(grant("system"));
+    expect((await request("/users/staff-a/role", "PATCH", { roleId: "empty-role-a" })).status).toBe(403);
   });
   it("validates platform account role ownership and keeps credentials out of output and audit", async () => {
-    users.push({ id: "platform-user", roleId: "global-role", organizationId: null, status: "ACTIVE", deletedAt: null, grants: [] });
-    const input = { firstName: "Platform", lastName: "Admin", email: "new-platform@example.com", phone: "09171234567", password: "Password123", roleId: "global-role" };
+    users.push({ id: "platform-user", roleId: "global-role", organizationId: null, platformRole: "SYSTEM_ADMIN", status: "ACTIVE", deletedAt: null, grants: [] });
+    const input = { firstName: "Platform", lastName: "Admin", email: "new-platform@example.com", phone: "09171234567", password: "Password123", roleId: "global-role", reason: "Approved account creation", confirm: true };
     const created = await request("/system-admin", "POST", input, "platform-user");
     expect(created.status).toBe(201);
     expect(created.body.data).not.toHaveProperty("password");
-    expect(record).toHaveBeenCalledWith(expect.objectContaining({ after: expect.not.objectContaining({ password: expect.anything() }) }));
-    expect((await request("/system-admin", "POST", { ...input, email: "another@example.com", roleId: "staff-role-b", organizationId: "org-b" }, "platform-user")).status).toBe(404);
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({ scope: "PLATFORM", metadata: expect.objectContaining({ after: expect.not.objectContaining({ password: expect.anything() }) }) }));
+    expect((await request("/system-admin", "POST", { ...input, email: "another@example.com", roleId: "staff-role-b", organizationId: "org-b" }, "platform-user")).status).toBe(400);
     expect(db.user.create).toHaveBeenCalledTimes(1);
   });
   it("keeps user grants separate from role defaults and preserves inheritance on removal", async () => {

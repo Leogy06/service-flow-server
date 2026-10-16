@@ -1,11 +1,11 @@
 import type { Prisma } from "@/generated/prisma/client.js";
-import { PERMISSIONS } from "@/constants/permission.constants.js";
 import { prisma } from "@/lib/prisma.js";
 import { requestContext } from "@/lib/requestContext.js";
 import { authorizationSelect, loadAuthorization, resolvePermissions, type AuthorizationUser } from "@/modules/auth/authorization.js";
 import { AppError } from "@/utils/AppError.js";
 import { invalidateCache } from "@/utils/cache.js";
 import { isPrismaError } from "@/utils/errorHelper.js";
+import { tenantTransaction } from "@/utils/tenant-transaction.js";
 
 import { TENANT_GRANTABLE_PERMISSIONS } from "@/constants/tenant-grantable-permissions.js";
 
@@ -20,10 +20,10 @@ export async function requirePlatformAuthority(db: Prisma.TransactionClient = pr
   const id = requestContext.getValue("userId");
   if (!id || requestContext.getValue("organizationId")) throw new AppError(403, "Platform administration is required");
   const user = await loadAuthorization(id, db);
-  if (user.organizationId !== null || user.role.organizationId !== null ||
-    !isPlatformAdminName(user.role.name) || !resolvePermissions(user).names.includes(PERMISSIONS.SYSTEM_ADMIN_UPDATE)) {
+  if (user.organizationId !== null || user.platformRole !== "SYSTEM_ADMIN") {
     throw new AppError(403, "Platform administration is required");
   }
+  return user;
 }
 
 export async function requireTenantAdmin(db: Prisma.TransactionClient, permission: string | string[]): Promise<TenantActor> {
@@ -97,7 +97,7 @@ export async function validateGrants(db: Prisma.TransactionClient, ids: string[]
 
 export async function accessTransaction<T>(work: (db: Prisma.TransactionClient) => Promise<T>) {
   try {
-    const result = await prisma.$transaction(work, { isolationLevel: "Serializable" });
+    const result = await tenantTransaction(work);
     await invalidateCache("cache:users:list*");
     await invalidateCache("cache:user:byId*");
     return result;

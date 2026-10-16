@@ -49,7 +49,8 @@ const db = {
       [PERMISSIONS.CUSTOMER_READ, PERMISSIONS.CUSTOMER_CREATE, PERMISSIONS.CUSTOMER_UPDATE, PERMISSIONS.CUSTOMER_DELETE];
     const permission = (name: string) => ({ id: name, name, organizationId: null });
     return { id: where.id, email: "admin@example.com", firstName: "Admin", lastName: "Member", status: "ACTIVE", deletedAt: null,
-      organizationId, organization: { slug: organizationId },
+      platformRole: "NONE", securityStatus: "ACTIVE", sessionVersion: 0,
+      organizationId, organization: { id: organizationId, slug: organizationId, status: "ACTIVE", billingEnabled: false },
       role: { id: "role-" + organizationId, name: "Admin", organizationId, deletedAt: null,
         permissions: permissions.map((name) => ({ permission: permission(name) })) },
       userPermissions: denied.map((name) => ({ isActive: false, permission: permission(name) })),
@@ -99,7 +100,7 @@ const errors: ErrorRequestHandler = (error, _req, res, _next) => { res.status(er
 app.use(errors);
 beforeEach(() => { jest.clearAllMocks(); resetData(); });
 const get = (path: string, actor = "admin-a") => request(app).get(path).set("Authorization", "Bearer " + actor);
-const update = (id: string, body: unknown, actor = "admin-a") => request(app).put("/customers/" + id).set("Authorization", "Bearer " + actor).send(body);
+const update = (id: string, body: object, actor = "admin-a") => request(app).put("/customers/" + id).set("Authorization", "Bearer " + actor).send(body);
 const remove = (id: string, actor = "admin-a") => request(app).delete("/customers/" + id).set("Authorization", "Bearer " + actor);
 
 describe("Customer table API", () => {
