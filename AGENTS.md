@@ -294,3 +294,35 @@ After completing a task, report:
 5. Known limitations, unverified behavior, and remaining risks.
 
 Keep reports concise and factual.
+
+## Activity Footprint (Required)
+
+Every agent must leave a footprint of its latest activity **every single time** it works in this repo, no exceptions, even for small changes.
+
+### Where
+Log to `ACTIVITY.md` in the repository root. Create it if it doesn't exist.
+
+### When
+- **Start of work:** Read the top entries of `ACTIVITY.md` to understand what was done last and what is pending.
+- **End of work:** Add a new entry before finishing, even if the task was only partly completed or failed.
+
+### Format
+Add new entries at the **top** of the file (newest first), using this template:
+
+```markdown
+## [YYYY-MM-DD HH:MM] <agent or tool name>
+
+- **Task:** What was requested, in one line
+- **Summary:** What was actually done
+- **Files changed:** `path/to/file1`, `path/to/file2`
+- **Status:** Completed | Partial | Blocked | Failed
+- **Next steps / Notes:** Anything the next agent or person should know
+```
+
+### Rules
+1. Never skip the log entry, even if no files were changed. Record what was investigated.
+2. Never delete or rewrite earlier entries. Only add new ones.
+3. Keep entries short and factual (3-6 lines). No fluff.
+4. Be honest about the status. If something is unfinished, broken, or untested, say so.
+5. Use the current date and time. Don't guess or reuse an old timestamp.
+6. If you made a decision that isn't obvious from the code, explain why in the notes.

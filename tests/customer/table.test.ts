@@ -68,10 +68,10 @@ const db = {
       }).slice(skip, skip + take);
     }),
     update: jest.fn(async ({ where, data }: any) => {
-      const customer = customers.find((row) => matches(row, where));
-      if (!customer) throw new Error("Missing or unscoped update target");
-      Object.assign(customer, data, { updatedAt: new Date() });
-      return customer;
+      const index = customers.findIndex((row) => matches(row, where));
+      if (index < 0) throw new Error("Missing or unscoped update target");
+      customers[index] = { ...customers[index]!, ...data, updatedAt: new Date() };
+      return customers[index];
     }),
     create: jest.fn(async ({ data }: any) => {
       const customer = { ...data, id: "created-a", createdAt: new Date(), updatedAt: new Date(), deletedAt: null };
@@ -102,6 +102,7 @@ beforeEach(() => { jest.clearAllMocks(); resetData(); });
 const get = (path: string, actor = "admin-a") => request(app).get(path).set("Authorization", "Bearer " + actor);
 const update = (id: string, body: object, actor = "admin-a") => request(app).put("/customers/" + id).set("Authorization", "Bearer " + actor).send(body);
 const remove = (id: string, actor = "admin-a") => request(app).delete("/customers/" + id).set("Authorization", "Bearer " + actor);
+const restore = (id: string, actor = "admin-a") => request(app).patch(`/customers/${id}/restore`).set("Authorization", "Bearer " + actor);
 
 describe("Customer table API", () => {
   it("lists current tenant customers with newest first and ignores client tenant IDs", async () => {
@@ -117,6 +118,60 @@ describe("Customer table API", () => {
     const response = await get("/customers/alice-a");
     expect(response.status).toBe(200);
     expect(response.body.data).toMatchObject({ name: "Alice Able", notes: "Morning visits", createdAt: "2026-10-01T00:00:00.000Z" });
+  });
+  it("isolates deleted lists by tenant, supports filters/search and separates cache entries", async () => {
+    customers.find((row) => row.id === "alice-b")!.deletedAt = new Date();
+    const response = await get("/customers?deleted=true&organizationId=org-b");
+    expect(response.status).toBe(200);
+    expect(response.body.data.customers.map((row: CustomerRow) => row.id)).toEqual(["deleted-a"]);
+    expect(response.body.data.pagination.total).toBe(1);
+    expect((await get("/customers?deleted=false")).body.data.pagination.total).toBe(3);
+    expect(cacheKeys[0]).not.toBe(cacheKeys[1]);
+    expect((await get("/customers?deleted=true&filter=missing_address&search=Deleted")).body.data.pagination.total).toBe(1);
+    expect((await get("/customers?deleted=true&filter=with_notes&search=Deleted")).body.data.pagination.total).toBe(1);
+    expect((await get("/customers?deleted=true&search=Alice")).body.data.pagination.total).toBe(0);
+    expect((await get("/customers?deleted=true", "admin-b")).body.data.customers.map((row: CustomerRow) => row.id)).toEqual(["alice-b"]);
+  });
+  it("restores only the deletion marker, audits and refreshes both lists", async () => {
+    const before = { ...customers.find((row) => row.id === "deleted-a")! };
+    const response = await restore("deleted-a");
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ id: before.id, organizationId: before.organizationId, name: before.name, notes: before.notes, deletedAt: null });
+    expect(db.customer.update).toHaveBeenCalledWith({
+      where: { id: "deleted-a", organizationId: "org-a", deletedAt: { not: null } },
+      data: { deletedAt: null },
+    });
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({
+      action: "restore.customer.success", entity: "Customer", entityId: "deleted-a",
+      before: JSON.stringify(before), after: JSON.stringify(customers.find((row) => row.id === "deleted-a")),
+    }));
+    expect(invalidateCache).toHaveBeenCalledWith("cache:customers:list:org-a:*");
+    expect((await get("/customers")).body.data.pagination.total).toBe(4);
+    expect((await get("/customers?deleted=true")).body.data.pagination).toMatchObject({ total: 0, page: 1, totalPages: 1 });
+    expect((await get("/customers/deleted-a")).status).toBe(200);
+    expect((await restore("deleted-a")).status).toBe(404);
+  });
+  it.each(["alice-a", "alice-b", "missing"])("rejects restore for active, foreign or missing customer %s", async (id) => {
+    if (id === "alice-b") customers.find((row) => row.id === id)!.deletedAt = new Date();
+    expect((await restore(id)).status).toBe(404);
+    expect(db.customer.update).not.toHaveBeenCalled();
+    expect(record).not.toHaveBeenCalled();
+    expect(invalidateCache).not.toHaveBeenCalled();
+  });
+  it("enforces authentication and effective update permission on restoration", async () => {
+    expect((await request(app).patch("/customers/deleted-a/restore")).status).toBe(401);
+    expect((await restore("deleted-a", "reader-a")).status).toBe(403);
+    expect((await get("/customers?deleted=true", "no-access-a")).status).toBe(403);
+    denied = [PERMISSIONS.CUSTOMER_UPDATE];
+    expect((await restore("deleted-a")).status).toBe(403);
+    expect(db.customer.update).not.toHaveBeenCalled();
+  });
+  it("preserves deleted state and reports failure when a restore write fails", async () => {
+    db.customer.update.mockRejectedValueOnce(new Error("Database unavailable"));
+    expect((await restore("deleted-a")).status).toBe(500);
+    expect(customers.find((row) => row.id === "deleted-a")!.deletedAt).toBeInstanceOf(Date);
+    expect(record).not.toHaveBeenCalled();
+    expect(invalidateCache).not.toHaveBeenCalled();
   });
   it.each(["alice-b", "deleted-a", "missing"])("rejects detail, edit and delete for unavailable customer %s", async (id) => {
     expect((await get("/customers/" + id)).status).toBe(404);
@@ -149,7 +204,7 @@ describe("Customer table API", () => {
     expect((await get(`/customers?sortBy=${sortBy}&sortOrder=asc`)).body.data.customers.map((row: CustomerRow) => row.id)).toEqual(["alice-a", "bob-a", "carol-a"]);
     expect((await get(`/customers?sortBy=${sortBy}&sortOrder=desc`)).body.data.customers.map((row: CustomerRow) => row.id)).toEqual(["carol-a", "bob-a", "alice-a"]);
   });
-  it.each(["page=0", "page=1.5", "pageSize=101", "pageSize=1.5", "sortBy=password", "sortOrder=invalid", "filter=invalid", "search=" + "x".repeat(201)])("rejects invalid list input %s", async (query) => {
+  it.each(["page=0", "page=1.5", "pageSize=101", "pageSize=1.5", "sortBy=password", "sortOrder=invalid", "filter=invalid", "deleted=invalid", "deleted=1", "search=" + "x".repeat(201)])("rejects invalid list input %s", async (query) => {
     expect((await get("/customers?" + query)).status).toBe(400);
   });
   it("soft-deletes, audits, invalidates the tenant cache, and clamps the last page", async () => {

@@ -21,7 +21,7 @@ export const customerController = {
   },
 
   list: async (req: Request, res: Response, next: NextFunction) => {
-    const { page, pageSize, sortBy, sortOrder, search, filter } = req.validated
+    const { page, pageSize, sortBy, sortOrder, search, filter, deleted } = req.validated
       .query as CustomerListInput["query"];
 
     try {
@@ -32,6 +32,7 @@ export const customerController = {
         sortOrder,
         sortBy,
         filter,
+        deleted,
       );
       sendResponse(res, 200, "Customers fetched successfully", customers);
     } catch (error) {
@@ -58,6 +59,16 @@ export const customerController = {
         validated,
       );
       sendResponse(res, 200, "Customer updated successfully", customer);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async restore(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.validated.params as CustomerParams;
+      const customer = await customerService.restore(id);
+      sendResponse(res, 200, "Customer restored successfully", customer);
     } catch (err) {
       next(err);
     }

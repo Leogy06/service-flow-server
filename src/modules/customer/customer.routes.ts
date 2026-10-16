@@ -43,6 +43,14 @@ customerRoutes.put(
   customerController.update,
 );
 
+customerRoutes.patch(
+  "/:id/restore",
+  writeLimmiter,
+  requirePermission(PERMISSIONS.CUSTOMER_UPDATE),
+  validate(customerParamsSchema),
+  customerController.restore,
+);
+
 customerRoutes.delete(
   "/:id",
   writeLimmiter,

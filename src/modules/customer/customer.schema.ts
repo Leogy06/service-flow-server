@@ -33,6 +33,7 @@ export const customerListQuerySchema = paginationSchema.extend({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(10),
   search: z.string().trim().max(200).optional(),
+  deleted: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   filter: emptyToUndefined(z.enum(["all", "missing_address", "with_notes"]).default("all")),
   sortOrder: emptyToUndefined(z.enum(["asc", "desc"]).default("desc")),
   sortBy: emptyToUndefined(

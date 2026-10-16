@@ -3,6 +3,7 @@ import { auditService } from "@/modules/audit/audit.service.js";
 import type { CustomerListInput, UpdateCustomerInput } from "./customer.schema.js";
 import type { Prisma } from "@/generated/prisma/client.js";
 import { AppError } from "@/utils/AppError.js";
+import { isPrismaError } from "@/utils/errorHelper.js";
 import { requestContext } from "@/lib/requestContext.js";
 import {
   DEFAULT_TTL_SECONDS,
@@ -67,6 +68,7 @@ export const customerService = {
     sortOrder: CustomerListInput["query"]["sortOrder"] = "desc",
     sortBy: CustomerListInput["query"]["sortBy"] = "createdAt",
     filter: CustomerListInput["query"]["filter"] = "all",
+    deleted = false,
   ) {
     const organizationId = customerOrganization();
     const conditions: Prisma.CustomerWhereInput[] = [];
@@ -80,12 +82,12 @@ export const customerService = {
     if (filter === "with_notes") conditions.push({ notes: { not: null } }, { notes: { not: "" } });
 
     const where: Prisma.CustomerWhereInput = {
-      deletedAt: null,
+      deletedAt: deleted ? { not: null } : null,
       organizationId,
       ...(conditions.length ? { AND: conditions } : {}),
     };
 
-    const cacheKey = `cache:customers:list:${organizationId}:v2:${page}:${pageSize}:${sortBy}:${sortOrder}:${filter}:${encodeURIComponent(search)}`;
+    const cacheKey = `cache:customers:list:${organizationId}:v3:${page}:${pageSize}:${sortBy}:${sortOrder}:${filter}:${deleted}:${encodeURIComponent(search)}`;
 
     const { customers, total, currentPage, totalPages } = await getOrSetCache(
       cacheKey,
@@ -176,6 +178,34 @@ export const customerService = {
     );
 
     return updatedCustomer;
+  },
+
+  async restore(id: string) {
+    const organizationId = customerOrganization();
+    const where = { id, organizationId, deletedAt: { not: null } };
+    const existingCustomer = await prisma.customer.findUnique({ where });
+    if (!existingCustomer) throw new AppError(404, "Customer not found");
+
+    let restoredCustomer;
+    try {
+      restoredCustomer = await prisma.customer.update({
+        where,
+        data: { deletedAt: null },
+      });
+    } catch (error) {
+      if (isPrismaError(error, "P2025")) throw new AppError(404, "Customer not found");
+      throw error;
+    }
+
+    void auditService.record({
+      action: "restore.customer.success",
+      entity: "Customer",
+      entityId: id,
+      before: JSON.stringify(existingCustomer),
+      after: JSON.stringify(restoredCustomer),
+    });
+    await invalidateCache(`cache:customers:list:${organizationId}:*`);
+    return restoredCustomer;
   },
 
   async delete(id: string) {
