@@ -22,6 +22,23 @@ explicit isolated test database; fixtures and immutable audits are retained.
 
 Run the focused Jest suites after implementing the billing modules:
 
+Public signup coverage is in `signup.test.ts` (validation, platform-only reads and
+reviews, secret selection, atomic provisioning/rollback, duplicates and both
+429 paths) and `signup.mysql.mjs` (real login gating, concurrent approval/slug
+claims, tenant defaults and trial/payment access). The isolated runner includes
+signup and the existing platform suites:
+
+```powershell
+$env:PLATFORM_TEST_DATABASE_NAME = 'service_flow_platform_test_signup_20261017'
+npm run test:system-admin:mysql:isolated
+```
+
+The runner creates only the named isolated database and deploys migrations there;
+it never drops/resets databases or removes immutable fixtures. Local development
+signup deployment needs `20261017090000_public_signup_requests` plus Prisma client
+generation. Signup rate limits use optional `SIGNUP_RATE_LIMIT_MAX` (default 5)
+and `SIGNUP_RATE_LIMIT_WINDOW_MS` (default 600000) through shared Redis middleware.
+
 ```powershell
 npm test -- --runInBand tests/system-admin tests/auth/set-password.test.ts
 ```

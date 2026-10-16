@@ -16,8 +16,8 @@ const refreshCookieOptions = {
 export const authController = {
   async register(req: Request, res: Response, next: NextFunction) {
     try {
-      const user = await authService.register(req.validated.body as Parameters<typeof authService.register>[0]);
-      res.status(201).json(user);
+      const result = await authService.register(req.validated.body as Parameters<typeof authService.register>[0]);
+      sendResponse(res, 202, "If eligible, your signup request is awaiting system administrator approval. Existing account holders can sign in.", result);
     } catch (err) {
       next(err);
     }

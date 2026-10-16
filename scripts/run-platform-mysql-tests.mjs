@@ -21,6 +21,7 @@ try {
   await connection.end(); connection = undefined;
   for (const args of [
     ["node_modules/prisma/build/index.js", "migrate", "deploy"],
+    ["--import", "tsx", "tests/system-admin/signup.mysql.mjs"],
     ["--import", "tsx", "tests/system-admin/mysql.integration.mjs"],
     ["--import", "tsx", "tests/system-admin/trials.mysql.mjs"],
     ["--import", "tsx", "tests/user/password-reset.mysql.mjs"],

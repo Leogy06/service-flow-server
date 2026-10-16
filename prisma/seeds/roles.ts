@@ -1,18 +1,6 @@
 import type { PrismaClient } from "../../src/generated/prisma/client.js";
-import { TENANT_GRANTABLE_PERMISSIONS } from "../../src/constants/tenant-grantable-permissions.js";
-import { PERMISSIONS } from "../../src/constants/permission.constants.js";
-
-export const TENANT_ADMIN_PERMISSIONS: readonly string[] = [
-  ...TENANT_GRANTABLE_PERMISSIONS,
-  PERMISSIONS.USER_CREATE, PERMISSIONS.USER_READ, PERMISSIONS.USER_UPDATE, PERMISSIONS.USER_DELETE,
-  PERMISSIONS.ROLE_CREATE, PERMISSIONS.ROLE_READ, PERMISSIONS.ROLE_UPDATE, PERMISSIONS.ROLE_DELETE,
-];
-
-export const DEFAULT_ROLE_DEFINITIONS = [
-  { name: "Admin", permissionNames: TENANT_ADMIN_PERMISSIONS },
-  { name: "Manager", permissionNames: TENANT_GRANTABLE_PERMISSIONS.filter((name) => !name.endsWith(":delete")) },
-  { name: "Staff", permissionNames: TENANT_GRANTABLE_PERMISSIONS.filter((name) => name.endsWith(":read") || name.endsWith(":update")) },
-] as const;
+import { DEFAULT_ROLE_DEFINITIONS } from "../../src/constants/default-roles.js";
+export { DEFAULT_ROLE_DEFINITIONS, TENANT_ADMIN_PERMISSIONS } from "../../src/constants/default-roles.js";
 
 export const seedRoles = async (prisma: PrismaClient, organizations: { id: string }[], permissions: { id: string; name: string }[]) => {
   console.log("Seeding roles...");

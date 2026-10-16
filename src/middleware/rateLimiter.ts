@@ -35,6 +35,16 @@ export const authLimiter = rateLimit({
   keyGenerator: (req) => ipKeyGenerator(req.ip ?? "unknown"),
 });
 
+export const signupLimiter = rateLimit({
+  windowMs: env.SIGNUP_RATE_LIMIT_WINDOW_MS,
+  limit: env.SIGNUP_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: redisStore("signup"),
+  handler: limitReached,
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? "unknown"),
+});
+
 // Looser — general authenticated API traffic
 export const apiLimiter = rateLimit({
   // Keep the authorized dependency probe reachable during a Redis outage.

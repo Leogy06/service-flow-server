@@ -3,7 +3,7 @@ import { authenticate } from "@/middleware/auth.js";
 import { validate } from "@/middleware/validate.js";
 import { registerSchema, loginSchema } from "@/modules/auth/auth.schema.js";
 import { authController } from "@/modules/auth/auth.controller.js";
-import { authLimiter, strictLimiter, writeLimmiter } from "@/middleware/rateLimiter.js";
+import { authLimiter, signupLimiter, strictLimiter, writeLimmiter } from "@/middleware/rateLimiter.js";
 import { profileController } from "./profile.controller.js";
 import { updateProfileSchema, changePasswordSchema } from "./profile.schema.js";
 import { setPasswordSchema } from "@/modules/user/user.schema.js";
@@ -13,6 +13,7 @@ const router = Router();
 
 router.post(
   "/register",
+  signupLimiter,
   authLimiter,
   validate(registerSchema),
   authController.register,

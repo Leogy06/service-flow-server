@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const registerSchema = z.object({
   body: z.object({
-    email: z.email({ error: "Invalid email address" }).toLowerCase().trim(),
+    email: z.string().trim().toLowerCase().max(191).pipe(z.email({ error: "Invalid email address" })),
     password: z
       .string({ error: "Password is required" })
       .min(8, "Password must be at least 8 characters")
@@ -27,7 +27,11 @@ export const registerSchema = z.object({
       .trim()
       .regex(/^\+?[0-9]{7,15}$/, { error: "Invalid phone number" })
       .optional(),
-  }),
+    organizationName: z.string().trim().min(2, "Business name is required").max(100),
+    slug: z.string().trim().toLowerCase().min(2).max(50)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and single hyphens")
+      .refine((value) => !["api", "system-admin", "login", "signup", "register", "no-org", "no_org", "set-password"].includes(value), "Choose another workspace address"),
+  }).strict(),
 });
 
 export const loginSchema = z.object({

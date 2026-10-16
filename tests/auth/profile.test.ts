@@ -74,7 +74,7 @@ jest.unstable_mockModule("@/modules/audit/audit.service.js", () => ({ auditServi
 } }));
 jest.unstable_mockModule("@/middleware/rateLimiter.js", () => {
   const pass = (_req: unknown, _res: unknown, next: () => void) => next();
-  return { authLimiter: pass, strictLimiter: pass, writeLimmiter: pass };
+  return { authLimiter: pass, signupLimiter: pass, strictLimiter: pass, writeLimmiter: pass };
 });
 jest.unstable_mockModule("@/utils/tokens.js", () => ({
   verifyAccessToken: (token: string) => ({ sub: token, organizationId: "org-b", permissions: ["user:update"] }),

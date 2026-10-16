@@ -6,6 +6,20 @@ Platform operators manage organizations, plans, subscription entitlements,
 verified manual receipts, refund requests, security and operational reporting.
 Tenant customer invoices/payments are separate modules.
 
+Public signup requests are platform-owned applications, separate from tenant
+users. `signup.*` validates, lists/counts and reviews applications. Only persisted
+system administrators may inspect them. Signup uses configurable Redis
+`signupLimiter` plus `authLimiter` and global API limits; review uses the shared
+write limiter. Deploy `20261017090000_public_signup_requests` and generate Prisma.
+
+Approval locks the request and atomically creates a new organization, the shared
+Admin/Manager/Staff defaults, one tenant administrator and a selected-plan
+subscription (optional 14-day trial). No existing tenant can be joined publicly.
+Rejected requests create no account. Both decisions clear the application hash
+and append platform audits without credentials; identical decision retries do not
+duplicate provisioning. Duplicate public emails return the same 202 response and
+never overwrite pending details. Email notifications are not sent.
+
 ## Key files
 
 - `billing.routes.ts`, `billing.schema.ts`, `billing.service.ts`: billing contracts and transactions.

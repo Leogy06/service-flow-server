@@ -5,15 +5,12 @@ import { generateAccessToken, generateRefreshTokenValue, hashToken, getRefreshEx
 import { recordPlatformAudit } from "@/modules/system-admin/platform-audit.js";
 import { requestContext } from "@/lib/requestContext.js";
 import { loadAuthorization, sessionUser } from "./authorization.js";
-
-interface RegisterInput {
-  email: string; password: string; firstName: string; lastName: string;
-  middleName?: string; suffix?: string; phone?: string; role?: string;
-}
+import type { RegisterInput } from "./auth.schema.js";
 
 export const authService = {
-  async register(_input: RegisterInput): Promise<never> {
-    throw new AppError(400, "Account creation requires an organization invitation");
+  async register(input: RegisterInput) {
+    const { signupService } = await import("@/modules/system-admin/signup.service.js");
+    return signupService.submit(input);
   },
 
   async login(email: string, password: string) {
