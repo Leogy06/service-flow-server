@@ -1,4 +1,28 @@
-import { billingPeriod, assertManualSubscriptionTransition, assertExactPayment, entitlementIsCurrent } from "@/modules/system-admin/billing-policy.js";
+import { billingPeriod, assertManualSubscriptionTransition, assertExactPayment, entitlementIsCurrent, trialPeriod } from "@/modules/system-admin/billing-policy.js";
+
+test("free trials last exactly 14 days and preserve UTC time across month boundaries", () => {
+  const now = new Date("2026-12-25T09:30:00.000Z");
+  expect(trialPeriod(now)).toEqual({ trialStartedAt: now, trialExpiresAt: new Date("2027-01-08T09:30:00.000Z") });
+});
+
+test("trial access requires valid trial dates and ends exactly at expiry without grace", () => {
+  const start = new Date("2026-10-16T05:00:00.000Z");
+  const end = new Date("2026-10-30T05:00:00.000Z");
+  const subscription = { status: "TRIALING", startsAt: start, expiresAt: end, trialStartedAt: start, trialExpiresAt: end };
+  expect(entitlementIsCurrent(subscription, 30, start)).toBe(true);
+  expect(entitlementIsCurrent(subscription, 30, new Date(+end - 1))).toBe(true);
+  expect(entitlementIsCurrent(subscription, 30, end)).toBe(false);
+  expect(entitlementIsCurrent(subscription, 30, new Date(+start - 1))).toBe(false);
+  expect(entitlementIsCurrent({ ...subscription, trialStartedAt: null }, 30, start)).toBe(false);
+  expect(entitlementIsCurrent({ ...subscription, trialExpiresAt: null }, 30, start)).toBe(false);
+  expect(entitlementIsCurrent({ ...subscription, expiresAt: new Date(+end + 86400000) }, 30, end)).toBe(false);
+});
+
+test("a trial can be canceled but cannot be changed to paid or past due manually", () => {
+  expect(() => assertManualSubscriptionTransition("TRIALING", "CANCELED")).not.toThrow();
+  expect(() => assertManualSubscriptionTransition("TRIALING", "PAST_DUE")).toThrow();
+  expect(() => assertManualSubscriptionTransition("TRIALING", "ACTIVE")).toThrow();
+});
 
 test("renewal starts at the later of now or the current expiration", () => {
   const now = new Date("2026-10-15T05:00:00.000Z");

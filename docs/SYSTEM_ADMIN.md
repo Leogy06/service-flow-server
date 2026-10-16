@@ -31,8 +31,8 @@ Tenant user deletion/restoration also increment session versions and revoke refr
 | Organization | ACTIVE, SUSPENDED, ARCHIVED; legacy INACTIVE retained. Changes require reason/confirmation, actor/time and transactional audit. Suspension/archive preserve records, revoke refresh sessions and invalidate JWTs. Archive retention is indefinite; explicit restoration changes only organization access status. |
 | Security block | ACTIVE ↔ BLOCKED; does not change invitation lifecycle, seat consumption, organization status or subscription. Tenant admins cannot remove it. |
 | Legacy access | Existing organizations default to billingEnabled=false. Assigning an initial subscription atomically enables billing; PENDING then denies business API access until verified payment. Enroll deliberately. |
-| Entitlement | ACTIVE requires startsAt≤now<expiresAt. PAST_DUE permits only the configured 0–30-day grace after expiry. PENDING, EXPIRED and CANCELED deny access. Every tenant protected endpoint/login/refresh uses this check. |
-| Subscription | Exactly one authoritative subscription per organization (unique key). PENDING → ACTIVE only through payment verification. Manual transitions: ACTIVE → PAST_DUE; PENDING/ACTIVE/PAST_DUE/EXPIRED → CANCELED. Scheduled expiry and verified renewal are audited with history. No arbitrary date extension or manual paid-status bypass. |
+| Entitlement | TRIALING requires valid trial dates and ends without grace after 14 days. ACTIVE requires startsAt≤now<expiresAt. PAST_DUE permits only the configured 0–30-day grace after expiry. PENDING, EXPIRED and CANCELED deny access. Every tenant protected endpoint/login/refresh uses this check. |
+| Subscription | Exactly one authoritative subscription per organization (unique key). PENDING → ACTIVE only through payment verification. PENDING may begin a one-time TRIALING period. Manual transitions: ACTIVE → PAST_DUE; PENDING/TRIALING/ACTIVE/PAST_DUE/EXPIRED → CANCELED. Scheduled expiry and verified renewal are audited with history. No arbitrary date extension or manual paid-status bypass. |
 | Renewal | One calendar month or year according to the selected plan. Month-end and leap-day renewals clamp to the last day of the target month. Started, continuously paid ACTIVE/PAST_DUE coverage extends from max(now,expiry). CANCELED/EXPIRED renew fresh from now. Repeated verification of the same payment does not extend again. |
 | Plan changes | Immediate seat ceiling; reject below active occupancy. Current paid price snapshot is preserved; current plan price/currency/billing interval applies to the next confirmed renewal. Retired plans remain historically linked and renewable but cannot be newly assigned. Large seat reductions affecting >1,000 tenants require a replacement-plan rollout. |
 | Seats | Count every undeleted ACTIVE team identity, including owners and blocked accounts. Customers and PENDING invitations do not count. Direct creation, invitation acceptance and restoration check seats under the same organization lock. No account deletion on downgrade. |
@@ -41,6 +41,39 @@ Tenant user deletion/restoration also increment session versions and revoke refr
 | Refunds | Full verified payment only, unique payment/refund key, confirmed evidence and reason. Gross receipts stay in reporting; refund events subtract on refund date. Rebuild only the remaining contiguous paid coverage chain. Historical ended-period refunds do not change present entitlement. Refunding the current period can leave future-only coverage; access is denied until that period begins and further renewals are rejected while the gap exists. Resolve such cases by separately verified refunds of remaining future periods before a fresh payment. Canceled paid periods cannot be regranted by refund recomputation. |
 
 There is no payment gateway integration and no stored card credentials. CARD is only a manual payment-method label. Manual status/plan adjustments and financial corrections retain before/after history; operators must verify evidence outside this application before approving.
+
+## Free trials (16 October 2026)
+
+Apply `20261016100000_subscription_free_trials` and regenerate Prisma before running
+the updated backend/frontend. The additive migration introduces `TRIALING` and
+nullable `trialStartedAt`/`trialExpiresAt`; existing subscriptions keep their state.
+
+In **System Admin > Subscriptions**, choose **Assign plan**, select the tenant and
+one of the monthly/yearly plans, then enable **Start 14-day free trial**. Enter a
+reason and confirm. An existing PENDING subscription with no previous trial can
+instead use **Start free trial** in its row. There is no automatic tenant enrollment.
+
+- A trial lasts exactly 14 elapsed days from confirmation, using the selected plan's
+  active-user ceiling. It creates no payment, refund or revenue record.
+- A tenant gets one trial. The start/end markers remain after conversion, cancellation
+  and expiry. There is no restart/extension endpoint, even after a refund or plan change.
+- Login, refresh and protected API requests enforce the trial dates immediately.
+  Trials have no grace period. Organization suspension and account blocks still apply.
+- Trial changes are serialized with the tenant's other billing/seat operations and
+  recorded in subscription history and the immutable platform audit.
+- Verify an exact selected-plan payment to convert to monthly/yearly paid coverage.
+  Verification starts the paid period immediately and replaces remaining free days.
+  A full refund follows normal entitlement rules and never restores the free trial.
+- The dashboard reports active trials separately from active paid subscriptions.
+  Tenant/subscription lists can filter TRIALING. The existing alert processor emits
+  trial reminders, marks expired trials EXPIRED and resolves old alerts after payment.
+  Keep the existing scheduled alert processor running for these status/alert updates;
+  authorization does not depend on the scheduler running on time.
+
+API: initial `POST /api/system-admin/subscriptions` accepts optional `startTrial: true`.
+`POST /api/system-admin/subscriptions/:id/trial` accepts only `reason` and `confirm: true`.
+Only platform administrators can start trials. Dates and duration are server controlled.
+Trial settings are fixed at the approved 14-day policy; no automatic charges are added.
 
 ## API and UI contracts
 
@@ -56,7 +89,7 @@ All paths below are relative to `/api/system-admin`:
 | GET/POST | plans; subscriptions; payments |
 | GET | subscriptions/:id; payments/:id |
 | PATCH | plans/:id; settings; alerts/:id/read |
-| POST | subscriptions/:id/plan; subscriptions/:id/status; payments/:id/review; payments/:id/refund; alerts/process |
+| POST | subscriptions/:id/plan; subscriptions/:id/trial; subscriptions/:id/status; payments/:id/review; payments/:id/refund; alerts/process |
 
 Tenants support name/slug search, organization/subscription status and name/createdAt/expiresAt sort. Users support name/email search, organization, role, invitation/security status and name/email/createdAt sort. Subscription/payment/plan lists have explicit filters and sorting. Detail history is bounded (20–100 latest records); full platform audit is separately paginated. User roles and organization/plan pickers are paginated searches.
 
@@ -64,7 +97,7 @@ Dedicated frontend routes: `/system-admin/dashboard`, `/tenants`, `/users`, `/su
 
 ## Operations, reporting and limits
 
-Dashboard records current organization/subscription/account counts; date filters apply to registrations, verified receipts, refund events, authentication failures and recent activity. Trends aggregate in SQL with indexed date bounds; date ranges are limited to 366 days. Revenue stays separated by currency and decimal arithmetic. No trials or unsupported metrics are invented. CSV reports cap at 10,000 financial events and neutralize spreadsheet formulas in text.
+Dashboard records current organization/subscription/account counts; date filters apply to registrations, verified receipts, refund events, authentication failures and recent activity. Trends aggregate in SQL with indexed date bounds; date ranges are limited to 366 days. Revenue stays separated by currency and decimal arithmetic. Trials are counted separately and never contribute revenue; unsupported metrics are not invented. CSV reports cap at 10,000 financial events and neutralize spreadsheet formulas in text.
 
 Monitoring shows live SELECT 1/Redis PING probes cached for 15 seconds with 2-second response deadlines, plus bounded per-process request counts/errors/latency observations for 60 minutes. The authorized monitoring route remains reachable when Redis rate-limit storage is down. p95 uses at most 256 observed request samples per minute; it is a bounded sample, not an external metrics service. Counters reset on restart and do not aggregate across replicas. Raw errors, credentials, URLs and connection strings are never returned; request IDs correlate sanitized error entries with server logs. Actual API 5xx responses automatically create deduplicated in-app critical alerts, with at most one persistence attempt per minute and one alert per instance/hour. DB storage and job metrics are unavailable because those instruments do not exist. Distributed error alerting and recovery across restarted instances need a shared metrics/log pipeline.
 

@@ -1,6 +1,11 @@
 import { Prisma } from "@/generated/prisma/client.js";
 import { AppError } from "@/utils/AppError.js";
 
+export const FREE_TRIAL_DAYS = 14;
+export function trialPeriod(now = new Date()) {
+  return { trialStartedAt: now, trialExpiresAt: new Date(now.getTime() + FREE_TRIAL_DAYS * 86_400_000) };
+}
+
 export function billingPeriod(now: Date, previousExpiration: Date | null, interval: "MONTHLY" | "YEARLY" = "YEARLY") {
   const startsAt = new Date(Math.max(now.getTime(), previousExpiration?.getTime() ?? 0));
   const expiresAt = new Date(startsAt);
@@ -23,13 +28,15 @@ export function assertExactPayment(amount: Prisma.Decimal | string, currency: st
 
 export function assertManualSubscriptionTransition(from: string, to: string) {
   const allowed = (from === "ACTIVE" && to === "PAST_DUE") ||
-    (["PENDING", "ACTIVE", "PAST_DUE", "EXPIRED"].includes(from) && to === "CANCELED");
+    (["PENDING", "TRIALING", "ACTIVE", "PAST_DUE", "EXPIRED"].includes(from) && to === "CANCELED");
   if (!allowed) throw new AppError(409, "Subscription transition is not permitted; activation requires verified payment");
 }
 
-type Entitlement = { status: string; startsAt: Date | null; expiresAt: Date | null };
+type Entitlement = { status: string; startsAt: Date | null; expiresAt: Date | null; trialStartedAt?: Date | null; trialExpiresAt?: Date | null };
 export function entitlementIsCurrent(subscription: Entitlement | null, gracePeriodDays = 0, now = new Date()) {
   if (!subscription?.startsAt || !subscription.expiresAt || subscription.startsAt > now) return false;
+  if (subscription.status === "TRIALING") return Boolean(subscription.trialStartedAt && subscription.trialStartedAt <= now &&
+    subscription.trialExpiresAt && subscription.trialExpiresAt > now && subscription.expiresAt > now);
   if (subscription.status === "ACTIVE") return subscription.expiresAt > now;
   if (subscription.status !== "PAST_DUE") return false;
   const grace = Math.max(0, Math.min(30, gracePeriodDays));

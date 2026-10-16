@@ -21,15 +21,16 @@ export const operationsService = {
     const now = new Date();
     const soon = new Date(+now + 30 * 86400000);
     return prisma.$transaction(async (db) => {
-      const [totalOrganizations, activeOrganizations, suspendedOrganizations, activeSubscriptions,
+      const [totalOrganizations, activeOrganizations, suspendedOrganizations, activeSubscriptions, activeTrials,
         expiringSubscriptions, expiredSubscriptions, pendingPaymentVerifications, newTenantRegistrations,
         totalActiveUsers, failedLoginAttempts, registrations, gross, refunds, subscriptionDistribution,
         recentActivities, recentPayments, alerts] = await Promise.all([
         db.organization.count(), db.organization.count({ where: { status: "ACTIVE" } }),
         db.organization.count({ where: { status: "SUSPENDED" } }),
         db.subscription.count({ where: { status: "ACTIVE", startsAt: { lte: now }, expiresAt: { gt: now } } }),
-        db.subscription.count({ where: { status: "ACTIVE", expiresAt: { gt: now, lte: soon } } }),
-        db.subscription.count({ where: { OR: [{ status: "EXPIRED" }, { status: "ACTIVE", expiresAt: { lte: now } }] } }),
+        db.subscription.count({ where: { status: "TRIALING", startsAt: { lte: now }, expiresAt: { gt: now } } }),
+        db.subscription.count({ where: { status: { in: ["ACTIVE", "TRIALING"] }, expiresAt: { gt: now, lte: soon } } }),
+        db.subscription.count({ where: { OR: [{ status: "EXPIRED" }, { status: { in: ["ACTIVE", "TRIALING"] }, expiresAt: { lte: now } }] } }),
         db.subscriptionPayment.count({ where: { status: { in: ["PENDING", "UNDER_REVIEW"] } } }),
         db.organization.count({ where: { createdAt: { gte: window.start, lt: window.end } } }),
         db.user.count({ where: { organizationId: { not: null }, status: "ACTIVE", deletedAt: null, securityStatus: "ACTIVE" } }),
@@ -44,7 +45,7 @@ export const operationsService = {
       ]);
       return {
         window: { from: window.from, to: window.to },
-        metrics: { totalOrganizations, activeOrganizations, suspendedOrganizations, activeSubscriptions,
+        metrics: { totalOrganizations, activeOrganizations, suspendedOrganizations, activeSubscriptions, activeTrials,
           expiringSubscriptions, expiredSubscriptions, pendingPaymentVerifications, newTenantRegistrations, totalActiveUsers, failedLoginAttempts },
         revenue: revenueTotals(gross, refunds), registrationTrend: registrations.map((r) => ({ date: r.date, count: Number(r.count) })),
         revenueTrend: revenueSeries(gross, refunds), subscriptionDistribution: subscriptionDistribution.map((r) => ({ status: r.status, count: r._count._all })),
@@ -162,18 +163,19 @@ export async function processPlatformAlerts(cursor?: string, now = new Date()) {
       const s = await db.subscription.findUnique({ where: { id: row.id } });
       if (!s) return;
       const keys: string[] = [];
-      if (s.expiresAt && ["ACTIVE", "PAST_DUE", "EXPIRED"].includes(s.status)) {
+      if (s.expiresAt && ["TRIALING", "ACTIVE", "PAST_DUE", "EXPIRED"].includes(s.status)) {
+        const trial = Boolean(s.trialStartedAt && !s.currentPeriodPaymentId);
         const grace = s.status === "PAST_DUE" ? settings.gracePeriodDays * 86400000 : 0;
         const expired = +s.expiresAt + grace <= +now;
         if (expired && s.status !== "EXPIRED") {
           await db.subscription.update({ where: { id: s.id }, data: { status: "EXPIRED", version: { increment: 1 } } });
-          await db.subscriptionHistory.create({ data: { subscriptionId: s.id, kind: "EXPIRED", reason: "Subscription entitlement expired", before: { status: s.status }, after: { status: "EXPIRED" } } });
+          await db.subscriptionHistory.create({ data: { subscriptionId: s.id, kind: "EXPIRED", reason: trial ? "Free trial expired" : "Subscription entitlement expired", before: { status: s.status }, after: { status: "EXPIRED" } } });
           await recordPlatformAudit(db, { action: "platform.subscription.expire", entity: "Subscription", entityId: s.id, organizationId: s.organizationId, before: { status: s.status }, after: { status: "EXPIRED" } });
         }
         for (const days of expired ? [0] : intervals.filter((n) => +s.expiresAt! - +now <= n * 86400000)) {
           const key = `subscription:${s.id}:${s.expiresAt.toISOString()}:${days}`; keys.push(key);
-          await emitAlert(db, { key, organizationId: s.organizationId, kind: expired ? "SUBSCRIPTION_EXPIRED" : "SUBSCRIPTION_EXPIRING", severity: expired || days <= 7 ? "critical" : "warning",
-            message: expired ? "Subscription has expired." : `Subscription expires within ${days} days.`, targetType: "Subscription", targetId: s.id });
+          await emitAlert(db, { key, organizationId: s.organizationId, kind: trial ? (expired ? "TRIAL_EXPIRED" : "TRIAL_EXPIRING") : (expired ? "SUBSCRIPTION_EXPIRED" : "SUBSCRIPTION_EXPIRING"), severity: expired || days <= 7 ? "critical" : "warning",
+            message: expired ? (trial ? "Free trial has expired; verify payment to restore access." : "Subscription has expired.") : `${trial ? "Free trial" : "Subscription"} expires within ${days} days.`, targetType: "Subscription", targetId: s.id });
         }
       }
       await db.platformAlert.updateMany({ where: { targetType: "Subscription", targetId: s.id, resolvedAt: null, ...(keys.length ? { deduplicationKey: { notIn: keys } } : {}) }, data: { resolvedAt: now } });

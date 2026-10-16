@@ -4,9 +4,9 @@ import { writeLimmiter } from "@/middleware/rateLimiter.js";
 import { sendResponse } from "@/utils/sendResponse.js";
 import { billingService as service } from "./billing.service.js";
 import { planListSchema, subscriptionListSchema, paymentListSchema, billingDetailSchema, createPlanSchema, updatePlanSchema,
-  assignSubscriptionSchema, changePlanSchema, changeSubscriptionStatusSchema, recordPaymentSchema, reviewPaymentSchema, refundPaymentSchema,
+  startTrialSchema, assignSubscriptionSchema, changePlanSchema, changeSubscriptionStatusSchema, recordPaymentSchema, reviewPaymentSchema, refundPaymentSchema,
   type PlanListQuery, type SubscriptionListQuery, type PaymentListQuery, type CreatePlanInput, type UpdatePlanInput,
-  type AssignSubscriptionInput, type ChangePlanInput, type ChangeStatusInput, type RecordPaymentInput, type ReviewPaymentInput, type RefundPaymentInput } from "./billing.schema.js";
+  type StartTrialInput, type AssignSubscriptionInput, type ChangePlanInput, type ChangeStatusInput, type RecordPaymentInput, type ReviewPaymentInput, type RefundPaymentInput } from "./billing.schema.js";
 const router = Router();
 const handle = (work: (req: Request) => Promise<unknown>, message: string, status = 200) => async (req: Request, res: Response, next: NextFunction) => {
   try { sendResponse(res, status, message, await work(req)); } catch (error) { next(error); }
@@ -18,6 +18,7 @@ router.patch("/plans/:id", writeLimmiter, validate(updatePlanSchema), handle((re
 router.get("/subscriptions", validate(subscriptionListSchema), handle((req) => service.listSubscriptions(req.validated.query as SubscriptionListQuery), "Subscriptions fetched"));
 router.get("/subscriptions/:id", validate(billingDetailSchema), handle((req) => service.subscription(id(req)), "Subscription fetched"));
 router.post("/subscriptions", writeLimmiter, validate(assignSubscriptionSchema), handle((req) => service.assignSubscription(req.validated.body as AssignSubscriptionInput), "Subscription assigned", 201));
+router.post("/subscriptions/:id/trial", writeLimmiter, validate(startTrialSchema), handle((req) => service.startTrial(id(req), req.validated.body as StartTrialInput), "Free trial started"));
 router.post("/subscriptions/:id/plan", writeLimmiter, validate(changePlanSchema), handle((req) => service.changePlan(id(req), req.validated.body as ChangePlanInput), "Subscription plan updated"));
 router.post("/subscriptions/:id/status", writeLimmiter, validate(changeSubscriptionStatusSchema), handle((req) => service.changeStatus(id(req), req.validated.body as ChangeStatusInput), "Subscription status updated"));
 router.get("/payments", validate(paymentListSchema), handle((req) => service.listPayments(req.validated.query as PaymentListQuery), "Payments fetched"));

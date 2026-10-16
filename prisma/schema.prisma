@@ -43,6 +43,7 @@ enum BillingInterval {
 
 enum SubscriptionStatus {
   PENDING
+  TRIALING
   ACTIVE
   PAST_DUE
   EXPIRED
@@ -581,6 +582,8 @@ model Subscription {
   status SubscriptionStatus @default(PENDING)
   startsAt DateTime?
   expiresAt DateTime?
+  trialStartedAt DateTime?
+  trialExpiresAt DateTime?
   renewalType String @default("MANUAL") @db.VarChar(20)
   price Decimal @map("annualPrice") @db.Decimal(12, 2)
   billingInterval BillingInterval @default(YEARLY)

@@ -3,11 +3,11 @@ import { prisma } from "@/lib/prisma.js";
 import { requestContext } from "@/lib/requestContext.js";
 import { requirePlatformAuthority } from "@/modules/role/tenant-access-policy.js";
 import { AppError } from "@/utils/AppError.js";
-import { billingPeriod, assertExactPayment, assertManualSubscriptionTransition } from "./billing-policy.js";
+import { billingPeriod, assertExactPayment, assertManualSubscriptionTransition, trialPeriod } from "./billing-policy.js";
 import { countActiveSeats } from "./entitlement.js";
 import { lockOrganization, platformTransaction, recordPlatformAudit } from "./platform-audit.js";
 import type { PlanListQuery, SubscriptionListQuery, PaymentListQuery, CreatePlanInput, UpdatePlanInput, AssignSubscriptionInput,
-  ChangePlanInput, ChangeStatusInput, RecordPaymentInput, ReviewPaymentInput, RefundPaymentInput } from "./billing.schema.js";
+  ChangePlanInput, ChangeStatusInput, RecordPaymentInput, ReviewPaymentInput, RefundPaymentInput, StartTrialInput } from "./billing.schema.js";
 
 const organizationSelect = { id: true, name: true, slug: true, status: true } satisfies Prisma.OrganizationSelect;
 const subscriptionInclude = { plan: true, organization: { select: organizationSelect }, history: { orderBy: { createdAt: "desc" }, take: 20 } } satisfies Prisma.SubscriptionInclude;
@@ -16,6 +16,7 @@ const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringif
 function snapshot(subscription: Subscription) {
   return { id: subscription.id, planId: subscription.planId, status: subscription.status,
     startsAt: subscription.startsAt?.toISOString() ?? null, expiresAt: subscription.expiresAt?.toISOString() ?? null,
+    trialStartedAt: subscription.trialStartedAt?.toISOString() ?? null, trialExpiresAt: subscription.trialExpiresAt?.toISOString() ?? null,
     price: subscription.price.toString(), billingInterval: subscription.billingInterval, currency: subscription.currency,
     currentPeriodPaymentId: subscription.currentPeriodPaymentId, version: subscription.version };
 }
@@ -128,10 +129,36 @@ export const billingService = {
       const plan = await db.plan.findUnique({ where: { id: planId } });
       if (!plan?.isActive) throw new AppError(409, "Plan is unavailable for new assignment");
       await checkPlanSeats(db, input.organizationId, plan.maxActiveUsers);
-      const subscription = await db.subscription.create({ data: { organizationId: input.organizationId, planId: plan.id, status: "PENDING", price: plan.price, billingInterval: plan.billingInterval, currency: plan.currency } });
+      const trial = input.startTrial ? trialPeriod() : null;
+      const subscription = await db.subscription.create({ data: { organizationId: input.organizationId, planId: plan.id, status: trial ? "TRIALING" : "PENDING",
+        ...(trial ? { ...trial, startsAt: trial.trialStartedAt, expiresAt: trial.trialExpiresAt } : {}),
+        price: plan.price, billingInterval: plan.billingInterval, currency: plan.currency } });
       await db.organization.update({ where: { id: input.organizationId }, data: { billingEnabled: true } });
-      await history(db, subscription, "ASSIGNED", null, input.reason);
-      await recordPlatformAudit(db, { action: "platform.subscription.assign", entity: "Subscription", entityId: subscription.id, organizationId: input.organizationId, after: { ...snapshot(subscription), reason: input.reason } });
+      await history(db, subscription, trial ? "TRIAL_STARTED" : "ASSIGNED", null, input.reason);
+      await recordPlatformAudit(db, { action: trial ? "platform.subscription.trial" : "platform.subscription.assign", entity: "Subscription", entityId: subscription.id, organizationId: input.organizationId, after: { ...snapshot(subscription), reason: input.reason } });
+      return subscription;
+    });
+  },
+  async startTrial(id: string, input: StartTrialInput) {
+    await requirePlatformAuthority();
+    const organizationId = await subscriptionOrganization(id);
+    return platformTransaction(async (db) => {
+      await requirePlatformAuthority(db);
+      await lockOrganization(db, organizationId);
+      const before = await requireSubscription(db, id);
+      if (before.trialStartedAt || before.status !== "PENDING" || before.currentPeriodPaymentId) {
+        throw new AppError(409, "A free trial is available once per organization, before paid activation");
+      }
+      if (!before.plan.isActive) throw new AppError(409, "Select an available plan before starting a trial");
+      await checkPlanSeats(db, organizationId, before.plan.maxActiveUsers);
+      const trial = trialPeriod();
+      const subscription = await db.subscription.update({ where: { id }, data: { status: "TRIALING", ...trial,
+        startsAt: trial.trialStartedAt, expiresAt: trial.trialExpiresAt, price: before.plan.price,
+        billingInterval: before.plan.billingInterval, currency: before.plan.currency, version: { increment: 1 } } });
+      await db.organization.update({ where: { id: organizationId }, data: { billingEnabled: true } });
+      await history(db, subscription, "TRIAL_STARTED", snapshot(before), input.reason);
+      await recordPlatformAudit(db, { action: "platform.subscription.trial", entity: "Subscription", entityId: id, organizationId,
+        before: snapshot(before), after: { ...snapshot(subscription), reason: input.reason } });
       return subscription;
     });
   },

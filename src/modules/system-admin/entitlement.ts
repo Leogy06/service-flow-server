@@ -13,7 +13,7 @@ export async function assertTenantEntitlement(db: Prisma.TransactionClient, orga
   const organization = await db.organization.findUnique({ where: { id: organizationId }, select: { billingEnabled: true } });
   if (!organization) throw new AppError(403, "Subscription access is unavailable", "SUBSCRIPTION_REQUIRED");
   if (!organization.billingEnabled) return;
-  const subscription = await db.subscription.findUnique({ where: { organizationId }, select: { status: true, startsAt: true, expiresAt: true } });
+  const subscription = await db.subscription.findUnique({ where: { organizationId }, select: { status: true, startsAt: true, expiresAt: true, trialStartedAt: true, trialExpiresAt: true } });
   const settings = subscription?.status === "PAST_DUE"
     ? await db.platformSettings.findUnique({ where: { id: "singleton" }, select: { gracePeriodDays: true } }) : null;
   if (!entitlementIsCurrent(subscription, settings?.gracePeriodDays ?? 0)) {

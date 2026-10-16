@@ -73,7 +73,7 @@ jest.unstable_mockModule("@/modules/system-admin/platform-audit.js", () => ({
   }),
 }));
 const { billingService } = await import("@/modules/system-admin/billing.service.js");
-const { enforceSeatLimit } = await import("@/modules/system-admin/entitlement.js");
+const { enforceSeatLimit, assertTenantEntitlement } = await import("@/modules/system-admin/entitlement.js");
 const { Prisma } = await import("@/generated/prisma/client.js");
 const tx = db as unknown as import("@/generated/prisma/client.js").Prisma.TransactionClient;
 const reason = { reason: "Verified bank evidence", confirm: true as const };
@@ -89,6 +89,86 @@ beforeEach(() => {
     organizations: [{ id: "org-a", billingEnabled: true, status: "ACTIVE" }],
     users: [{ id: "owner-a", organizationId: "org-a", status: "ACTIVE", platformRole: "NONE", securityStatus: "ACTIVE", deletedAt: null }],
     payments: [], refunds: [], history: [], audits: [] };
+});
+
+test("initial trial enrollment grants 14 days, enables billing, audits and creates no financial records", async () => {
+  state.subscriptions = [];
+  state.organizations[0].billingEnabled = false;
+  const subscription = await billingService.assignSubscription({ ...reason, organizationId: "org-a", planId: "plan-a", startTrial: true });
+  expect(subscription.status).toBe("TRIALING");
+  expect(+subscription.expiresAt! - +subscription.startsAt!).toBe(14 * 86400000);
+  expect(subscription.trialStartedAt).toEqual(subscription.startsAt);
+  expect(subscription.trialExpiresAt).toEqual(subscription.expiresAt);
+  expect(state.organizations[0].billingEnabled).toBe(true);
+  expect(state.payments).toHaveLength(0);
+  expect(state.refunds).toHaveLength(0);
+  expect(state.history[0].kind).toBe("TRIAL_STARTED");
+  expect(state.audits[0].action).toBe("platform.subscription.trial");
+  await expect(assertTenantEntitlement(tx, "org-a")).resolves.toBeUndefined();
+});
+
+test("concurrent trial starts grant only one trial and never extend it", async () => {
+  const result = await Promise.allSettled([billingService.startTrial("sub-a", reason), billingService.startTrial("sub-a", reason)]);
+  expect(result.filter((item) => item.status === "fulfilled")).toHaveLength(1);
+  expect(result.find((item) => item.status === "rejected")).toMatchObject({ reason: { statusCode: 409 } });
+  const expiresAt = state.subscriptions[0].expiresAt;
+  await expect(billingService.startTrial("sub-a", reason)).rejects.toMatchObject({ statusCode: 409 });
+  expect(state.subscriptions[0].expiresAt).toEqual(expiresAt);
+  expect(state.history).toHaveLength(1);
+});
+
+test.each(["ACTIVE", "PAST_DUE", "EXPIRED", "CANCELED"])("trial start rejects %s subscriptions", async (status) => {
+  state.subscriptions[0].status = status;
+  await expect(billingService.startTrial("sub-a", reason)).rejects.toMatchObject({ statusCode: 409 });
+  expect(state.history).toHaveLength(0);
+});
+
+test("expired trial loses access without running the scheduler or using grace", async () => {
+  await billingService.startTrial("sub-a", reason);
+  state.subscriptions[0].trialExpiresAt = new Date(Date.now() - 1000);
+  state.subscriptions[0].expiresAt = state.subscriptions[0].trialExpiresAt;
+  await expect(assertTenantEntitlement(tx, "org-a")).rejects.toMatchObject({ statusCode: 403 });
+  await expect(billingService.startTrial("sub-a", reason)).rejects.toMatchObject({ statusCode: 409 });
+  await expect(billingService.changeStatus("sub-a", { ...reason, status: "PAST_DUE" })).rejects.toMatchObject({ statusCode: 409 });
+});
+
+test("trial start enforces seats, available plans and transactional audit", async () => {
+  state.users.push(...["staff", "blocked", "extra"].map((id) => ({ id, organizationId: "org-a", status: "ACTIVE", platformRole: "NONE", securityStatus: "BLOCKED", deletedAt: null })));
+  await expect(billingService.startTrial("sub-a", reason)).rejects.toMatchObject({ statusCode: 409 });
+  state.users.splice(1);
+  state.plans[0].isActive = false;
+  await expect(billingService.startTrial("sub-a", reason)).rejects.toMatchObject({ statusCode: 409 });
+  state.plans[0].isActive = true;
+  failAudit = true;
+  await expect(billingService.startTrial("sub-a", reason)).rejects.toThrow("Audit unavailable");
+  expect(state.subscriptions[0].status).toBe("PENDING");
+  expect(state.subscriptions[0].trialStartedAt).toBeUndefined();
+  expect(state.history).toHaveLength(0);
+});
+
+test("changing plans preserves the trial deadline and selected plan seat limits", async () => {
+  await billingService.startTrial("sub-a", reason);
+  const expiresAt = state.subscriptions[0].expiresAt;
+  await billingService.changePlan("sub-a", { ...reason, planId: "plan-b" });
+  expect(state.subscriptions[0]).toMatchObject({ status: "TRIALING", expiresAt, trialExpiresAt: expiresAt });
+});
+
+test("verified payment converts a trial immediately and refund never grants another trial", async () => {
+  await billingService.startTrial("sub-a", reason);
+  const trialStartedAt = state.subscriptions[0].trialStartedAt;
+  const trialExpiresAt = state.subscriptions[0].trialExpiresAt;
+  const wrongPayment = await billingService.recordPayment({ ...paymentInput, amount: "1.00" });
+  await expect(billingService.reviewPayment(wrongPayment.id, reviewInput)).rejects.toMatchObject({ statusCode: 409 });
+  expect(state.subscriptions[0].status).toBe("TRIALING");
+  const paid = await billingService.recordPayment({ ...paymentInput, referenceNumber: "TRIAL-PAID", idempotencyKey: "trial-paid-key" });
+  await billingService.reviewPayment(paid.id, reviewInput);
+  const { billingPeriod } = await import("@/modules/system-admin/billing-policy.js");
+  expect(state.subscriptions[0]).toMatchObject({ status: "ACTIVE", startsAt: state.payments[1].verifiedAt, trialStartedAt, trialExpiresAt });
+  expect(state.subscriptions[0].expiresAt).toEqual(billingPeriod(state.payments[1].verifiedAt, null, "YEARLY").expiresAt);
+  await billingService.refundPayment(paid.id, { ...reason, evidence: "confirmed-conversion-refund", idempotencyKey: "trial-refund-key" });
+  expect(state.subscriptions[0]).toMatchObject({ status: "CANCELED", trialStartedAt, trialExpiresAt });
+  await expect(billingService.startTrial("sub-a", reason)).rejects.toMatchObject({ statusCode: 409 });
+  await expect(assertTenantEntitlement(tx, "org-a")).rejects.toMatchObject({ statusCode: 403 });
 });
 
 test("verification activates one exact annual period with immutable history and audit", async () => {

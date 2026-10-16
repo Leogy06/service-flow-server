@@ -10,7 +10,7 @@ const paging = { page: z.coerce.number().int().min(1).max(100000).default(1), pa
   search: z.string().trim().max(100).optional(), sortOrder: z.enum(["asc", "desc"]).default("desc") };
 export const planListSchema = z.object({ query: z.object({ ...paging, status: z.enum(["ACTIVE", "RETIRED"]).optional(), billingInterval: z.enum(["MONTHLY", "YEARLY"]).optional(), sortBy: z.enum(["createdAt", "name", "price", "maxActiveUsers"]).default("createdAt") }).strict() });
 export const subscriptionListSchema = z.object({ query: z.object({ ...paging, organizationId: id.optional(), planId: id.optional(),
-  status: z.enum(["PENDING", "ACTIVE", "PAST_DUE", "EXPIRED", "CANCELED"]).optional(), sortBy: z.enum(["createdAt", "expiresAt", "status"]).default("createdAt") }).strict() });
+  status: z.enum(["PENDING", "TRIALING", "ACTIVE", "PAST_DUE", "EXPIRED", "CANCELED"]).optional(), sortBy: z.enum(["createdAt", "expiresAt", "status"]).default("createdAt") }).strict() });
 export const paymentListSchema = z.object({ query: z.object({ ...paging, organizationId: id.optional(), subscriptionId: id.optional(),
   status: z.enum(["PENDING", "UNDER_REVIEW", "PAID", "REJECTED", "REFUNDED"]).optional(), sortBy: z.enum(["createdAt", "paidAt", "verifiedAt", "amount", "status"]).default("createdAt") }).strict() });
 export const billingDetailSchema = z.object({ params: z.object({ id }).strict() });
@@ -18,7 +18,8 @@ export const createPlanSchema = z.object({ body: z.object({ ...planFields, ...mu
 export const updatePlanSchema = z.object({ params: z.object({ id }), body: z.object({ name: planFields.name.optional(), description: planFields.description,
   price: money.optional(), billingInterval: planFields.billingInterval.removeDefault().optional(), currency: currency.optional(), maxActiveUsers: planFields.maxActiveUsers.optional(), isActive: z.boolean().optional(), ...mutation }).strict()
   .refine((input) => Object.keys(input).some((key) => !["reason", "confirm"].includes(key)), "Provide at least one plan field") });
-export const assignSubscriptionSchema = z.object({ body: z.object({ organizationId: id, planId: id.optional(), ...mutation }).strict() });
+export const assignSubscriptionSchema = z.object({ body: z.object({ organizationId: id, planId: id.optional(), startTrial: z.boolean().optional(), ...mutation }).strict() });
+export const startTrialSchema = z.object({ params: z.object({ id }).strict(), body: z.object(mutation).strict() });
 export const changePlanSchema = z.object({ params: z.object({ id }), body: z.object({ planId: id, ...mutation }).strict() });
 export const changeSubscriptionStatusSchema = z.object({ params: z.object({ id }), body: z.object({ status: z.enum(["PAST_DUE", "CANCELED"]), ...mutation }).strict() });
 export const recordPaymentSchema = z.object({ body: z.object({ subscriptionId: id, amount: money, currency,
@@ -34,6 +35,7 @@ export type PaymentListQuery = z.infer<typeof paymentListSchema>["query"];
 export type CreatePlanInput = z.infer<typeof createPlanSchema>["body"];
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>["body"];
 export type AssignSubscriptionInput = z.infer<typeof assignSubscriptionSchema>["body"];
+export type StartTrialInput = z.infer<typeof startTrialSchema>["body"];
 export type ChangePlanInput = z.infer<typeof changePlanSchema>["body"];
 export type ChangeStatusInput = z.infer<typeof changeSubscriptionStatusSchema>["body"];
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>["body"];

@@ -21,7 +21,7 @@ export function isTransactionConflict(error: unknown): boolean {
   if (code === "P2034" || [1020, 1205, 1213, "1020", "1205", "1213"].includes(code as number | string)) return true;
   // The Prisma MariaDB adapter can expose native serialization failures as an
   // unknown-request error rather than P2034. Limit matching to known lock codes.
-  return "message" in error && typeof error.message === "string" && /Database error\. Code: `(?:1020|1205|1213)`/.test(error.message);
+  return "message" in error && typeof error.message === "string" && /(?:Database error|Raw query failed)\. Code: `(?:1020|1205|1213)`/.test(error.message);
 }
 
 export async function tenantTransaction<T>(work: (db: Prisma.TransactionClient) => Promise<T>): Promise<T> {

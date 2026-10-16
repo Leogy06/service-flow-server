@@ -1,12 +1,18 @@
 # Platform billing verification
 
-`billing-policy.test.ts` checks annual calendar boundaries, exact decimal money,
+`billing-policy.test.ts` checks monthly/yearly calendar boundaries, 14-day trial expiry, exact decimal money,
 manual transition restrictions and entitlement expiration/grace policy.
 `billing-schema.test.ts` checks sensitive confirmation/evidence, strict input and
 partial-plan updates. `user-seats.test.ts` covers direct creation and restoration;
 the invite-acceptance suite covers activation at the seat boundary.
 `billing.test.ts` checks service behavior against an in-memory repository. Its
 transaction queue models serialized execution; it does not prove MySQL locking.
+
+`trials.mysql.mjs` checks concurrent one-time grants, real authenticated access
+before/after expiry, administrator-only trial mutations, zero trial revenue,
+expiration alert deduplication, paid conversion and refund behavior. It runs with
+the other MySQL suites through `scripts/run-platform-mysql-tests.mjs` against an
+explicit isolated test database; fixtures and immutable audits are retained.
 
 Run the focused Jest suites after implementing the billing modules:
 

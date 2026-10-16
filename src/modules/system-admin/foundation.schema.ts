@@ -8,7 +8,7 @@ const paging = {
 };
 export const tenantListSchema = z.object({ query: z.object({
   ...paging, status: z.enum(["ACTIVE", "INACTIVE", "SUSPENDED", "ARCHIVED"]).optional(),
-  subscriptionStatus: z.enum(["PENDING", "ACTIVE", "PAST_DUE", "EXPIRED", "CANCELED"]).optional(),
+  subscriptionStatus: z.enum(["PENDING", "TRIALING", "ACTIVE", "PAST_DUE", "EXPIRED", "CANCELED"]).optional(),
   sortBy: z.enum(["name", "createdAt", "status", "expiresAt"]).default("createdAt"),
 }).strict() });
 export const userListSchema = z.object({ query: z.object({
