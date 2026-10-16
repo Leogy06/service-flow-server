@@ -215,6 +215,40 @@ test("switching yearly to monthly preserves coverage until the next verified ren
   expect(state.subscriptions[0]).toMatchObject({ billingInterval: "YEARLY", price: "2999.00", expiresAt: yearlyExpiration });
 });
 
+test.each(["trial", "paid"])("a canceled %s requires verified payment to restore access on a monthly plan", async (coverage) => {
+  jest.useFakeTimers({ now: new Date("2026-10-16T04:00:00Z") });
+  try {
+    if (coverage === "trial") {
+      await billingService.startTrial("sub-a", reason);
+    } else {
+      const payment = await billingService.recordPayment(paymentInput);
+      await billingService.reviewPayment(payment.id, reviewInput);
+    }
+    await expect(assertTenantEntitlement(tx, "org-a")).resolves.toBeUndefined();
+    const previousExpiration = state.subscriptions[0].expiresAt;
+    await billingService.changeStatus("sub-a", { ...reason, status: "CANCELED" });
+
+    state.plans[1].billingInterval = "MONTHLY";
+    state.plans[1].price = "599.00";
+    await billingService.changePlan("sub-a", { ...reason, planId: "plan-b" });
+    expect(state.subscriptions[0]).toMatchObject({ status: "CANCELED", planId: "plan-b", expiresAt: previousExpiration });
+    await expect(assertTenantEntitlement(tx, "org-a")).rejects.toMatchObject({ statusCode: 403, code: "SUBSCRIPTION_REQUIRED" });
+
+    const monthlyPayment = await billingService.recordPayment({ ...paymentInput, amount: "599.00", referenceNumber: "BANK-MONTHLY-RESTART", idempotencyKey: "monthly-restart-key" });
+    expect(monthlyPayment.status).toBe("PENDING");
+    await expect(assertTenantEntitlement(tx, "org-a")).rejects.toMatchObject({ statusCode: 403, code: "SUBSCRIPTION_REQUIRED" });
+
+    await billingService.reviewPayment(monthlyPayment.id, reviewInput);
+    expect(state.subscriptions[0]).toMatchObject({
+      status: "ACTIVE", billingInterval: "MONTHLY", price: "599.00", currentPeriodPaymentId: monthlyPayment.id,
+      startsAt: new Date("2026-10-16T04:00:00Z"), expiresAt: new Date("2026-11-16T04:00:00Z"),
+    });
+    await expect(assertTenantEntitlement(tx, "org-a")).resolves.toBeUndefined();
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 test("repeated and competing verification of the same payment cannot renew twice", async () => {
   const payment = await billingService.recordPayment(paymentInput);
   await Promise.all([billingService.reviewPayment(payment.id, reviewInput), billingService.reviewPayment(payment.id, reviewInput)]);
