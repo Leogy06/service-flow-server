@@ -157,14 +157,14 @@ test("verified payment converts a trial immediately and refund never grants anot
   await billingService.startTrial("sub-a", reason);
   const trialStartedAt = state.subscriptions[0].trialStartedAt;
   const trialExpiresAt = state.subscriptions[0].trialExpiresAt;
-  const wrongPayment = await billingService.recordPayment({ ...paymentInput, amount: "1.00" });
-  await expect(billingService.reviewPayment(wrongPayment.id, reviewInput)).rejects.toMatchObject({ statusCode: 409 });
+  await expect(billingService.recordPayment({ ...paymentInput, amount: "1.00" })).rejects.toMatchObject({ statusCode: 409 });
+  expect(state.payments).toHaveLength(0);
   expect(state.subscriptions[0].status).toBe("TRIALING");
   const paid = await billingService.recordPayment({ ...paymentInput, referenceNumber: "TRIAL-PAID", idempotencyKey: "trial-paid-key" });
   await billingService.reviewPayment(paid.id, reviewInput);
   const { billingPeriod } = await import("@/modules/system-admin/billing-policy.js");
-  expect(state.subscriptions[0]).toMatchObject({ status: "ACTIVE", startsAt: state.payments[1].verifiedAt, trialStartedAt, trialExpiresAt });
-  expect(state.subscriptions[0].expiresAt).toEqual(billingPeriod(state.payments[1].verifiedAt, null, "YEARLY").expiresAt);
+  expect(state.subscriptions[0]).toMatchObject({ status: "ACTIVE", startsAt: state.payments[0].verifiedAt, trialStartedAt, trialExpiresAt });
+  expect(state.subscriptions[0].expiresAt).toEqual(billingPeriod(state.payments[0].verifiedAt, null, "YEARLY").expiresAt);
   await billingService.refundPayment(paid.id, { ...reason, evidence: "confirmed-conversion-refund", idempotencyKey: "trial-refund-key" });
   expect(state.subscriptions[0]).toMatchObject({ status: "CANCELED", trialStartedAt, trialExpiresAt });
   await expect(billingService.startTrial("sub-a", reason)).rejects.toMatchObject({ statusCode: 409 });
@@ -258,10 +258,46 @@ test("repeated and competing verification of the same payment cannot renew twice
   expect(state.history).toHaveLength(1);
 });
 
-test.each(["2998.99", "2999.01"])("verification rejects nonexact annual amount %s", async (amount) => {
-  const payment = await billingService.recordPayment({ ...paymentInput, amount });
+test.each([
+  { interval: "MONTHLY", price: "299.00", amount: "298.99", currency: "PHP" },
+  { interval: "MONTHLY", price: "299.00", amount: "299.01", currency: "PHP" },
+  { interval: "MONTHLY", price: "299.00", amount: "299.00", currency: "USD" },
+  { interval: "YEARLY", price: "2999.00", amount: "2998.99", currency: "PHP" },
+  { interval: "YEARLY", price: "2999.00", amount: "2999.01", currency: "PHP" },
+  { interval: "YEARLY", price: "2999.00", amount: "2999.00", currency: "USD" },
+])("recording rejects $interval payment of $currency $amount against PHP $price without side effects", async ({ interval, price, amount, currency }) => {
+  state.plans[0].billingInterval = interval;
+  state.plans[0].price = price;
+  const before = structuredClone(state);
+  await expect(billingService.recordPayment({ ...paymentInput, amount, currency })).rejects.toMatchObject({ statusCode: 409 });
+  expect(state).toEqual(before);
+  expect(db.subscriptionPayment.create).not.toHaveBeenCalled();
+});
+
+test.each(["2998.99", "2999.01"])("verification still rejects legacy nonexact annual amount %s", async (amount) => {
+  const payment = await billingService.recordPayment(paymentInput);
+  // Pending receipts from before creation-time validation still require exact verification.
+  state.payments[0].amount = amount;
   await expect(billingService.reviewPayment(payment.id, reviewInput)).rejects.toMatchObject({ statusCode: 409 });
   expect(state.subscriptions[0].status).toBe("PENDING");
+  expect(state.payments[0].status).toBe("PENDING");
+});
+
+test("recording uses the newly selected plan price instead of the previous period price", async () => {
+  await billingService.changePlan("sub-a", { ...reason, planId: "plan-b" });
+  await expect(billingService.recordPayment(paymentInput)).rejects.toMatchObject({ statusCode: 409 });
+  expect(state.payments).toHaveLength(0);
+  const payment = await billingService.recordPayment({ ...paymentInput, amount: "5999" });
+  expect(payment).toMatchObject({ status: "PENDING", amount: "5999.00" });
+  expect(state.subscriptions[0]).toMatchObject({ status: "PENDING", price: "2999.00" });
+});
+
+test("recording retries remain idempotent after a plan price change but verification rechecks the price", async () => {
+  const payment = await billingService.recordPayment(paymentInput);
+  await billingService.changePlan("sub-a", { ...reason, planId: "plan-b" });
+  expect((await billingService.recordPayment(paymentInput)).id).toBe(payment.id);
+  expect(state.payments).toHaveLength(1);
+  await expect(billingService.reviewPayment(payment.id, reviewInput)).rejects.toMatchObject({ statusCode: 409 });
   expect(state.payments[0].status).toBe("PENDING");
 });
 

@@ -199,7 +199,7 @@ export const billingService = {
     return platformTransaction(async (db) => {
       await requirePlatformAuthority(db);
       await lockOrganization(db, organizationId);
-      await requireSubscription(db, input.subscriptionId);
+      const subscription = await requireSubscription(db, input.subscriptionId);
       const existing = await db.subscriptionPayment.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
       if (existing) {
         if (existing.subscriptionId !== input.subscriptionId || existing.currency !== input.currency || !new Prisma.Decimal(existing.amount).equals(input.amount) ||
@@ -208,6 +208,7 @@ export const billingService = {
         }
         return existing;
       }
+      assertExactPayment(input.amount, input.currency, subscription.plan.price, subscription.plan.currency);
       if (await db.subscriptionPayment.findUnique({ where: { referenceNumber: input.referenceNumber } })) throw new AppError(409, "Payment reference already exists");
       const payment = await db.subscriptionPayment.create({ data: { organizationId, subscriptionId: input.subscriptionId, amount: new Prisma.Decimal(input.amount), currency: input.currency,
         paymentMethod: input.paymentMethod, referenceNumber: input.referenceNumber, idempotencyKey: input.idempotencyKey, paidAt: input.paidAt, status: "PENDING" } });
