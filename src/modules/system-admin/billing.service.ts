@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma.js";
 import { requestContext } from "@/lib/requestContext.js";
 import { requirePlatformAuthority } from "@/modules/role/tenant-access-policy.js";
 import { AppError } from "@/utils/AppError.js";
-import { annualPeriod, assertExactAnnualPayment, assertManualSubscriptionTransition } from "./billing-policy.js";
+import { billingPeriod, assertExactPayment, assertManualSubscriptionTransition } from "./billing-policy.js";
 import { countActiveSeats } from "./entitlement.js";
 import { lockOrganization, platformTransaction, recordPlatformAudit } from "./platform-audit.js";
 import type { PlanListQuery, SubscriptionListQuery, PaymentListQuery, CreatePlanInput, UpdatePlanInput, AssignSubscriptionInput,
@@ -11,12 +11,12 @@ import type { PlanListQuery, SubscriptionListQuery, PaymentListQuery, CreatePlan
 
 const organizationSelect = { id: true, name: true, slug: true, status: true } satisfies Prisma.OrganizationSelect;
 const subscriptionInclude = { plan: true, organization: { select: organizationSelect }, history: { orderBy: { createdAt: "desc" }, take: 20 } } satisfies Prisma.SubscriptionInclude;
-const paymentInclude = { organization: { select: organizationSelect }, subscription: { select: { id: true, status: true, startsAt: true, expiresAt: true, annualPrice: true, currency: true, plan: true } }, refund: true } satisfies Prisma.SubscriptionPaymentInclude;
+const paymentInclude = { organization: { select: organizationSelect }, subscription: { select: { id: true, status: true, startsAt: true, expiresAt: true, price: true, billingInterval: true, currency: true, plan: true } }, refund: true } satisfies Prisma.SubscriptionPaymentInclude;
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 function snapshot(subscription: Subscription) {
   return { id: subscription.id, planId: subscription.planId, status: subscription.status,
     startsAt: subscription.startsAt?.toISOString() ?? null, expiresAt: subscription.expiresAt?.toISOString() ?? null,
-    annualPrice: subscription.annualPrice.toString(), currency: subscription.currency,
+    price: subscription.price.toString(), billingInterval: subscription.billingInterval, currency: subscription.currency,
     currentPeriodPaymentId: subscription.currentPeriodPaymentId, version: subscription.version };
 }
 function coverageRoot(after: Prisma.JsonValue | undefined): string | null {
@@ -56,7 +56,7 @@ async function checkPlanSeats(db: Prisma.TransactionClient, organizationId: stri
 export const billingService = {
   async listPlans(query: PlanListQuery) {
     await requirePlatformAuthority();
-    const where: Prisma.PlanWhereInput = { ...(query.status ? { isActive: query.status === "ACTIVE" } : {}),
+    const where: Prisma.PlanWhereInput = { billingInterval: query.billingInterval, ...(query.status ? { isActive: query.status === "ACTIVE" } : {}),
       ...(query.search ? { OR: [{ name: { contains: query.search } }, { description: { contains: query.search } }] } : {}) };
     return prisma.$transaction((db) => page(query, () => db.plan.count({ where }), (skip) => db.plan.findMany({ where, skip, take: query.pageSize,
       orderBy: [{ [query.sortBy]: query.sortOrder }, { id: "asc" }] })), { isolationLevel: "RepeatableRead" });
@@ -91,7 +91,7 @@ export const billingService = {
   createPlan(input: CreatePlanInput) {
     return platformTransaction(async (db) => {
       await requirePlatformAuthority(db);
-      const plan = await db.plan.create({ data: { name: input.name, description: input.description, annualPrice: new Prisma.Decimal(input.annualPrice), currency: input.currency,
+      const plan = await db.plan.create({ data: { name: input.name, description: input.description, price: new Prisma.Decimal(input.price), billingInterval: input.billingInterval, currency: input.currency,
         maxActiveUsers: input.maxActiveUsers, isActive: input.isActive } });
       await recordPlatformAudit(db, { action: "platform.plan.create", entity: "Plan", entityId: plan.id, after: json({ ...plan, reason: input.reason }) });
       return plan;
@@ -111,7 +111,7 @@ export const billingService = {
         }
       }
       const plan = await db.plan.update({ where: { id }, data: { name: input.name, description: input.description,
-        annualPrice: input.annualPrice === undefined ? undefined : new Prisma.Decimal(input.annualPrice), currency: input.currency,
+        price: input.price === undefined ? undefined : new Prisma.Decimal(input.price), billingInterval: input.billingInterval, currency: input.currency,
         maxActiveUsers: input.maxActiveUsers, isActive: input.isActive } });
       await recordPlatformAudit(db, { action: "platform.plan.update", entity: "Plan", entityId: id, before: json(before), after: json({ ...plan, reason: input.reason }) });
       return plan;
@@ -128,7 +128,7 @@ export const billingService = {
       const plan = await db.plan.findUnique({ where: { id: planId } });
       if (!plan?.isActive) throw new AppError(409, "Plan is unavailable for new assignment");
       await checkPlanSeats(db, input.organizationId, plan.maxActiveUsers);
-      const subscription = await db.subscription.create({ data: { organizationId: input.organizationId, planId: plan.id, status: "PENDING", annualPrice: plan.annualPrice, currency: plan.currency } });
+      const subscription = await db.subscription.create({ data: { organizationId: input.organizationId, planId: plan.id, status: "PENDING", price: plan.price, billingInterval: plan.billingInterval, currency: plan.currency } });
       await db.organization.update({ where: { id: input.organizationId }, data: { billingEnabled: true } });
       await history(db, subscription, "ASSIGNED", null, input.reason);
       await recordPlatformAudit(db, { action: "platform.subscription.assign", entity: "Subscription", entityId: subscription.id, organizationId: input.organizationId, after: { ...snapshot(subscription), reason: input.reason } });
@@ -200,18 +200,18 @@ export const billingService = {
       if (!["PENDING", "UNDER_REVIEW"].includes(before.status)) throw new AppError(409, "Payment is already finalized");
       const now = new Date();
       const subscription = await requireSubscription(db, before.subscriptionId);
-      let period: ReturnType<typeof annualPeriod> | undefined;
+      let period: ReturnType<typeof billingPeriod> | undefined;
       const continuous = ["ACTIVE", "PAST_DUE"].includes(subscription.status) && subscription.startsAt && subscription.startsAt <= now && subscription.expiresAt && subscription.expiresAt > now;
       if (input.decision === "PAID") {
-        assertExactAnnualPayment(before.amount, before.currency, subscription.plan.annualPrice, subscription.plan.currency);
+        assertExactPayment(before.amount, before.currency, subscription.plan.price, subscription.plan.currency);
         await checkPlanSeats(db, organizationId, subscription.plan.maxActiveUsers);
         if (["ACTIVE", "PAST_DUE"].includes(subscription.status) && subscription.startsAt && subscription.startsAt > now && subscription.expiresAt && subscription.expiresAt > now) {
           throw new AppError(409, "Resolve the refunded coverage gap before recording another renewal");
         }
-        period = annualPeriod(now, continuous ? subscription.expiresAt : null);
+        period = billingPeriod(now, continuous ? subscription.expiresAt : null, subscription.plan.billingInterval);
       }
       const payment = await db.subscriptionPayment.update({ where: { id }, data: { status: input.decision, evidence: input.evidence, verificationReason: input.reason,
-        verifiedBy: actor.id, verifiedAt: now, periodStartsAt: period?.startsAt, periodExpiresAt: period?.expiresAt } });
+        verifiedBy: actor.id, verifiedAt: now, billingInterval: input.decision === "PAID" ? subscription.plan.billingInterval : undefined, periodStartsAt: period?.startsAt, periodExpiresAt: period?.expiresAt } });
       if (period) {
         const previousHistory = continuous && subscription.currentPeriodPaymentId
           ? await db.subscriptionHistory.findUnique({ where: { paymentId: subscription.currentPeriodPaymentId } }) : null;
@@ -220,7 +220,7 @@ export const billingService = {
         const coverageRootPaymentId = continuous ? coverageRoot(previousHistory?.after) ?? subscription.currentPeriodPaymentId ?? id : id;
         const renewed = await db.subscription.update({ where: { id: subscription.id }, data: { status: "ACTIVE",
           startsAt: continuous ? subscription.startsAt : now,
-          expiresAt: period.expiresAt, annualPrice: subscription.plan.annualPrice, currency: subscription.plan.currency, currentPeriodPaymentId: id, version: { increment: 1 } } });
+          expiresAt: period.expiresAt, price: subscription.plan.price, billingInterval: subscription.plan.billingInterval, currency: subscription.plan.currency, currentPeriodPaymentId: id, version: { increment: 1 } } });
         await history(db, renewed, "RENEWED", snapshot(subscription), input.reason, id, coverageRootPaymentId);
       }
       await recordPlatformAudit(db, { action: input.decision === "PAID" ? "platform.payment.verify" : "platform.payment.review", entity: "SubscriptionPayment", entityId: id,
@@ -271,7 +271,7 @@ export const billingService = {
         }
         after = await db.subscription.update({ where: { id: before.id }, data: first && last ? {
           startsAt: first.periodStartsAt, expiresAt: last.periodExpiresAt, currentPeriodPaymentId: last.id,
-          annualPrice: last.amount, currency: last.currency, status: before.status === "CANCELED" ? "CANCELED" : before.status === "PAST_DUE" ? "PAST_DUE" : "ACTIVE", version: { increment: 1 },
+          price: last.amount, billingInterval: last.billingInterval, currency: last.currency, status: before.status === "CANCELED" ? "CANCELED" : before.status === "PAST_DUE" ? "PAST_DUE" : "ACTIVE", version: { increment: 1 },
         } : { status: "CANCELED", expiresAt: now, currentPeriodPaymentId: null, version: { increment: 1 } } });
       }
       await history(db, after, "REFUNDED", snapshot(before), input.reason);

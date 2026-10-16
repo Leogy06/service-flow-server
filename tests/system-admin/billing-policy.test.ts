@@ -1,25 +1,40 @@
-import { annualPeriod, assertManualSubscriptionTransition, assertExactAnnualPayment, entitlementIsCurrent } from "@/modules/system-admin/billing-policy.js";
+import { billingPeriod, assertManualSubscriptionTransition, assertExactPayment, entitlementIsCurrent } from "@/modules/system-admin/billing-policy.js";
 
 test("renewal starts at the later of now or the current expiration", () => {
   const now = new Date("2026-10-15T05:00:00.000Z");
-  expect(annualPeriod(now, new Date("2027-03-01T05:00:00.000Z"))).toEqual({
+  expect(billingPeriod(now, new Date("2027-03-01T05:00:00.000Z"))).toEqual({
     startsAt: new Date("2027-03-01T05:00:00.000Z"), expiresAt: new Date("2028-03-01T05:00:00.000Z"),
   });
-  expect(annualPeriod(now, new Date("2025-03-01T05:00:00.000Z"))).toEqual({
+  expect(billingPeriod(now, new Date("2025-03-01T05:00:00.000Z"))).toEqual({
     startsAt: now, expiresAt: new Date("2027-10-15T05:00:00.000Z"),
   });
 });
 
 test("a leap-day annual period ends on the final day of February", () => {
-  expect(annualPeriod(new Date("2028-02-29T09:30:00.000Z"), null).expiresAt)
+  expect(billingPeriod(new Date("2028-02-29T09:30:00.000Z"), null).expiresAt)
     .toEqual(new Date("2029-02-28T09:30:00.000Z"));
 });
 
+test.each([
+  ["2026-01-31T09:30:00.000Z", "2026-02-28T09:30:00.000Z"],
+  ["2028-01-31T09:30:00.000Z", "2028-02-29T09:30:00.000Z"],
+  ["2026-03-31T09:30:00.000Z", "2026-04-30T09:30:00.000Z"],
+  ["2026-12-15T09:30:00.000Z", "2027-01-15T09:30:00.000Z"],
+])("monthly coverage clamps month-end and preserves UTC time: %s", (start, end) => {
+  expect(billingPeriod(new Date(start), null, "MONTHLY").expiresAt).toEqual(new Date(end));
+});
+
+test("an early monthly renewal extends from paid expiration", () => {
+  const expiration = new Date("2026-12-31T09:30:00.000Z");
+  expect(billingPeriod(new Date("2026-12-01T09:30:00.000Z"), expiration, "MONTHLY"))
+    .toEqual({ startsAt: expiration, expiresAt: new Date("2027-01-31T09:30:00.000Z") });
+});
+
 test("payments require exact decimal amount and currency", () => {
-  expect(() => assertExactAnnualPayment("2999.00", "PHP", "2999", "PHP")).not.toThrow();
-  expect(() => assertExactAnnualPayment("2998.99", "PHP", "2999.00", "PHP")).toThrow();
-  expect(() => assertExactAnnualPayment("2999.01", "PHP", "2999.00", "PHP")).toThrow();
-  expect(() => assertExactAnnualPayment("2999.00", "USD", "2999.00", "PHP")).toThrow();
+  expect(() => assertExactPayment("2999.00", "PHP", "2999", "PHP")).not.toThrow();
+  expect(() => assertExactPayment("2998.99", "PHP", "2999.00", "PHP")).toThrow();
+  expect(() => assertExactPayment("2999.01", "PHP", "2999.00", "PHP")).toThrow();
+  expect(() => assertExactPayment("2999.00", "USD", "2999.00", "PHP")).toThrow();
 });
 
 test.each(["PENDING", "ACTIVE", "PAST_DUE", "EXPIRED", "CANCELED"])("manual activation of %s is rejected", (status) => {

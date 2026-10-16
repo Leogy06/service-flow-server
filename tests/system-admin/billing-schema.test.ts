@@ -1,15 +1,23 @@
 import { createPlanSchema, updatePlanSchema, recordPaymentSchema, reviewPaymentSchema, refundPaymentSchema, changeSubscriptionStatusSchema } from "@/modules/system-admin/billing.schema.js";
 const mutation = { reason: "Confirmed billing adjustment", confirm: true };
-const plan = { ...mutation, name: "Starter", annualPrice: "2999.00", currency: "PHP", maxActiveUsers: 3 };
+const plan = { ...mutation, name: "Starter", price: "2999.00", currency: "PHP", maxActiveUsers: 3 };
 const payment = { ...mutation, subscriptionId: "sub-a", amount: "2999.00", currency: "PHP", paymentMethod: "BANK_TRANSFER",
   referenceNumber: "BANK-VALID-REFERENCE", idempotencyKey: "payment-key-a", paidAt: new Date(Date.now() - 1000).toISOString() };
 
 test("partial plan edits never apply create defaults or reactivate retired plans", () => {
-  const result = updatePlanSchema.parse({ params: { id: "plan-a" }, body: { ...mutation, annualPrice: "3999.00" } });
-  expect(result.body).toEqual({ ...mutation, annualPrice: "3999.00" });
+  const result = updatePlanSchema.parse({ params: { id: "plan-a" }, body: { ...mutation, price: "3999.00" } });
+  expect(result.body).toEqual({ ...mutation, price: "3999.00" });
   expect(result.body).not.toHaveProperty("isActive");
   expect(result.body).not.toHaveProperty("currency");
+  expect(result.body).not.toHaveProperty("billingInterval");
   expect(updatePlanSchema.safeParse({ params: { id: "plan-a" }, body: mutation }).success).toBe(false);
+});
+
+test("plans accept monthly and yearly billing while rejecting unsupported intervals", () => {
+  expect(createPlanSchema.parse({ body: plan }).body.billingInterval).toBe("YEARLY");
+  expect(createPlanSchema.parse({ body: { ...plan, billingInterval: "MONTHLY", price: "299.00" } }).body.billingInterval).toBe("MONTHLY");
+  expect(createPlanSchema.safeParse({ body: { ...plan, billingInterval: "WEEKLY" } }).success).toBe(false);
+  expect(updatePlanSchema.parse({ params: { id: "plan-a" }, body: { ...mutation, billingInterval: "MONTHLY" } }).body.billingInterval).toBe("MONTHLY");
 });
 
 test.each(["2999.001", "1e3", "-1.00", "0", "10000000000.00", "NaN", 2999])("rejects unsafe monetary input %s", (amount) => {

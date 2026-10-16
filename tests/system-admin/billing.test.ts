@@ -82,9 +82,9 @@ const paymentInput = { ...reason, subscriptionId: "sub-a", amount: "2999.00", cu
 const reviewInput = { ...reason, decision: "PAID" as const, evidence: "bank-statement:2026-10-15:A" };
 beforeEach(() => {
   jest.clearAllMocks(); failAudit = false; queue = Promise.resolve();
-  state = { plans: [{ id: "plan-a", name: "Starter", annualPrice: "2999.00", currency: "PHP", maxActiveUsers: 3, isActive: true },
-    { id: "plan-b", name: "Growth", annualPrice: "5999.00", currency: "PHP", maxActiveUsers: 10, isActive: true }],
-    subscriptions: [{ id: "sub-a", organizationId: "org-a", planId: "plan-a", status: "PENDING", annualPrice: "2999.00", currency: "PHP",
+  state = { plans: [{ id: "plan-a", name: "Starter", price: "2999.00", billingInterval: "YEARLY", currency: "PHP", maxActiveUsers: 3, isActive: true },
+    { id: "plan-b", name: "Growth", price: "5999.00", billingInterval: "YEARLY", currency: "PHP", maxActiveUsers: 10, isActive: true }],
+    subscriptions: [{ id: "sub-a", organizationId: "org-a", planId: "plan-a", status: "PENDING", price: "2999.00", billingInterval: "YEARLY", currency: "PHP",
       startsAt: null, expiresAt: null, currentPeriodPaymentId: null, version: 0 }],
     organizations: [{ id: "org-a", billingEnabled: true, status: "ACTIVE" }],
     users: [{ id: "owner-a", organizationId: "org-a", status: "ACTIVE", platformRole: "NONE", securityStatus: "ACTIVE", deletedAt: null }],
@@ -96,11 +96,43 @@ test("verification activates one exact annual period with immutable history and 
   expect(payment.status).toBe("PENDING");
   const result = await billingService.reviewPayment(payment.id, reviewInput);
   expect(result.status).toBe("PAID");
-  expect(state.subscriptions[0]).toMatchObject({ status: "ACTIVE", currentPeriodPaymentId: payment.id, annualPrice: "2999.00" });
+  expect(state.subscriptions[0]).toMatchObject({ status: "ACTIVE", currentPeriodPaymentId: payment.id, price: "2999.00" });
   expect(state.history).toHaveLength(1);
   expect(state.history[0].before.status).toBe("PENDING");
   expect(state.history[0].after.status).toBe("ACTIVE");
   expect(state.audits.map((event) => event.action)).toContain("platform.payment.verify");
+});
+
+test("monthly verification snapshots its interval and repeated verification cannot renew twice", async () => {
+  state.plans[0].billingInterval = "MONTHLY";
+  state.plans[0].price = "299.00";
+  const payment = await billingService.recordPayment({ ...paymentInput, amount: "299.00" });
+  await billingService.reviewPayment(payment.id, reviewInput);
+  const firstExpiration = state.subscriptions[0].expiresAt;
+  const { billingPeriod } = await import("@/modules/system-admin/billing-policy.js");
+  expect(firstExpiration).toEqual(billingPeriod(state.payments[0].verifiedAt, null, "MONTHLY").expiresAt);
+  expect(state.subscriptions[0]).toMatchObject({ billingInterval: "MONTHLY", price: "299.00" });
+  expect(state.payments[0].billingInterval).toBe("MONTHLY");
+  await billingService.reviewPayment(payment.id, reviewInput);
+  expect(state.subscriptions[0].expiresAt).toEqual(firstExpiration);
+  expect(state.history).toHaveLength(1);
+});
+
+test("switching yearly to monthly preserves coverage until the next verified renewal", async () => {
+  const yearlyPayment = await billingService.recordPayment(paymentInput);
+  await billingService.reviewPayment(yearlyPayment.id, reviewInput);
+  const yearlyExpiration = state.subscriptions[0].expiresAt;
+  state.plans[1].billingInterval = "MONTHLY";
+  state.plans[1].price = "599.00";
+  await billingService.changePlan("sub-a", { ...reason, planId: "plan-b" });
+  expect(state.subscriptions[0]).toMatchObject({ billingInterval: "YEARLY", price: "2999.00", expiresAt: yearlyExpiration });
+  const monthlyPayment = await billingService.recordPayment({ ...paymentInput, amount: "599.00", referenceNumber: "BANK-MONTHLY", idempotencyKey: "monthly-renewal-key" });
+  await billingService.reviewPayment(monthlyPayment.id, reviewInput);
+  const { billingPeriod } = await import("@/modules/system-admin/billing-policy.js");
+  expect(state.subscriptions[0].expiresAt).toEqual(billingPeriod(state.payments[1].verifiedAt, yearlyExpiration, "MONTHLY").expiresAt);
+  expect(state.subscriptions[0].billingInterval).toBe("MONTHLY");
+  await billingService.refundPayment(monthlyPayment.id, { ...reason, evidence: "confirmed-refund-monthly", idempotencyKey: "refund-monthly-key" });
+  expect(state.subscriptions[0]).toMatchObject({ billingInterval: "YEARLY", price: "2999.00", expiresAt: yearlyExpiration });
 });
 
 test("repeated and competing verification of the same payment cannot renew twice", async () => {
@@ -152,11 +184,11 @@ test("plan changes preserve current period price and use the new price only on r
   const first = await billingService.recordPayment(paymentInput);
   await billingService.reviewPayment(first.id, reviewInput);
   await billingService.changePlan("sub-a", { ...reason, planId: "plan-b" });
-  expect(state.subscriptions[0].annualPrice).toBe("2999.00");
+  expect(state.subscriptions[0].price).toBe("2999.00");
   expect(state.payments[0].amount).toBe("2999.00");
   const second = await billingService.recordPayment({ ...paymentInput, amount: "5999.00", referenceNumber: "BANK-2026-B", idempotencyKey: "payment-key-b" });
   await billingService.reviewPayment(second.id, reviewInput);
-  expect(state.subscriptions[0].annualPrice).toBe("5999.00");
+  expect(state.subscriptions[0].price).toBe("5999.00");
   expect(state.payments[0].amount).toBe("2999.00");
 });
 

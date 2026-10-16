@@ -38,7 +38,7 @@ test("MySQL constraints, verification locks, seat limits and immutable platform 
       { id: `platform-it-owner-${tag}`, email: `owner-${tag}@example.invalid`, firstName: "Owner", lastName: "Fixture", roleId, organizationId: orgId, status: "ACTIVE" },
     ] });
     await requestContext.run({ requestId: `platform-it-${tag}`, userId: actorId }, async () => {
-      const plan = await billingService.createPlan({ ...reason, name: `Platform fixture ${tag}`, annualPrice: "2999.00", currency: "PHP", maxActiveUsers: 2, isActive: true });
+      const plan = await billingService.createPlan({ ...reason, name: `Platform fixture ${tag}`, billingInterval: "YEARLY", price: "2999.00", currency: "PHP", maxActiveUsers: 2, isActive: true });
       const subscription = await billingService.assignSubscription({ ...reason, organizationId: orgId, planId: plan.id });
       const payment = await billingService.recordPayment({ ...reason, subscriptionId: subscription.id,
         amount: "2999.00", currency: "PHP", paymentMethod: "BANK_TRANSFER", paidAt: new Date(),
@@ -78,6 +78,23 @@ test("MySQL constraints, verification locks, seat limits and immutable platform 
       const refunded = await prisma.subscriptionRefund.aggregate({ where: { payment: { organizationId: orgId } }, _sum: { amount: true } });
       assert.equal(gross._sum.amount.toFixed(2), "2999.00");
       assert.equal(refunded._sum.amount.toFixed(2), "2999.00");
+
+      const monthlyPlan = await billingService.createPlan({ ...reason, name: `Monthly fixture ${tag}`, billingInterval: "MONTHLY", price: "299.00", currency: "PHP", maxActiveUsers: 2, isActive: true });
+      await billingService.changePlan(subscription.id, { ...reason, planId: monthlyPlan.id });
+      const monthlyPayment = await billingService.recordPayment({ ...reason, subscriptionId: subscription.id,
+        amount: "299.00", currency: "PHP", paymentMethod: "BANK_TRANSFER", paidAt: new Date(),
+        referenceNumber: `monthly-reference-${tag}`, idempotencyKey: `monthly-payment-${tag}` });
+      await Promise.all([billingService.reviewPayment(monthlyPayment.id, review), billingService.reviewPayment(monthlyPayment.id, review)]);
+      const monthlySubscription = await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } });
+      const verifiedMonthly = await prisma.subscriptionPayment.findUniqueOrThrow({ where: { id: monthlyPayment.id } });
+      const { billingPeriod } = await import("../../src/modules/system-admin/billing-policy.ts");
+      assert.equal(monthlySubscription.billingInterval, "MONTHLY");
+      assert.equal(monthlySubscription.price.toFixed(2), "299.00");
+      assert.equal(verifiedMonthly.billingInterval, "MONTHLY");
+      assert.deepEqual(monthlySubscription.expiresAt, billingPeriod(verifiedMonthly.verifiedAt, null, "MONTHLY").expiresAt);
+      assert.equal(await prisma.subscriptionHistory.count({ where: { paymentId: monthlyPayment.id } }), 1);
+      await billingService.refundPayment(monthlyPayment.id, { ...refundInput, idempotencyKey: `monthly-refund-${tag}` });
+      assert.equal((await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } })).status, "CANCELED");
 
       const audit = await prisma.auditLog.findFirstOrThrow({ where: { scope: "PLATFORM", organizationId: orgId } });
       await assert.rejects(() => prisma.auditLog.update({ where: { id: audit.id }, data: { action: "invalid.edit" } }));

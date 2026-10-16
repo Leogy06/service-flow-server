@@ -30,7 +30,7 @@ test("real operations records, dashboard/refund reporting, alerts deduplication,
     const tenant = await prisma.user.create({ data: { email: `tenant-${tag}@example.invalid`, firstName: "Tenant", lastName: "Fixture", roleId: tenantRole.id, organizationId: org.id, status: "ACTIVE" } });
     await requestContext.run({ requestId: `operations-${tag}`, userId: actor.id }, async () => {
       const before = await operationsService.dashboard({});
-      const plan = await billingService.createPlan({ name: `Operations plan ${tag}`, annualPrice: "123.45", currency: "PHP", maxActiveUsers: 3, isActive: true, confirm: true, reason: "Isolated operations test" });
+      const plan = await billingService.createPlan({ name: `Operations plan ${tag}`, billingInterval: "YEARLY", price: "123.45", currency: "PHP", maxActiveUsers: 3, isActive: true, confirm: true, reason: "Isolated operations test" });
       const sub = await billingService.assignSubscription({ organizationId: org.id, planId: plan.id, confirm: true, reason: "Isolated operations test" });
       const p = await billingService.recordPayment({ subscriptionId: sub.id, amount: "123.45", currency: "PHP", paymentMethod: "BANK_TRANSFER", referenceNumber: `ops-ref-${tag}`, idempotencyKey: `ops-pay-${tag}`, paidAt: new Date(), confirm: true, reason: "Isolated operations test" });
       await billingService.reviewPayment(p.id, { decision: "PAID", evidence: "isolated-trusted-evidence", confirm: true, reason: "Isolated verification test" });

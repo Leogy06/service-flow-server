@@ -17,7 +17,7 @@ export async function assertTenantEntitlement(db: Prisma.TransactionClient, orga
   const settings = subscription?.status === "PAST_DUE"
     ? await db.platformSettings.findUnique({ where: { id: "singleton" }, select: { gracePeriodDays: true } }) : null;
   if (!entitlementIsCurrent(subscription, settings?.gracePeriodDays ?? 0)) {
-    throw new AppError(403, "An active annual subscription is required", "SUBSCRIPTION_REQUIRED");
+    throw new AppError(403, "An active subscription is required", "SUBSCRIPTION_REQUIRED");
   }
 }
 

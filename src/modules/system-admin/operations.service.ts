@@ -167,13 +167,13 @@ export async function processPlatformAlerts(cursor?: string, now = new Date()) {
         const expired = +s.expiresAt + grace <= +now;
         if (expired && s.status !== "EXPIRED") {
           await db.subscription.update({ where: { id: s.id }, data: { status: "EXPIRED", version: { increment: 1 } } });
-          await db.subscriptionHistory.create({ data: { subscriptionId: s.id, kind: "EXPIRED", reason: "Annual entitlement expired", before: { status: s.status }, after: { status: "EXPIRED" } } });
+          await db.subscriptionHistory.create({ data: { subscriptionId: s.id, kind: "EXPIRED", reason: "Subscription entitlement expired", before: { status: s.status }, after: { status: "EXPIRED" } } });
           await recordPlatformAudit(db, { action: "platform.subscription.expire", entity: "Subscription", entityId: s.id, organizationId: s.organizationId, before: { status: s.status }, after: { status: "EXPIRED" } });
         }
         for (const days of expired ? [0] : intervals.filter((n) => +s.expiresAt! - +now <= n * 86400000)) {
           const key = `subscription:${s.id}:${s.expiresAt.toISOString()}:${days}`; keys.push(key);
           await emitAlert(db, { key, organizationId: s.organizationId, kind: expired ? "SUBSCRIPTION_EXPIRED" : "SUBSCRIPTION_EXPIRING", severity: expired || days <= 7 ? "critical" : "warning",
-            message: expired ? "Annual subscription has expired." : `Annual subscription expires within ${days} days.`, targetType: "Subscription", targetId: s.id });
+            message: expired ? "Subscription has expired." : `Subscription expires within ${days} days.`, targetType: "Subscription", targetId: s.id });
         }
       }
       await db.platformAlert.updateMany({ where: { targetType: "Subscription", targetId: s.id, resolvedAt: null, ...(keys.length ? { deduplicationKey: { notIn: keys } } : {}) }, data: { resolvedAt: now } });

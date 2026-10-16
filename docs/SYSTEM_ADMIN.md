@@ -7,7 +7,7 @@ Implemented across `src/modules/system-admin`, authentication/authorization, use
 1. Back up the target database and review `prisma/migrations/20261015090000_platform_administration/migration.sql`. Deploy backend and frontend together; older backends do not enforce the new security fields. Maintenance during rollout is recommended.
 2. Run `npm run prisma:generate`, `npm run build`, then `npx prisma migrate deploy` against the intended target environment. MySQL DDL is not transactional; use the normal migration recovery procedure if deployment fails. The migration adds fields/tables/indexes and immutable platform-audit triggers. It does not delete data, promote identities, enroll existing tenants or seed prices. Provisioning and scheduler CLIs run compiled JavaScript and do not require development-only tsx in the deployed runtime.
 3. Provision a separate platform identity with operator-supplied `SYSTEM_ADMIN_EMAIL`, `SYSTEM_ADMIN_PASSWORD` (14–72 bytes) and `SYSTEM_ADMIN_REASON`, then run `npm run bootstrap:system-admin`. Supply these through the shell or secret manager, never source control. Existing emails are refused. Normal seeds and tenant APIs cannot grant platform authority. Remove the bootstrap password from the process environment afterward.
-4. Sign in at `/login`. An authorized organization-less administrator is routed to `/system-admin/dashboard`. Create the approved annual plans through `/system-admin/plans`. Proposed Starter PHP 2,999/3 users, Growth PHP 5,999/10 users, Business PHP 9,999/25 users are configurable proposals; no billing records or revenue are seeded.
+4. Sign in at `/login`. An authorized organization-less administrator is routed to `/system-admin/dashboard`. Create monthly or yearly plans through `/system-admin/plans`. Proposed Starter PHP 2,999/3 users, Growth PHP 5,999/10 users, Business PHP 9,999/25 users are configurable proposals; no billing records or revenue are seeded.
 5. Schedule `npm run alerts:process` at least daily using the deployment scheduler. Multiple workers can safely repeat the scan. Each bounded batch uses stable alert keys, organization locks and serializable transactions; the CLI follows cursors until complete (maximum 1,000 batches). It expires subscriptions and reconciles resolved conditions. The dashboard button runs the same processing with an audited operator reason.
 
 Keep database sessions in UTC. UI date filters/report windows and trend day buckets use Asia/Manila. Configure HTTPS, secure cookies, trusted CORS origin, Redis and appropriately scoped database credentials through the existing environment configuration. Audit triggers reject platform-row updates/deletions; deployment database roles should additionally deny audit UPDATE/DELETE and schema modification to runtime credentials. There are no audit mutation endpoints.
@@ -33,11 +33,11 @@ Tenant user deletion/restoration also increment session versions and revoke refr
 | Legacy access | Existing organizations default to billingEnabled=false. Assigning an initial subscription atomically enables billing; PENDING then denies business API access until verified payment. Enroll deliberately. |
 | Entitlement | ACTIVE requires startsAt≤now<expiresAt. PAST_DUE permits only the configured 0–30-day grace after expiry. PENDING, EXPIRED and CANCELED deny access. Every tenant protected endpoint/login/refresh uses this check. |
 | Subscription | Exactly one authoritative subscription per organization (unique key). PENDING → ACTIVE only through payment verification. Manual transitions: ACTIVE → PAST_DUE; PENDING/ACTIVE/PAST_DUE/EXPIRED → CANCELED. Scheduled expiry and verified renewal are audited with history. No arbitrary date extension or manual paid-status bypass. |
-| Renewal | One calendar year, with February 29 clamped to February 28. Started, continuously paid ACTIVE/PAST_DUE coverage extends from max(now,expiry). CANCELED/EXPIRED renew fresh from now. Repeated verification of the same payment does not extend again. |
-| Plan changes | Immediate seat ceiling; reject below active occupancy. Current paid price snapshot is preserved; current plan price/currency applies to the next confirmed renewal. Retired plans remain historically linked and renewable but cannot be newly assigned. Large seat reductions affecting >1,000 tenants require a replacement-plan rollout. |
+| Renewal | One calendar month or year according to the selected plan. Month-end and leap-day renewals clamp to the last day of the target month. Started, continuously paid ACTIVE/PAST_DUE coverage extends from max(now,expiry). CANCELED/EXPIRED renew fresh from now. Repeated verification of the same payment does not extend again. |
+| Plan changes | Immediate seat ceiling; reject below active occupancy. Current paid price snapshot is preserved; current plan price/currency/billing interval applies to the next confirmed renewal. Retired plans remain historically linked and renewable but cannot be newly assigned. Large seat reductions affecting >1,000 tenants require a replacement-plan rollout. |
 | Seats | Count every undeleted ACTIVE team identity, including owners and blocked accounts. Customers and PENDING invitations do not count. Direct creation, invitation acceptance and restoration check seats under the same organization lock. No account deletion on downgrade. |
-| Payments | PENDING → UNDER_REVIEW/PAID/REJECTED; UNDER_REVIEW → PAID/REJECTED; PAID → REFUNDED. No changes after rejection/refund. Exact current annual amount/currency, explicit trusted evidence, reason and confirmation are required for PAID. Unique reference and idempotency keys prevent replay. Changed request bodies cannot reuse keys. |
-| Financial adjustments | Preserve paid records. Correct a finalized financial entry through an explicitly verified full refund and a new payment record, rather than editing the original amount. Partial refunds, proration and arbitrary cash credits are outside this annual-only policy. |
+| Payments | PENDING → UNDER_REVIEW/PAID/REJECTED; UNDER_REVIEW → PAID/REJECTED; PAID → REFUNDED. No changes after rejection/refund. Exact selected plan amount/currency, explicit trusted evidence, reason and confirmation are required for PAID. Unique reference and idempotency keys prevent replay. Changed request bodies cannot reuse keys. |
+| Financial adjustments | Preserve paid records. Correct a finalized financial entry through an explicitly verified full refund and a new payment record, rather than editing the original amount. Partial refunds, proration and arbitrary cash credits are outside this manual billing policy. |
 | Refunds | Full verified payment only, unique payment/refund key, confirmed evidence and reason. Gross receipts stay in reporting; refund events subtract on refund date. Rebuild only the remaining contiguous paid coverage chain. Historical ended-period refunds do not change present entitlement. Refunding the current period can leave future-only coverage; access is denied until that period begins and further renewals are rejected while the gap exists. Resolve such cases by separately verified refunds of remaining future periods before a fresh payment. Canceled paid periods cannot be regranted by refund recomputation. |
 
 There is no payment gateway integration and no stored card credentials. CARD is only a manual payment-method label. Manual status/plan adjustments and financial corrections retain before/after history; operators must verify evidence outside this application before approving.
@@ -98,3 +98,29 @@ Later integrations: MFA, gateway credentials and provider webhooks, email delive
 - Frontend: production build, TypeScript, full ESLint and whitespace checks passed; 22 Node tests and three sequential browser suites passed (platform foundation, platform operations, existing tenant users).
 - Real MySQL: three isolated canaries passed for migration/constraints, concurrent payment/refund and seat limits, immutable audit, real dashboard/refund reports, CSV injection, expiration/alert deduplication, platform HTTP authorization, actual error alerts and compiled bootstrap/scheduler commands.
 - Browser tests use mock APIs; real database tests use only `service_flow_platform_test_20261015`. Both are needed and verify different boundaries. Screenshots were inspected at `../../artifacts/system-admin/`.
+
+## Monthly and yearly plan catalog (16 October 2026)
+
+Deploy `20261016090000_subscription_billing_intervals`, regenerate Prisma and deploy
+backend/frontend together. Existing plans, subscriptions and payment intervals default
+to YEARLY. The API now uses `price` (per billing period) and `billingInterval`
+(`MONTHLY` or `YEARLY`), including price sorting. Prisma maps price to the existing
+SQL annualPrice column to preserve records. Historical audit JSON remains unchanged.
+
+Run `npm run seed:plans` for the development catalog. It creates only missing plans
+by unique name, records each creation in the platform audit and never overwrites
+operator edits, enrolls tenants, creates payments or changes a default plan.
+
+| Tier | Active users | Monthly (PHP) | Yearly (PHP) |
+| --- | ---: | ---: | ---: |
+| Starter | 3 | 299 | 2,999 |
+| Growth | 10 | 599 | 5,999 |
+| Business | 25 | 999 | 9,999 |
+
+Each tier has separate Monthly and Yearly plan records. Changing a plan or its
+interval preserves paid coverage; its current price and interval apply to the next
+verified payment. Payments snapshot the interval for refund recomputation. Monthly
+renewals clamp month-end dates (January 31 -> February 28/29); later renewals start
+from that expiration date. This does not add a payment gateway or automatic charges.
+The earlier PDF guide describes the annual-only version; use this section for the
+new billing interval behavior.

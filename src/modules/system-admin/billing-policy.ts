@@ -1,18 +1,23 @@
 import { Prisma } from "@/generated/prisma/client.js";
 import { AppError } from "@/utils/AppError.js";
 
-export function annualPeriod(now: Date, previousExpiration: Date | null) {
+export function billingPeriod(now: Date, previousExpiration: Date | null, interval: "MONTHLY" | "YEARLY" = "YEARLY") {
   const startsAt = new Date(Math.max(now.getTime(), previousExpiration?.getTime() ?? 0));
   const expiresAt = new Date(startsAt);
-  const month = startsAt.getUTCMonth();
-  expiresAt.setUTCFullYear(expiresAt.getUTCFullYear() + 1);
-  if (expiresAt.getUTCMonth() !== month) expiresAt.setUTCDate(0);
+  // Move from day one to avoid overflowing Jan 31 into March. Clamp to the
+  // final day of the target month, preserving the UTC time of day.
+  const day = startsAt.getUTCDate();
+  expiresAt.setUTCDate(1);
+  if (interval === "MONTHLY") expiresAt.setUTCMonth(expiresAt.getUTCMonth() + 1);
+  else expiresAt.setUTCFullYear(expiresAt.getUTCFullYear() + 1);
+  const lastDay = new Date(Date.UTC(expiresAt.getUTCFullYear(), expiresAt.getUTCMonth() + 1, 0)).getUTCDate();
+  expiresAt.setUTCDate(Math.min(day, lastDay));
   return { startsAt, expiresAt };
 }
 
-export function assertExactAnnualPayment(amount: Prisma.Decimal | string, currency: string, expectedAmount: Prisma.Decimal | string, expectedCurrency: string) {
+export function assertExactPayment(amount: Prisma.Decimal | string, currency: string, expectedAmount: Prisma.Decimal | string, expectedCurrency: string) {
   if (currency !== expectedCurrency || !new Prisma.Decimal(amount).equals(expectedAmount)) {
-    throw new AppError(409, "Payment must exactly match the annual renewal amount and currency");
+    throw new AppError(409, "Payment must exactly match the selected plan renewal amount and currency");
   }
 }
 

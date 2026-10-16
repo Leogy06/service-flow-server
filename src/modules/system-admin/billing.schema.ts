@@ -5,10 +5,10 @@ const mutation = { reason, confirm: z.literal(true) };
 const money = z.string().trim().regex(/^(?:0|[1-9]\d{0,9})(?:\.\d{1,2})?$/, "Use a positive decimal amount with at most two decimal places").refine((value) => Number(value) > 0);
 const currency = z.string().regex(/^[A-Z]{3}$/, "Use an uppercase three-letter currency code");
 const planFields = { name: z.string().trim().min(2).max(100), description: z.string().trim().max(1000).nullable().optional(),
-  annualPrice: money, currency: currency.default("PHP"), maxActiveUsers: z.number().int().min(1).max(100000), isActive: z.boolean().default(true) };
+  price: money, billingInterval: z.enum(["MONTHLY", "YEARLY"]).default("YEARLY"), currency: currency.default("PHP"), maxActiveUsers: z.number().int().min(1).max(100000), isActive: z.boolean().default(true) };
 const paging = { page: z.coerce.number().int().min(1).max(100000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().max(100).optional(), sortOrder: z.enum(["asc", "desc"]).default("desc") };
-export const planListSchema = z.object({ query: z.object({ ...paging, status: z.enum(["ACTIVE", "RETIRED"]).optional(), sortBy: z.enum(["createdAt", "name", "annualPrice", "maxActiveUsers"]).default("createdAt") }).strict() });
+export const planListSchema = z.object({ query: z.object({ ...paging, status: z.enum(["ACTIVE", "RETIRED"]).optional(), billingInterval: z.enum(["MONTHLY", "YEARLY"]).optional(), sortBy: z.enum(["createdAt", "name", "price", "maxActiveUsers"]).default("createdAt") }).strict() });
 export const subscriptionListSchema = z.object({ query: z.object({ ...paging, organizationId: id.optional(), planId: id.optional(),
   status: z.enum(["PENDING", "ACTIVE", "PAST_DUE", "EXPIRED", "CANCELED"]).optional(), sortBy: z.enum(["createdAt", "expiresAt", "status"]).default("createdAt") }).strict() });
 export const paymentListSchema = z.object({ query: z.object({ ...paging, organizationId: id.optional(), subscriptionId: id.optional(),
@@ -16,7 +16,7 @@ export const paymentListSchema = z.object({ query: z.object({ ...paging, organiz
 export const billingDetailSchema = z.object({ params: z.object({ id }).strict() });
 export const createPlanSchema = z.object({ body: z.object({ ...planFields, ...mutation }).strict() });
 export const updatePlanSchema = z.object({ params: z.object({ id }), body: z.object({ name: planFields.name.optional(), description: planFields.description,
-  annualPrice: money.optional(), currency: currency.optional(), maxActiveUsers: planFields.maxActiveUsers.optional(), isActive: z.boolean().optional(), ...mutation }).strict()
+  price: money.optional(), billingInterval: planFields.billingInterval.removeDefault().optional(), currency: currency.optional(), maxActiveUsers: planFields.maxActiveUsers.optional(), isActive: z.boolean().optional(), ...mutation }).strict()
   .refine((input) => Object.keys(input).some((key) => !["reason", "confirm"].includes(key)), "Provide at least one plan field") });
 export const assignSubscriptionSchema = z.object({ body: z.object({ organizationId: id, planId: id.optional(), ...mutation }).strict() });
 export const changePlanSchema = z.object({ params: z.object({ id }), body: z.object({ planId: id, ...mutation }).strict() });
