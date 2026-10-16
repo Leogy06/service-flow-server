@@ -10,11 +10,13 @@ let organizations: Row[];
 let tokens: Row[];
 let audits: Row[];
 let permissions: Row[];
+let platformSettings: Row | null;
 let failAudit = false;
 const password = "Original123!";
 const passwordHash = await bcrypt.hash(password, 4);
 const grant = { permission: { id: "system", name: "system_admin:update", organizationId: null } };
 function reset() {
+  platformSettings = null;
   organizations = ["a", "b"].map((key) => ({ id: "org-" + key, name: "Tenant " + key, slug: key, status: "ACTIVE", billingEnabled: false, createdAt: new Date(), updatedAt: new Date(), statusReason: null, statusChangedAt: null, statusChangedBy: null, _count: { users: 1, customers: 0, serviceRequests: 0 } }));
   users = [
     { id: "platform", organizationId: null, platformRole: "SYSTEM_ADMIN", roleName: "Ordinary global role" },
@@ -90,8 +92,8 @@ const db: any = {
     count: jest.fn(async ({ where }: Row) => audits.filter((a) => matches(a, where)).length),
     findMany: jest.fn(async ({ where, select: fields, skip = 0, take }: Row) => audits.filter((a) => matches(a, where)).slice(skip, skip + take).map((a) => select(a, fields))),
   },
-  subscription: { findUnique: jest.fn(async () => null) },
-  platformSettings: { findUnique: jest.fn(async () => null) },
+  subscription: { findUnique: jest.fn(async ({ where }: Row) => organizations.find((org) => org.id === where.organizationId)?.subscription ?? null) },
+  platformSettings: { findUnique: jest.fn(async () => platformSettings) },
   $queryRaw: jest.fn(async (_strings: TemplateStringsArray, id: string) => organizations.filter((o) => o.id === id).map((o) => ({ id: o.id }))),
   $transaction: jest.fn(async (work: (tx: any) => Promise<unknown>) => {
     const saved = structuredClone({ users, organizations, tokens, audits, permissions });
@@ -219,6 +221,81 @@ test("billing enabled tenants without a current subscription cannot authenticate
   expect((await request("/probe", "GET", undefined, "admin-a")).status).toBe(403);
   expect((await request("/auth/login", "POST", { email: users[1].email, password }, null)).status).toBe(403);
   expect((await request("/auth/refresh", "POST", {}, null, "refreshToken=refresh-a")).status).toBe(403);
+});
+
+function assignSummarySubscription(status = "ACTIVE") {
+  organizations[0].billingEnabled = true;
+  organizations[0].subscription = {
+    status, startsAt: new Date(Date.now() - 86_400_000), expiresAt: new Date(Date.now() + 86_400_000),
+    trialStartedAt: null, trialExpiresAt: null, price: 299, currency: "PHP", billingInterval: "MONTHLY",
+    plan: { name: "Starter Monthly", maxActiveUsers: 3, internalField: "private-plan-data" },
+    currentPeriodPaymentId: "private-payment", history: [{ reason: "private-platform-note" }],
+  };
+  return organizations[0].subscription;
+}
+
+test("subscription summary scopes tenant and seat reads to the authenticated admin, ignoring forged JWT tenant claims", async () => {
+  assignSummarySubscription();
+  const result = await request("/organization/subscription", "GET", undefined, "admin-a");
+  expect(result.status).toBe(200);
+  expect(result.body.data).toMatchObject({ organizationName: "Tenant a", billingEnabled: true, accessAllowed: true, activeUsers: 1,
+    subscription: { status: "ACTIVE", effectiveStatus: "ACTIVE", price: "299.00", billingInterval: "MONTHLY", plan: { name: "Starter Monthly", maxActiveUsers: 3 } } });
+  expect(db.user.count).toHaveBeenCalledWith({ where: { organizationId: "org-a", status: "ACTIVE", deletedAt: null, platformRole: "NONE" } });
+  for (const secret of ["private-payment", "private-platform-note", "private-plan-data", "Tenant b"]) expect(JSON.stringify(result.body)).not.toContain(secret);
+  users[2].role.name = "Tenant Admin";
+  const otherTenant = await request("/organization/subscription", "GET", undefined, "staff-b");
+  expect(otherTenant.status).toBe(200);
+  expect(otherTenant.body.data).toMatchObject({ organizationName: "Tenant b", subscription: null, accessAllowed: true });
+  expect(JSON.stringify(otherTenant.body)).not.toContain("Starter Monthly");
+});
+
+test("subscription summary denies staff, platform identities, unauthenticated users and revoked sessions", async () => {
+  for (const [token, status] of [["staff-b", 403], ["platform", 403], [null, 401], ["admin-a#1", 401]] as const) {
+    expect((await request("/organization/subscription", "GET", undefined, token)).status).toBe(status);
+  }
+  expect(db.user.count).not.toHaveBeenCalled();
+});
+
+test.each(["organizationId=org-b", "subscriptionId=foreign", "status=ACTIVE"])("subscription summary rejects client selectors: %s", async (query) => {
+  expect((await request("/organization/subscription?" + query, "GET", undefined, "admin-a")).status).toBe(400);
+  expect(db.user.count).not.toHaveBeenCalled();
+});
+
+test("legacy organization summary distinguishes missing subscription from missing tenant", async () => {
+  const result = await request("/organization/subscription", "GET", undefined, "admin-a");
+  expect(result.status).toBe(200);
+  expect(result.body.data).toMatchObject({ billingEnabled: false, subscription: null, accessAllowed: true, graceEndsAt: null });
+});
+
+test("trial summaries expose trial dates and expiry still denies protected access", async () => {
+  const subscription = assignSummarySubscription("TRIALING");
+  subscription.trialStartedAt = subscription.startsAt;
+  subscription.trialExpiresAt = subscription.expiresAt;
+  const result = await request("/organization/subscription", "GET", undefined, "admin-a");
+  expect(result.status).toBe(200);
+  expect(result.body.data.subscription).toMatchObject({ effectiveStatus: "TRIALING", trialExpiresAt: subscription.trialExpiresAt.toISOString() });
+  subscription.trialExpiresAt = subscription.expiresAt = new Date(Date.now() - 1000);
+  expect((await request("/organization/subscription", "GET", undefined, "admin-a")).status).toBe(403);
+});
+
+test("past-due summary reports server-configured grace and denies access when grace ends", async () => {
+  const subscription = assignSummarySubscription("PAST_DUE");
+  subscription.expiresAt = new Date(Date.now() - 1000);
+  platformSettings = { gracePeriodDays: 2 };
+  const result = await request("/organization/subscription", "GET", undefined, "admin-a");
+  expect(result.status).toBe(200);
+  expect(result.body.data).toMatchObject({ accessAllowed: true, graceEndsAt: new Date(+subscription.expiresAt + 2 * 86_400_000).toISOString(), subscription: { effectiveStatus: "PAST_DUE" } });
+  platformSettings.gracePeriodDays = 0;
+  expect((await request("/organization/subscription", "GET", undefined, "admin-a")).status).toBe(403);
+});
+
+test("subscription summary does not display stale active status for expired legacy coverage", async () => {
+  const subscription = assignSummarySubscription();
+  organizations[0].billingEnabled = false;
+  subscription.expiresAt = new Date(Date.now() - 1000);
+  const result = await request("/organization/subscription", "GET", undefined, "admin-a");
+  expect(result.status).toBe(200);
+  expect(result.body.data).toMatchObject({ accessAllowed: true, subscription: { status: "ACTIVE", effectiveStatus: "EXPIRED" } });
 });
 test("logout revokes the presented refresh session and immediately invalidates existing access JWTs with an attributed audit", async () => {
   expect((await request("/auth/logout", "POST", {}, null, "refreshToken=refresh-a")).status).toBe(200);

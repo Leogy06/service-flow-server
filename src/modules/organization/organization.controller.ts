@@ -4,6 +4,15 @@ import { NextFunction, Request, Response } from "express";
 import type { OrganizationInput } from "./organization.schema.js";
 
 export const organizationController = {
+  async subscription(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const summary = await organizationService.subscription();
+      sendResponse(res, 200, "Subscription fetched successfully", summary);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async list(_req: Request, res: Response, next: NextFunction) {
     try {
       const organizations = await organizationService.list();

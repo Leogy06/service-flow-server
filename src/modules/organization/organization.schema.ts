@@ -16,3 +16,6 @@ export const organizationSchema = z.object({
 });
 
 export type OrganizationInput = z.infer<typeof organizationSchema>["body"];
+
+// This endpoint always uses the authenticated tenant; selectors are not accepted.
+export const subscriptionSummarySchema = z.object({ query: z.object({}).strict() });

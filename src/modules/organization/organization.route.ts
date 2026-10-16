@@ -1,13 +1,14 @@
 import { Router } from "express";
 import { organizationController } from "./organization.controller.js";
 import { validate } from "@/middleware/validate.js";
-import { organizationSchema } from "./organization.schema.js";
+import { organizationSchema, subscriptionSummarySchema } from "./organization.schema.js";
 import { writeLimmiter } from "@/middleware/rateLimiter.js";
 import { authenticate } from "@/middleware/auth.js";
 import { requireSystemAdmin } from "@/middleware/require-platform-admin.js";
  const  organizationRoutes = Router();
 
 organizationRoutes.get("/", authenticate, requireSystemAdmin, organizationController.list);
+organizationRoutes.get("/subscription", authenticate, validate(subscriptionSummarySchema), organizationController.subscription);
 organizationRoutes.post(
   "/",
   authenticate,
