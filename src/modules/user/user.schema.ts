@@ -1,6 +1,6 @@
 import z from "zod";
-import { resourceId } from "@/modules/role/role.schema.js";
-import { registerSchema } from "@/modules/auth/auth.schema.js";
+import { resourceId } from "@/modules/role/role.schema";
+import { registerSchema } from "@/modules/auth/auth.schema";
 
 export const baseUserSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -20,35 +20,48 @@ export const baseUserSchema = z.object({
   organizationId: z.string().optional(),
 });
 export const createUserSchema = z.object({
-  body: baseUserSchema.omit({
-    organizationId: true,
-  }).extend({ password: z.string().min(8).max(128) }),
+  body: baseUserSchema
+    .omit({
+      organizationId: true,
+    })
+    .extend({ password: z.string().min(8).max(128) }),
 });
 export const createUserInviteSchema = z.object({
   body: baseUserSchema.omit({ organizationId: true }),
 });
-export const userUpdateSchema = z.object({
+export const userUpdateSchema = z
+  .object({
+    params: z.object({ id: resourceId }),
+    body: baseUserSchema.omit({ organizationId: true, roleId: true }).extend({
+      id: resourceId,
+      phone: z
+        .union([baseUserSchema.shape.phone, z.literal(""), z.null()])
+        .transform((value) => (value === "" ? null : value)),
+    }),
+  })
+  .refine((input) => input.params.id === input.body.id, {
+    message: "User ID must match the URL",
+    path: ["body", "id"],
+  });
+export const userParamsSchema = z.object({
   params: z.object({ id: resourceId }),
-  body: baseUserSchema.omit({ organizationId: true, roleId: true }).extend({
-    id: resourceId,
-    phone: z.union([baseUserSchema.shape.phone, z.literal(""), z.null()])
-      .transform((value) => value === "" ? null : value),
-  }),
-}).refine((input) => input.params.id === input.body.id, {
-  message: "User ID must match the URL", path: ["body", "id"],
 });
-export const userParamsSchema = z.object({ params: z.object({ id: resourceId }) });
 export const userListQuerySchema = z.object({
   query: z.object({
     page: z.coerce.number().int().min(1).max(1000000).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(10),
     search: z.string().trim().max(120).default(""),
-    sortBy: z.enum(["", "createdAt", "firstName", "lastName", "email"]).default("createdAt"),
+    sortBy: z
+      .enum(["", "createdAt", "firstName", "lastName", "email"])
+      .default("createdAt"),
     sortOrder: z.enum(["asc", "desc"]).default("desc"),
     status: z.enum(["active", "pending"]).optional(),
     roleName: z.enum(["Admin", "Manager"]).optional(),
     roleId: resourceId.optional(),
-    deleted: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+    deleted: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
   }),
 });
 export type UserListQuery = z.infer<typeof userListQuerySchema>["query"];
@@ -57,18 +70,21 @@ export const assignUserRoleSchema = z.object({
   body: z.object({ roleId: resourceId }).strict(),
 });
 export const setPasswordSchema = z.object({
-  body: z.object({
-    email: z.email("Invalid email").trim(),
-    token: z.string().regex(/^[a-f0-9]{64}$/, "Invalid invite token"),
-    password: registerSchema.shape.body.shape.password.refine(
-      (value) => Buffer.byteLength(value, "utf8") <= 72,
-      "Password must be at most 72 bytes",
-    ),
-    confirmPassword: z.string().min(1, "Confirm password is required"),
-  }).strict().refine((input) => input.password === input.confirmPassword, {
-    message: "Password and confirm password do not match",
-    path: ["confirmPassword"],
-  }),
+  body: z
+    .object({
+      email: z.email("Invalid email").trim(),
+      token: z.string().regex(/^[a-f0-9]{64}$/, "Invalid invite token"),
+      password: registerSchema.shape.body.shape.password.refine(
+        (value) => Buffer.byteLength(value, "utf8") <= 72,
+        "Password must be at most 72 bytes",
+      ),
+      confirmPassword: z.string().min(1, "Confirm password is required"),
+    })
+    .strict()
+    .refine((input) => input.password === input.confirmPassword, {
+      message: "Password and confirm password do not match",
+      path: ["confirmPassword"],
+    }),
 });
 
 export const resetTokenExpirationDateInvitationSchema = z.object({

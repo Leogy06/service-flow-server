@@ -1,13 +1,23 @@
-import { organizationService } from "./organization.service.js";
-import { sendResponse } from "@/utils/sendResponse.js";
+import { organizationService } from "./organization.service";
+import { sendResponse } from "@/utils/sendResponse";
 import { NextFunction, Request, Response } from "express";
-import type { OrganizationInput, RequestSubscriptionUpgradeInput } from "./organization.schema.js";
-import { subscriptionUpgradeService } from "./subscription-upgrade.service.js";
+import type {
+  OrganizationInput,
+  RequestSubscriptionUpgradeInput,
+} from "./organization.schema";
+import { subscriptionUpgradeService } from "./subscription-upgrade.service";
 
 export const organizationController = {
   async requestUpgrade(req: Request, res: Response, next: NextFunction) {
     try {
-      sendResponse(res, 201, "Upgrade requested successfully", await subscriptionUpgradeService.request(req.validated.body as RequestSubscriptionUpgradeInput));
+      sendResponse(
+        res,
+        201,
+        "Upgrade requested successfully",
+        await subscriptionUpgradeService.request(
+          req.validated.body as RequestSubscriptionUpgradeInput,
+        ),
+      );
     } catch (err) {
       next(err);
     }
@@ -15,7 +25,12 @@ export const organizationController = {
 
   async upgradePlans(_req: Request, res: Response, next: NextFunction) {
     try {
-      sendResponse(res, 200, "Upgrade plans fetched successfully", await subscriptionUpgradeService.plans());
+      sendResponse(
+        res,
+        200,
+        "Upgrade plans fetched successfully",
+        await subscriptionUpgradeService.plans(),
+      );
     } catch (err) {
       next(err);
     }
@@ -46,7 +61,9 @@ export const organizationController = {
 
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const organization = await organizationService.create(req.validated.body as OrganizationInput);
+      const organization = await organizationService.create(
+        req.validated.body as OrganizationInput,
+      );
       sendResponse(res, 201, "Organization created successfully", organization);
     } catch (err) {
       next(err);

@@ -1,5 +1,5 @@
-import { redis } from "@/lib/redis.js";
-import { logger } from "@/lib/logger.js";
+import { redis } from "@/lib/redis";
+import { logger } from "@/lib/logger";
 
 const DEFAULT_TTL_SECONDS = 300; // 5 min
 

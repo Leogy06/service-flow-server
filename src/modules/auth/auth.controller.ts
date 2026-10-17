@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from "express";
-import { authService } from "./auth.service.js";
-import { AppError } from "@/utils/AppError.js";
-import { REFRESH_TOKEN_DAYS } from "@/utils/tokens.js";
-import { sendResponse } from "@/utils/sendResponse.js";
-import { profileService } from "./profile.service.js";
+import { authService } from "./auth.service";
+import { AppError } from "@/utils/AppError";
+import { REFRESH_TOKEN_DAYS } from "@/utils/tokens";
+import { sendResponse } from "@/utils/sendResponse";
+import { profileService } from "./profile.service";
 
 const refreshCookieOptions = {
   httpOnly: true,
@@ -16,8 +16,15 @@ const refreshCookieOptions = {
 export const authController = {
   async register(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await authService.register(req.validated.body as Parameters<typeof authService.register>[0]);
-      sendResponse(res, 202, "If eligible, your signup request is awaiting system administrator approval. Existing account holders can sign in.", result);
+      const result = await authService.register(
+        req.validated.body as Parameters<typeof authService.register>[0],
+      );
+      sendResponse(
+        res,
+        202,
+        "If eligible, your signup request is awaiting system administrator approval. Existing account holders can sign in.",
+        result,
+      );
     } catch (err) {
       next(err);
     }
@@ -45,7 +52,7 @@ export const authController = {
       const result = await authService.refresh(token);
       res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
       res.cookie("refreshToken", result.refreshToken, refreshCookieOptions);
-      res.json({ accessToken: result.accessToken });
+      reson({ accessToken: result.accessToken });
     } catch (err) {
       res.clearCookie("refreshToken", { path: "/api/auth" });
       res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
@@ -59,7 +66,7 @@ export const authController = {
       if (token) await authService.logout(token);
       res.clearCookie("refreshToken", { path: "/api/auth" });
       res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
-      res.json({ message: "Logged out" });
+      reson({ message: "Logged out" });
     } catch (err) {
       next(err);
     }
@@ -70,7 +77,7 @@ export const authController = {
       await profileService.logoutAll();
       res.clearCookie("refreshToken", { path: "/api/auth" });
       res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
-      res.json({ message: "Logged out of all devices" });
+      reson({ message: "Logged out of all devices" });
     } catch (err) {
       next(err);
     }

@@ -1,9 +1,9 @@
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
 import { Request, Response, NextFunction } from "express";
-import { redis } from "@/lib/redis.js";
-import { AppError } from "@/utils/AppError.js";
-import { env } from "@/config/env.js";
+import { redis } from "@/lib/redis";
+import { AppError } from "@/utils/AppError";
+import { env } from "@/config/env";
 
 function redisStore(prefix: string) {
   return new RedisStore({
@@ -48,7 +48,8 @@ export const signupLimiter = rateLimit({
 // Looser — general authenticated API traffic
 export const apiLimiter = rateLimit({
   // Keep the authorized dependency probe reachable during a Redis outage.
-  skip: (req) => req.method === "GET" && req.path === "/system-admin/monitoring",
+  skip: (req) =>
+    req.method === "GET" && req.path === "/system-admin/monitoring",
   windowMs: 15 * 60 * 1000,
   limit: 300,
   standardHeaders: true,

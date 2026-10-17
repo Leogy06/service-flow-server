@@ -1,1 +1,4 @@
-export type { CreateRoleSchema as CreateRoleInput, UpdateRoleSchema as UpdateRoleInput } from "./role.schema.js";
+export type {
+  CreateRoleSchema as CreateRoleInput,
+  UpdateRoleSchema as UpdateRoleInput,
+} from "./role.schema";

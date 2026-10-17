@@ -2,10 +2,10 @@ import {
   CreateCustomerSchema,
   UpdateCustomerInput,
   CustomerParams,
-} from "./customer.schema.js";
-import { CustomerListInput } from "./customer.schema.js";
-import { customerService } from "./customer.service.js";
-import { sendResponse } from "@/utils/sendResponse.js";
+} from "./customer.schema";
+import { CustomerListInput } from "./customer.schema";
+import { customerService } from "./customer.service";
+import { sendResponse } from "@/utils/sendResponse";
 import { NextFunction, Request, Response } from "express";
 
 export const customerController = {
@@ -21,8 +21,8 @@ export const customerController = {
   },
 
   list: async (req: Request, res: Response, next: NextFunction) => {
-    const { page, pageSize, sortBy, sortOrder, search, filter, deleted } = req.validated
-      .query as CustomerListInput["query"];
+    const { page, pageSize, sortBy, sortOrder, search, filter, deleted } = req
+      .validated.query as CustomerListInput["query"];
 
     try {
       const customers = await customerService.list(
@@ -54,10 +54,7 @@ export const customerController = {
     try {
       const validated = req.validated.body as UpdateCustomerInput;
       const { id } = req.validated.params as CustomerParams;
-      const customer = await customerService.update(
-        id,
-        validated,
-      );
+      const customer = await customerService.update(id, validated);
       sendResponse(res, 200, "Customer updated successfully", customer);
     } catch (err) {
       next(err);

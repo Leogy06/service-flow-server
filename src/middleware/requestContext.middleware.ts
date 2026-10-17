@@ -1,4 +1,4 @@
-import { requestContext } from "@/lib/requestContext.js";
+import { requestContext } from "@/lib/requestContext";
 import { NextFunction, Request, Response } from "express";
 import crypto from "crypto";
 export function withRequestContext(

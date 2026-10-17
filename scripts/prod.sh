@@ -7,7 +7,7 @@ export LOG_LEVEL=info
 
 echo "===Service Flow - Production==="
 
-echo "===Installing dependencies==="
+echo "===Deleting node_modules and Installing dependencies==="
 npm ci --include=dev
 
 echo "===Running lint==="

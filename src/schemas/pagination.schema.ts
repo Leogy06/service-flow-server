@@ -1,4 +1,4 @@
-import emptyToUndefined from "@/utils/emptyToUndefined.js";
+import emptyToUndefined from "@/utils/emptyToUndefined";
 import z from "zod";
 
 export const paginationSchema = z.object({

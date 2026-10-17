@@ -1,14 +1,14 @@
-import { Prisma } from "@/generated/prisma/client.js";
-import { prisma } from "@/lib/prisma.js";
-import { redis } from "@/lib/redis.js";
-import { requirePlatformAuthority } from "@/modules/role/tenant-access-policy.js";
-import { AppError } from "@/utils/AppError.js";
-import { pagination } from "@/utils/tenant-transaction.js";
+import { Prisma } from "@/generated/prisma/client";
+import { prisma } from "@/lib/prisma";
+import { redis } from "@/lib/redis";
+import { requirePlatformAuthority } from "@/modules/role/tenant-access-policy";
+import { AppError } from "@/utils/AppError";
+import { pagination } from "@/utils/tenant-transaction";
 import {
   lockOrganization,
   platformTransaction,
   recordPlatformAudit,
-} from "./platform-audit.js";
+} from "./platform-audit";
 import {
   csvCell,
   defaultSettings,
@@ -16,9 +16,9 @@ import {
   revenueSeries,
   revenueTotals,
   type RevenueRow,
-} from "./operations-policy.js";
-import { trafficSnapshot } from "./telemetry.js";
-import type { AlertListQuery, SettingsInput } from "./operations.schema.js";
+} from "./operations-policy";
+import { trafficSnapshot } from "./telemetry";
+import type { AlertListQuery, SettingsInput } from "./operations.schema";
 
 async function readSettings(db: Prisma.TransactionClient = prisma) {
   const settings = await db.platformSettings.findUnique({

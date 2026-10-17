@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { userController } from "./user.controller.js";
-import { requirePermission } from "@/middleware/require-permission.js";
-import { PERMISSIONS } from "@/constants/permission.constants.js";
-import { validate } from "@/middleware/validate.js";
+import { userController } from "./user.controller";
+import { requirePermission } from "@/middleware/require-permission";
+import { PERMISSIONS } from "@/constants/permission.constants";
+import { validate } from "@/middleware/validate";
 import {
   createUserInviteSchema,
   createUserSchema,
@@ -11,18 +11,43 @@ import {
   userListQuerySchema,
   assignUserRoleSchema,
   userParamsSchema,
-} from "./user.schema.js";
-import { deleteLimiter, strictLimiter, writeLimmiter } from "@/middleware/rateLimiter.js";
-import { resetStaffPasswordSchema } from "./user-password.schema.js";
-import { userPermissionController } from "@/modules/user-permission/user.permission.controller.js";
+} from "./user.schema";
+import {
+  deleteLimiter,
+  strictLimiter,
+  writeLimmiter,
+} from "@/middleware/rateLimiter";
+import { resetStaffPasswordSchema } from "./user-password.schema";
+import { userPermissionController } from "@/modules/user-permission/user.permission.controller";
 
 //already authenticate in index route
 const userRoutes = Router();
 
-userRoutes.get("/", requirePermission(PERMISSIONS.USER_READ), validate(userListQuerySchema), userController.list);
-userRoutes.get("/roles", requirePermission(PERMISSIONS.USER_READ), userController.listRoles);
-userRoutes.post("/:id/reset-password", requirePermission(PERMISSIONS.USER_UPDATE), strictLimiter, validate(resetStaffPasswordSchema), userController.resetStaffPassword);
-userRoutes.patch("/:id/role", requirePermission(PERMISSIONS.USER_UPDATE), writeLimmiter, validate(assignUserRoleSchema), userPermissionController.assignRole);
+userRoutes.get(
+  "/",
+  requirePermission(PERMISSIONS.USER_READ),
+  validate(userListQuerySchema),
+  userController.list,
+);
+userRoutes.get(
+  "/roles",
+  requirePermission(PERMISSIONS.USER_READ),
+  userController.listRoles,
+);
+userRoutes.post(
+  "/:id/reset-password",
+  requirePermission(PERMISSIONS.USER_UPDATE),
+  strictLimiter,
+  validate(resetStaffPasswordSchema),
+  userController.resetStaffPassword,
+);
+userRoutes.patch(
+  "/:id/role",
+  requirePermission(PERMISSIONS.USER_UPDATE),
+  writeLimmiter,
+  validate(assignUserRoleSchema),
+  userPermissionController.assignRole,
+);
 userRoutes.post(
   "/",
   requirePermission(PERMISSIONS.USER_CREATE),
@@ -56,7 +81,13 @@ userRoutes.put(
   validate(resetTokenExpirationDateInvitationSchema),
   userController.resetTokenExpirationDateInvitation,
 );
-userRoutes.patch("/:id/restore", requirePermission(PERMISSIONS.USER_UPDATE), writeLimmiter, validate(userParamsSchema), userController.restore);
+userRoutes.patch(
+  "/:id/restore",
+  requirePermission(PERMISSIONS.USER_UPDATE),
+  writeLimmiter,
+  validate(userParamsSchema),
+  userController.restore,
+);
 userRoutes.delete(
   "/:id",
   deleteLimiter,

@@ -1,15 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { requestContext } from "@/lib/requestContext.js";
-import { auditService } from "@/modules/audit/audit.service.js";
-import { AppError } from "@/utils/AppError.js";
+import { requestContext } from "@/lib/requestContext";
+import { auditService } from "@/modules/audit/audit.service";
+import { AppError } from "@/utils/AppError";
 import {
   tenantOrganization,
   tenantTransaction,
   pagination,
-} from "@/utils/tenant-transaction.js";
-import type { Prisma, JobStatus } from "@/generated/prisma/client.js";
-import type { CreateJob, UpdateJob, JobList, JobFilters } from "./job.schema.js";
-import { checkJobTransition } from "./lifecycle.js";
+} from "@/utils/tenant-transaction";
+import type { Prisma, JobStatus } from "@/generated/prisma/client";
+import type { CreateJob, UpdateJob, JobList, JobFilters } from "./job.schema";
+import { checkJobTransition } from "./lifecycle";
 
 const jobSelect = {
   id: true,
@@ -63,7 +63,10 @@ async function activeStaff(
   });
   if (!staff) throw new AppError(404, "Active staff member not found");
 }
-function jobScopeWhere(query: JobFilters, organizationId: string): Prisma.JobWhereInput {
+function jobScopeWhere(
+  query: JobFilters,
+  organizationId: string,
+): Prisma.JobWhereInput {
   return {
     organizationId,
     serviceRequestId: query.serviceRequestId,
@@ -74,10 +77,14 @@ function jobScopeWhere(query: JobFilters, organizationId: string): Prisma.JobWhe
       ? {
           status: "COMPLETED",
           invoice: null,
-          AND: [{ OR: [
-            { serviceRequestId: null },
-            { serviceRequest: { organizationId, status: "COMPLETED" } },
-          ] }],
+          AND: [
+            {
+              OR: [
+                { serviceRequestId: null },
+                { serviceRequest: { organizationId, status: "COMPLETED" } },
+              ],
+            },
+          ],
         }
       : {}),
   };
@@ -89,28 +96,44 @@ export const jobService = {
     const where = jobScopeWhere(query, organizationId);
     return tenantTransaction(async (db) => {
       // Choices cover this entire view, independent of pagination and column filters.
-      const [groups, customers, serviceTypes, staff, unassigned] = await Promise.all([
-        db.job.groupBy({ by: ["status"], where, _count: { _all: true } }),
-        db.customer.findMany({
-          where: { organizationId, jobs: { some: where } },
-          select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }],
-        }),
-        db.serviceType.findMany({
-          where: { organizationId, jobs: { some: where } },
-          select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }],
-        }),
-        db.user.findMany({
-          where: { organizationId, jobs: { some: where } },
-          select: { id: true, firstName: true, lastName: true },
-          orderBy: [{ firstName: "asc" }, { lastName: "asc" }, { id: "asc" }],
-        }),
-        db.job.count({ where: { AND: [where, { assignedStaffId: null }] } }),
-      ]);
-      const byStatus: Record<JobStatus, number> = { ASSIGNED: 0, IN_PROGRESS: 0, COMPLETED: 0, CANCELLED: 0 };
+      const [groups, customers, serviceTypes, staff, unassigned] =
+        await Promise.all([
+          db.job.groupBy({ by: ["status"], where, _count: { _all: true } }),
+          db.customer.findMany({
+            where: { organizationId, jobs: { some: where } },
+            select: { id: true, name: true },
+            orderBy: [{ name: "asc" }, { id: "asc" }],
+          }),
+          db.serviceType.findMany({
+            where: { organizationId, jobs: { some: where } },
+            select: { id: true, name: true },
+            orderBy: [{ name: "asc" }, { id: "asc" }],
+          }),
+          db.user.findMany({
+            where: { organizationId, jobs: { some: where } },
+            select: { id: true, firstName: true, lastName: true },
+            orderBy: [{ firstName: "asc" }, { lastName: "asc" }, { id: "asc" }],
+          }),
+          db.job.count({ where: { AND: [where, { assignedStaffId: null }] } }),
+        ]);
+      const byStatus: Record<JobStatus, number> = {
+        ASSIGNED: 0,
+        IN_PROGRESS: 0,
+        COMPLETED: 0,
+        CANCELLED: 0,
+      };
       for (const group of groups) byStatus[group.status] = group._count._all;
       return {
-        counts: { total: groups.reduce((total, group) => total + group._count._all, 0), byStatus },
-        filters: { customers, serviceTypes, staff, hasUnassigned: unassigned > 0 },
+        counts: {
+          total: groups.reduce((total, group) => total + group._count._all, 0),
+          byStatus,
+        },
+        filters: {
+          customers,
+          serviceTypes,
+          staff,
+          hasUnassigned: unassigned > 0,
+        },
       };
     });
   },
@@ -123,7 +146,19 @@ export const jobService = {
       customerId: query.customerId,
       serviceTypeId: query.serviceTypeId,
       // Intersect with 'mine' rather than letting a staff filter replace it.
-      AND: [scope, ...(query.assignedStaffId ? [{ assignedStaffId: query.assignedStaffId === "unassigned" ? null : query.assignedStaffId }] : [])],
+      AND: [
+        scope,
+        ...(query.assignedStaffId
+          ? [
+              {
+                assignedStaffId:
+                  query.assignedStaffId === "unassigned"
+                    ? null
+                    : query.assignedStaffId,
+              },
+            ]
+          : []),
+      ],
       ...(query.search
         ? {
             OR: [

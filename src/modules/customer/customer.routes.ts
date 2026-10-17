@@ -1,15 +1,15 @@
-import { customerController } from "./customer.controller.js";
-import { writeLimmiter } from "@/middleware/rateLimiter.js";
-import { requirePermission } from "@/middleware/require-permission.js";
-import { validate } from "@/middleware/validate.js";
+import { customerController } from "./customer.controller";
+import { writeLimmiter } from "@/middleware/rateLimiter";
+import { requirePermission } from "@/middleware/require-permission";
+import { validate } from "@/middleware/validate";
 import {
   createCustomerSchema,
   customerListInput,
   customerParamsSchema,
   updateCustomerInput,
-} from "./customer.schema.js";
+} from "./customer.schema";
 import { Router } from "express";
-import { PERMISSIONS } from "@/constants/permission.constants.js";
+import { PERMISSIONS } from "@/constants/permission.constants";
 
 const customerRoutes = Router();
 

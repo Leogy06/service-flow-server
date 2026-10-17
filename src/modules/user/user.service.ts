@@ -12,16 +12,26 @@ import crypto from "node:crypto";
 import { sendInviteEmail } from "@/lib/email/send-invite";
 import { auditService } from "@/modules/audit/audit.service";
 import { SetPasswordSchema } from "./user.schema";
-import { requestContext } from "@/lib/requestContext.js";
+import { requestContext } from "@/lib/requestContext";
 import { UserUpdateInput } from "./types";
 import { userScope } from "@/utils/user-utils/user-scope";
 import { isPrismaError } from "@/utils/errorHelper";
 import { stripSecrets } from "@/utils/user-utils/stripSecrets";
-import { PERMISSIONS } from "@/constants/permission.constants.js";
-import { accessTransaction, requireAssignableRole, requireTenantAdmin } from "@/modules/role/tenant-access-policy.js";
-import { authorizationSelect, resolvePermissions } from "@/modules/auth/authorization.js";
-import { assertTenantEntitlement, enforceSeatLimit } from "@/modules/system-admin/entitlement.js";
-import { lockOrganization } from "@/modules/system-admin/platform-audit.js";
+import { PERMISSIONS } from "@/constants/permission.constants";
+import {
+  accessTransaction,
+  requireAssignableRole,
+  requireTenantAdmin,
+} from "@/modules/role/tenant-access-policy";
+import {
+  authorizationSelect,
+  resolvePermissions,
+} from "@/modules/auth/authorization";
+import {
+  assertTenantEntitlement,
+  enforceSeatLimit,
+} from "@/modules/system-admin/entitlement";
+import { lockOrganization } from "@/modules/system-admin/platform-audit";
 
 const DEFAULT_USER_SELECT = {
   id: true,
@@ -96,40 +106,50 @@ export const userService = {
     const where: Prisma.UserWhereInput = {
       organizationId,
       AND: search
-        ? search.split(/[\s,]+/).filter(Boolean).map((term) => ({
-            OR: [
-              { firstName: { contains: term } },
-              { lastName: { contains: term } },
-              { middleName: { contains: term } },
-              { suffix: { contains: term } },
-              { email: { contains: term } },
-            ],
-          }))
+        ? search
+            .split(/[\s,]+/)
+            .filter(Boolean)
+            .map((term) => ({
+              OR: [
+                { firstName: { contains: term } },
+                { lastName: { contains: term } },
+                { middleName: { contains: term } },
+                { suffix: { contains: term } },
+                { email: { contains: term } },
+              ],
+            }))
         : undefined,
       deletedAt: deleted ? { not: null } : null,
       ...(status === "active" ? { status: UserStatus.ACTIVE } : {}),
       ...(status === "pending" ? { status: UserStatus.PENDING } : {}),
       ...(roleId ? { roleId } : {}),
-      role: { organizationId, deletedAt: null, ...(roleName ? { name: roleName } : {}) },
+      role: {
+        organizationId,
+        deletedAt: null,
+        ...(roleName ? { name: roleName } : {}),
+      },
     };
 
     const { users, total, currentPage, totalPages } = await getOrSetCache(
       cacheKey,
       DEFAULT_TTL_SECONDS,
       async () => {
-        return prisma.$transaction(async (db) => {
-          const total = await db.user.count({ where });
-          const totalPages = Math.max(1, Math.ceil(total / pageSize));
-          const currentPage = Math.min(page, totalPages);
-          const users = await db.user.findMany({
-            where,
-            select,
-            orderBy: [{ [sortBy]: sortOrder }, { id: "asc" }],
-            skip: (currentPage - 1) * pageSize,
-            take: pageSize,
-          });
-          return { users, total, currentPage, totalPages };
-        }, { isolationLevel: "RepeatableRead" });
+        return prisma.$transaction(
+          async (db) => {
+            const total = await db.user.count({ where });
+            const totalPages = Math.max(1, Math.ceil(total / pageSize));
+            const currentPage = Math.min(page, totalPages);
+            const users = await db.user.findMany({
+              where,
+              select,
+              orderBy: [{ [sortBy]: sortOrder }, { id: "asc" }],
+              skip: (currentPage - 1) * pageSize,
+              take: pageSize,
+            });
+            return { users, total, currentPage, totalPages };
+          },
+          { isolationLevel: "RepeatableRead" },
+        );
       },
     );
 
@@ -168,7 +188,9 @@ export const userService = {
   async validateCreateInput(input: CreateUserInput) {
     const [isEmailExist, isPhoneExist] = await Promise.all([
       prisma.user.findUnique({ where: { email: input.email } }),
-      input.phone ? prisma.user.findUnique({ where: { phone: input.phone } }) : null,
+      input.phone
+        ? prisma.user.findUnique({ where: { phone: input.phone } })
+        : null,
     ]);
     if (isEmailExist) throw new AppError(409, "Email already in use");
     if (isPhoneExist) throw new AppError(409, "Phone already in use");
@@ -203,32 +225,42 @@ export const userService = {
     const password = await hashedPassword(input.password!);
 
     const user = await accessTransaction(async (db) => {
-      const currentActor = await requireTenantAdmin(db, PERMISSIONS.USER_CREATE);
+      const currentActor = await requireTenantAdmin(
+        db,
+        PERMISSIONS.USER_CREATE,
+      );
       await requireAssignableRole(db, input.roleId, currentActor);
-      await enforceSeatLimit(db, currentActor.organizationId, 1, { includePending: true });
-      const created = await db.user.create({
-      data: {
-        firstName: input.firstName,
-        lastName: input.lastName,
-        middleName: input.middleName,
-        suffix: input.suffix,
-        email: input.email,
-        phone: input.phone,
-        password,
-        status: "ACTIVE",
-        role: {
-          connect: {
-            id: input.roleId,
-          },
-        },
-        organization: {
-          connect: {
-            id: input.organizationId,
-          },
-        },
-      },
+      await enforceSeatLimit(db, currentActor.organizationId, 1, {
+        includePending: true,
       });
-      await auditService.recordInTransaction(db, { action: "create.user.success", entity: "User", entityId: created.id, after: stripSecrets(created) });
+      const created = await db.user.create({
+        data: {
+          firstName: input.firstName,
+          lastName: input.lastName,
+          middleName: input.middleName,
+          suffix: input.suffix,
+          email: input.email,
+          phone: input.phone,
+          password,
+          status: "ACTIVE",
+          role: {
+            connect: {
+              id: input.roleId,
+            },
+          },
+          organization: {
+            connect: {
+              id: input.organizationId,
+            },
+          },
+        },
+      });
+      await auditService.recordInTransaction(db, {
+        action: "create.user.success",
+        entity: "User",
+        entityId: created.id,
+        after: stripSecrets(created),
+      });
       return created;
     });
 
@@ -250,36 +282,46 @@ export const userService = {
     const inviteTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
     const user = await accessTransaction(async (db) => {
-      const currentActor = await requireTenantAdmin(db, PERMISSIONS.USER_CREATE);
+      const currentActor = await requireTenantAdmin(
+        db,
+        PERMISSIONS.USER_CREATE,
+      );
       await requireAssignableRole(db, input.roleId, currentActor);
-      await enforceSeatLimit(db, currentActor.organizationId, 1, { includePending: true });
-      const created = await db.user.create({
-      data: {
-        firstName: input.firstName,
-        lastName: input.lastName,
-        middleName: input.middleName,
-        suffix: input.suffix,
-        email: input.email,
-        phone: input.phone,
-        password: null,
-        status: "PENDING",
-        securityStatus: "ACTIVE",
-        platformRole: "NONE",
-        inviteToken: hashedToken,
-        inviteTokenExpiry,
-        role: {
-          connect: {
-            id: input.roleId,
-          },
-        },
-        organization: {
-          connect: {
-            id: input.organizationId,
-          },
-        },
-      },
+      await enforceSeatLimit(db, currentActor.organizationId, 1, {
+        includePending: true,
       });
-      await auditService.recordInTransaction(db, { action: "create.user.success", entity: "User", entityId: created.id, after: stripSecrets(created) });
+      const created = await db.user.create({
+        data: {
+          firstName: input.firstName,
+          lastName: input.lastName,
+          middleName: input.middleName,
+          suffix: input.suffix,
+          email: input.email,
+          phone: input.phone,
+          password: null,
+          status: "PENDING",
+          securityStatus: "ACTIVE",
+          platformRole: "NONE",
+          inviteToken: hashedToken,
+          inviteTokenExpiry,
+          role: {
+            connect: {
+              id: input.roleId,
+            },
+          },
+          organization: {
+            connect: {
+              id: input.organizationId,
+            },
+          },
+        },
+      });
+      await auditService.recordInTransaction(db, {
+        action: "create.user.success",
+        entity: "User",
+        entityId: created.id,
+        after: stripSecrets(created),
+      });
       return created;
     });
 
@@ -344,8 +386,15 @@ export const userService = {
   },
 
   async setPassword(input: SetPasswordSchema) {
-    const inviteToken = crypto.createHash("sha256").update(input.token).digest("hex");
-    const invalidInvite = () => new AppError(400, "Invite link is invalid or expired. Please request a new invitation.");
+    const inviteToken = crypto
+      .createHash("sha256")
+      .update(input.token)
+      .digest("hex");
+    const invalidInvite = () =>
+      new AppError(
+        400,
+        "Invite link is invalid or expired. Please request a new invitation.",
+      );
     const user = await prisma.user.findUnique({
       where: {
         email: input.email,
@@ -359,10 +408,18 @@ export const userService = {
         organization: { status: "ACTIVE" },
         role: { deletedAt: null },
       },
-      select: { id: true, organizationId: true, role: { select: { organizationId: true } } },
+      select: {
+        id: true,
+        organizationId: true,
+        role: { select: { organizationId: true } },
+      },
     });
 
-    if (!user?.organizationId || user.role.organizationId !== user.organizationId) throw invalidInvite();
+    if (
+      !user?.organizationId ||
+      user.role.organizationId !== user.organizationId
+    )
+      throw invalidInvite();
 
     //check if password and confirm password match
     if (input.password !== input.confirmPassword)
@@ -370,43 +427,62 @@ export const userService = {
 
     const password = await hashedPassword(input.password);
     const organizationId = user.organizationId;
-    await prisma.$transaction(async (db) => {
-      await enforceSeatLimit(db, organizationId);
-      await assertTenantEntitlement(db, organizationId);
-      // Recheck and consume the invitation atomically so concurrent submissions cannot overwrite it.
-      const result = await db.user.updateMany({
-        where: {
-          id: user.id, organizationId, email: input.email, inviteToken,
-          status: "PENDING", password: null, deletedAt: null,
-          securityStatus: "ACTIVE", platformRole: "NONE",
-          inviteTokenExpiry: { gt: new Date() },
-          organization: { status: "ACTIVE" },
-          role: { organizationId, deletedAt: null },
-        },
-        data: { password, status: "ACTIVE", inviteToken: null, inviteTokenExpiry: null },
-      });
-      if (result.count !== 1) throw invalidInvite();
+    await prisma.$transaction(
+      async (db) => {
+        await enforceSeatLimit(db, organizationId);
+        await assertTenantEntitlement(db, organizationId);
+        // Recheck and consume the invitation atomically so concurrent submissions cannot overwrite it.
+        const result = await db.user.updateMany({
+          where: {
+            id: user.id,
+            organizationId,
+            email: input.email,
+            inviteToken,
+            status: "PENDING",
+            password: null,
+            deletedAt: null,
+            securityStatus: "ACTIVE",
+            platformRole: "NONE",
+            inviteTokenExpiry: { gt: new Date() },
+            organization: { status: "ACTIVE" },
+            role: { organizationId, deletedAt: null },
+          },
+          data: {
+            password,
+            status: "ACTIVE",
+            inviteToken: null,
+            inviteTokenExpiry: null,
+          },
+        });
+        if (result.count !== 1) throw invalidInvite();
 
-      // The verified invitation establishes the actor and tenant for this public operation.
-      await requestContext.run({
-        ...requestContext.get(), requestId: requestContext.getValue("requestId") ?? crypto.randomUUID(),
-        userId: user.id, organizationId,
-      }, () => auditService.recordInTransaction(db, {
-        action: "set.password.success", entity: "User", entityId: user.id,
-        after: { status: "ACTIVE" },
-      }));
-    }, { isolationLevel: "Serializable" });
+        // The verified invitation establishes the actor and tenant for this public operation.
+        await requestContext.run(
+          {
+            ...requestContext.get(),
+            requestId:
+              requestContext.getValue("requestId") ?? crypto.randomUUID(),
+            userId: user.id,
+            organizationId,
+          },
+          () =>
+            auditService.recordInTransaction(db, {
+              action: "set.password.success",
+              entity: "User",
+              entityId: user.id,
+              after: { status: "ACTIVE" },
+            }),
+        );
+      },
+      { isolationLevel: "Serializable" },
+    );
 
     await invalidateCache(`cache:users:list:${organizationId}:*`);
     await invalidateCache(`cache:user:byId:${organizationId}:${user.id}:*`);
     return null;
   },
 
-  async update(
-    id: string,
-    input: UserUpdateInput,
-    authUserOrg: string,
-  ) {
+  async update(id: string, input: UserUpdateInput, authUserOrg: string) {
     const existing = await this.getById(id, authUserOrg); // 404 if missing, deleted, other org
 
     const [byEmail, byPhone] = await Promise.all([
@@ -427,7 +503,6 @@ export const userService = {
       throw new AppError(409, "Email already in use");
     if (byPhone && byPhone.id !== id)
       throw new AppError(409, "Phone number already in use");
-
 
     let user;
     try {
@@ -478,15 +553,24 @@ export const userService = {
     try {
       user = await accessTransaction(async (db) => {
         await lockOrganization(db, authUserOrg);
-        const current = await db.user.findFirst({ where: { id, ...userScope(authUserOrg), platformRole: "NONE" } });
+        const current = await db.user.findFirst({
+          where: { id, ...userScope(authUserOrg), platformRole: "NONE" },
+        });
         if (!current) throw new AppError(404, "User not found");
         const deleted = await db.user.update({
           where: { id, ...userScope(authUserOrg), platformRole: "NONE" },
           data: { deletedAt: new Date(), sessionVersion: { increment: 1 } },
         });
-        const revoked = await db.refreshToken.deleteMany({ where: { userId: id } });
-        await auditService.recordInTransaction(db, { action: "delete.user.success", entity: "User", entityId: deleted.id,
-          before: stripSecrets(current), after: { ...stripSecrets(deleted), sessionsRevoked: revoked.count } });
+        const revoked = await db.refreshToken.deleteMany({
+          where: { userId: id },
+        });
+        await auditService.recordInTransaction(db, {
+          action: "delete.user.success",
+          entity: "User",
+          entityId: deleted.id,
+          before: stripSecrets(current),
+          after: { ...stripSecrets(deleted), sessionsRevoked: revoked.count },
+        });
         return deleted;
       });
     } catch (error) {
@@ -505,25 +589,42 @@ export const userService = {
 
   async restore(id: string, authUserOrg: string) {
     //check if existing and not deleted
-    await this.getById(id, authUserOrg, {deleted:true});
+    await this.getById(id, authUserOrg, { deleted: true });
     let user;
     try {
       user = await accessTransaction(async (db) => {
         await lockOrganization(db, authUserOrg);
-        const current = await db.user.findFirst({ where: { id, ...userScope(authUserOrg, { deleted: true }), platformRole: "NONE" } });
+        const current = await db.user.findFirst({
+          where: {
+            id,
+            ...userScope(authUserOrg, { deleted: true }),
+            platformRole: "NONE",
+          },
+        });
         if (!current) throw new AppError(404, "User not found");
         await enforceSeatLimit(db, authUserOrg, 1, { includePending: true });
         const restored = await db.user.update({
-          where: { id, ...userScope(authUserOrg, { deleted: true }), platformRole: "NONE" },
+          where: {
+            id,
+            ...userScope(authUserOrg, { deleted: true }),
+            platformRole: "NONE",
+          },
           data: { deletedAt: null, sessionVersion: { increment: 1 } },
         });
-        const revoked = await db.refreshToken.deleteMany({ where: { userId: id } });
-        await auditService.recordInTransaction(db, { action: "restore.user.success", entity: "User", entityId: restored.id,
-          before: stripSecrets(current), after: { ...stripSecrets(restored), sessionsRevoked: revoked.count } });
+        const revoked = await db.refreshToken.deleteMany({
+          where: { userId: id },
+        });
+        await auditService.recordInTransaction(db, {
+          action: "restore.user.success",
+          entity: "User",
+          entityId: restored.id,
+          before: stripSecrets(current),
+          after: { ...stripSecrets(restored), sessionsRevoked: revoked.count },
+        });
         return restored;
       });
-    } catch(error) {
-      if(isPrismaError(error, "P2025"))
+    } catch (error) {
+      if (isPrismaError(error, "P2025"))
         throw new AppError(400, "User does not exist");
       throw error;
     }
@@ -531,20 +632,31 @@ export const userService = {
     const safe = stripSecrets(user);
 
     await this.invalidateUserCache(id);
-    
+
     return safe;
   },
 
   async listForPermissionManagement(organizationId: string) {
     if (!organizationId) throw new AppError(400, "Organization ID is required");
     const users = await prisma.user.findMany({
-      where: { deletedAt: null, organizationId, role: { organizationId, deletedAt: null } },
-      select: { ...authorizationSelect, organization: { select: { slug: true, name: true } } },
+      where: {
+        deletedAt: null,
+        organizationId,
+        role: { organizationId, deletedAt: null },
+      },
+      select: {
+        ...authorizationSelect,
+        organization: { select: { slug: true, name: true } },
+      },
       orderBy: { createdAt: "desc" },
     });
     return users.map((user) => ({
-      id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName,
-      roleName: user.role.name, organizationName: user.organization?.name ?? null,
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      roleName: user.role.name,
+      organizationName: user.organization?.name ?? null,
       permissions: resolvePermissions(user).names,
     }));
   },

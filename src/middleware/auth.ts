@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from "express";
-import { verifyAccessToken } from "@/utils/tokens.js";
+import { verifyAccessToken } from "@/utils/tokens";
 import jwt from "jsonwebtoken";
-import { AppError } from "@/utils/AppError.js"; // adjust to your actual path
-import { requestContext } from "@/lib/requestContext.js";
-import { loadAuthorization, sessionUser } from "@/modules/auth/authorization.js";
+import { AppError } from "@/utils/AppError"; // adjust to your actual path
+import { requestContext } from "@/lib/requestContext";
+import { loadAuthorization, sessionUser } from "@/modules/auth/authorization";
 
 const { TokenExpiredError, JsonWebTokenError } = jwt;
 
@@ -55,7 +55,7 @@ export async function authenticate(
 
 export function requireRole(roles: string) {
   return (req: Request, _res: Response, next: NextFunction): void => {
-    if (!req.user || roles !== (req.user.role)) {
+    if (!req.user || roles !== req.user.role) {
       return next(new AppError(403, "Forbidden"));
     }
     next();

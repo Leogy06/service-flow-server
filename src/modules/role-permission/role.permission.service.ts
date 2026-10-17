@@ -1,12 +1,21 @@
-import { roleService } from "@/modules/role/role.service.js";
+import { roleService } from "@/modules/role/role.service";
 
 // Keep the existing endpoints on the same guarded role mutation path.
 export const rolePermissionService = {
   async list(roleId: string) {
     const role = await roleService.getById(roleId);
-    return role.permissions.map((p) => ({ roleName: role.name, permissionName: p.name }));
+    return role.permissions.map((p) => ({
+      roleName: role.name,
+      permissionName: p.name,
+    }));
   },
-  async create({ roleId, permissionId }: { roleId: string; permissionId: string }) {
+  async create({
+    roleId,
+    permissionId,
+  }: {
+    roleId: string;
+    permissionId: string;
+  }) {
     return roleService.addPermission(roleId, permissionId);
   },
   async update(roleId: string, permissionIds: string[]) {

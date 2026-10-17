@@ -1,34 +1,215 @@
-import { Router, type Request, type Response, type NextFunction } from "express";
-import { validate } from "@/middleware/validate.js";
-import { writeLimmiter, refundLimiter } from "@/middleware/rateLimiter.js";
-import { sendResponse } from "@/utils/sendResponse.js";
-import { billingService as service } from "./billing.service.js";
-import { subscriptionUpgradeService } from "@/modules/organization/subscription-upgrade.service.js";
-import { reviewUpgradeSchema, type ReviewUpgradeInput } from "./billing.schema.js";
-import { planListSchema, subscriptionListSchema, paymentListSchema, billingDetailSchema, createPlanSchema, updatePlanSchema,
-  startTrialSchema, assignSubscriptionSchema, changePlanSchema, changeSubscriptionStatusSchema, recordPaymentSchema, reviewPaymentSchema, refundPaymentSchema, requestRefundSchema, reviewRefundSchema,
-  type PlanListQuery, type SubscriptionListQuery, type PaymentListQuery, type CreatePlanInput, type UpdatePlanInput,
-  type StartTrialInput, type AssignSubscriptionInput, type ChangePlanInput, type ChangeStatusInput, type RecordPaymentInput, type ReviewPaymentInput, type RefundPaymentInput, type RequestRefundInput, type ReviewRefundInput } from "./billing.schema.js";
+import {
+  Router,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
+import { validate } from "@/middleware/validate";
+import { writeLimmiter, refundLimiter } from "@/middleware/rateLimiter";
+import { sendResponse } from "@/utils/sendResponse";
+import { billingService as service } from "./billing.service";
+import { subscriptionUpgradeService } from "@/modules/organization/subscription-upgrade.service";
+import { reviewUpgradeSchema, type ReviewUpgradeInput } from "./billing.schema";
+import {
+  planListSchema,
+  subscriptionListSchema,
+  paymentListSchema,
+  billingDetailSchema,
+  createPlanSchema,
+  updatePlanSchema,
+  startTrialSchema,
+  assignSubscriptionSchema,
+  changePlanSchema,
+  changeSubscriptionStatusSchema,
+  recordPaymentSchema,
+  reviewPaymentSchema,
+  refundPaymentSchema,
+  requestRefundSchema,
+  reviewRefundSchema,
+  type PlanListQuery,
+  type SubscriptionListQuery,
+  type PaymentListQuery,
+  type CreatePlanInput,
+  type UpdatePlanInput,
+  type StartTrialInput,
+  type AssignSubscriptionInput,
+  type ChangePlanInput,
+  type ChangeStatusInput,
+  type RecordPaymentInput,
+  type ReviewPaymentInput,
+  type RefundPaymentInput,
+  type RequestRefundInput,
+  type ReviewRefundInput,
+} from "./billing.schema";
 const router = Router();
-const handle = (work: (req: Request) => Promise<unknown>, message: string, status = 200) => async (req: Request, res: Response, next: NextFunction) => {
-  try { sendResponse(res, status, message, await work(req)); } catch (error) { next(error); }
-};
+const handle =
+  (work: (req: Request) => Promise<unknown>, message: string, status = 200) =>
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      sendResponse(res, status, message, await work(req));
+    } catch (error) {
+      next(error);
+    }
+  };
 const id = (req: Request) => (req.validated.params as { id: string }).id;
-router.get("/plans", validate(planListSchema), handle((req) => service.listPlans(req.validated.query as PlanListQuery), "Plans fetched"));
-router.post("/plans", writeLimmiter, validate(createPlanSchema), handle((req) => service.createPlan(req.validated.body as CreatePlanInput), "Plan created", 201));
-router.patch("/plans/:id", writeLimmiter, validate(updatePlanSchema), handle((req) => service.updatePlan(id(req), req.validated.body as UpdatePlanInput), "Plan updated"));
-router.get("/subscriptions", validate(subscriptionListSchema), handle((req) => service.listSubscriptions(req.validated.query as SubscriptionListQuery), "Subscriptions fetched"));
-router.get("/subscriptions/:id", validate(billingDetailSchema), handle((req) => service.subscription(id(req)), "Subscription fetched"));
-router.post("/subscriptions", writeLimmiter, validate(assignSubscriptionSchema), handle((req) => service.assignSubscription(req.validated.body as AssignSubscriptionInput), "Subscription assigned", 201));
-router.post("/subscriptions/:id/trial", writeLimmiter, validate(startTrialSchema), handle((req) => service.startTrial(id(req), req.validated.body as StartTrialInput), "Free trial started"));
-router.post("/subscriptions/:id/plan", writeLimmiter, validate(changePlanSchema), handle((req) => service.changePlan(id(req), req.validated.body as ChangePlanInput), "Subscription plan updated"));
-router.post("/subscriptions/:id/upgrade-review", writeLimmiter, validate(reviewUpgradeSchema), handle((req) => subscriptionUpgradeService.review(id(req), req.validated.body as ReviewUpgradeInput), "Upgrade request reviewed"));
-router.post("/subscriptions/:id/status", writeLimmiter, validate(changeSubscriptionStatusSchema), handle((req) => service.changeStatus(id(req), req.validated.body as ChangeStatusInput), "Subscription status updated"));
-router.get("/payments", validate(paymentListSchema), handle((req) => service.listPayments(req.validated.query as PaymentListQuery), "Payments fetched"));
-router.get("/payments/:id", validate(billingDetailSchema), handle((req) => service.payment(id(req)), "Payment fetched"));
-router.post("/payments", writeLimmiter, validate(recordPaymentSchema), handle((req) => service.recordPayment(req.validated.body as RecordPaymentInput), "Payment recorded", 201));
-router.post("/payments/:id/review", writeLimmiter, validate(reviewPaymentSchema), handle((req) => service.reviewPayment(id(req), req.validated.body as ReviewPaymentInput), "Payment reviewed"));
-router.post("/payments/:id/refund-requests", writeLimmiter, refundLimiter, validate(requestRefundSchema), handle((req) => service.requestRefund(id(req), req.validated.body as RequestRefundInput), "Refund requested", 201));
-router.post("/payments/:id/refund-review", writeLimmiter, refundLimiter, validate(reviewRefundSchema), handle((req) => service.reviewRefund(id(req), req.validated.body as ReviewRefundInput), "Refund reviewed"));
-router.post("/payments/:id/refund", writeLimmiter, refundLimiter, validate(refundPaymentSchema), handle((req) => service.refundPayment(id(req), req.validated.body as RefundPaymentInput), "Refund completed"));
+router.get(
+  "/plans",
+  validate(planListSchema),
+  handle(
+    (req) => service.listPlans(req.validated.query as PlanListQuery),
+    "Plans fetched",
+  ),
+);
+router.post(
+  "/plans",
+  writeLimmiter,
+  validate(createPlanSchema),
+  handle(
+    (req) => service.createPlan(req.validated.body as CreatePlanInput),
+    "Plan created",
+    201,
+  ),
+);
+router.patch(
+  "/plans/:id",
+  writeLimmiter,
+  validate(updatePlanSchema),
+  handle(
+    (req) => service.updatePlan(id(req), req.validated.body as UpdatePlanInput),
+    "Plan updated",
+  ),
+);
+router.get(
+  "/subscriptions",
+  validate(subscriptionListSchema),
+  handle(
+    (req) =>
+      service.listSubscriptions(req.validated.query as SubscriptionListQuery),
+    "Subscriptions fetched",
+  ),
+);
+router.get(
+  "/subscriptions/:id",
+  validate(billingDetailSchema),
+  handle((req) => service.subscription(id(req)), "Subscription fetched"),
+);
+router.post(
+  "/subscriptions",
+  writeLimmiter,
+  validate(assignSubscriptionSchema),
+  handle(
+    (req) =>
+      service.assignSubscription(req.validated.body as AssignSubscriptionInput),
+    "Subscription assigned",
+    201,
+  ),
+);
+router.post(
+  "/subscriptions/:id/trial",
+  writeLimmiter,
+  validate(startTrialSchema),
+  handle(
+    (req) => service.startTrial(id(req), req.validated.body as StartTrialInput),
+    "Free trial started",
+  ),
+);
+router.post(
+  "/subscriptions/:id/plan",
+  writeLimmiter,
+  validate(changePlanSchema),
+  handle(
+    (req) => service.changePlan(id(req), req.validated.body as ChangePlanInput),
+    "Subscription plan updated",
+  ),
+);
+router.post(
+  "/subscriptions/:id/upgrade-review",
+  writeLimmiter,
+  validate(reviewUpgradeSchema),
+  handle(
+    (req) =>
+      subscriptionUpgradeService.review(
+        id(req),
+        req.validated.body as ReviewUpgradeInput,
+      ),
+    "Upgrade request reviewed",
+  ),
+);
+router.post(
+  "/subscriptions/:id/status",
+  writeLimmiter,
+  validate(changeSubscriptionStatusSchema),
+  handle(
+    (req) =>
+      service.changeStatus(id(req), req.validated.body as ChangeStatusInput),
+    "Subscription status updated",
+  ),
+);
+router.get(
+  "/payments",
+  validate(paymentListSchema),
+  handle(
+    (req) => service.listPayments(req.validated.query as PaymentListQuery),
+    "Payments fetched",
+  ),
+);
+router.get(
+  "/payments/:id",
+  validate(billingDetailSchema),
+  handle((req) => service.payment(id(req)), "Payment fetched"),
+);
+router.post(
+  "/payments",
+  writeLimmiter,
+  validate(recordPaymentSchema),
+  handle(
+    (req) => service.recordPayment(req.validated.body as RecordPaymentInput),
+    "Payment recorded",
+    201,
+  ),
+);
+router.post(
+  "/payments/:id/review",
+  writeLimmiter,
+  validate(reviewPaymentSchema),
+  handle(
+    (req) =>
+      service.reviewPayment(id(req), req.validated.body as ReviewPaymentInput),
+    "Payment reviewed",
+  ),
+);
+router.post(
+  "/payments/:id/refund-requests",
+  writeLimmiter,
+  refundLimiter,
+  validate(requestRefundSchema),
+  handle(
+    (req) =>
+      service.requestRefund(id(req), req.validated.body as RequestRefundInput),
+    "Refund requested",
+    201,
+  ),
+);
+router.post(
+  "/payments/:id/refund-review",
+  writeLimmiter,
+  refundLimiter,
+  validate(reviewRefundSchema),
+  handle(
+    (req) =>
+      service.reviewRefund(id(req), req.validated.body as ReviewRefundInput),
+    "Refund reviewed",
+  ),
+);
+router.post(
+  "/payments/:id/refund",
+  writeLimmiter,
+  refundLimiter,
+  validate(refundPaymentSchema),
+  handle(
+    (req) =>
+      service.refundPayment(id(req), req.validated.body as RefundPaymentInput),
+    "Refund completed",
+  ),
+);
 export default router;

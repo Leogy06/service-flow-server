@@ -1,7 +1,7 @@
 // send-invite.ts
-import { env } from "@/config/env.js";
-import { resend } from "./client.js";
-import { inviteUserHtml } from "./templates/invite-user.js";
+import { env } from "@/config/env";
+import { resend } from "./client";
+import { inviteUserHtml } from "./templates/invite-user";
 
 interface SendInviteEmailProps {
   to: string; //email to be sent the invite

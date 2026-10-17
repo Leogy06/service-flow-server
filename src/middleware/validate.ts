@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { ZodObject, ZodError } from "zod";
-import { AppError } from "@/utils/AppError.js";
+import { AppError } from "@/utils/AppError";
 
 export function validate(schema: ZodObject) {
   return (req: Request, _res: Response, next: NextFunction): void => {
@@ -24,7 +24,7 @@ export function validate(schema: ZodObject) {
           .map((e) => `${e.path.join(".")}: ${e.message}`)
           .join(", ");
 
-        return next(new AppError(400  , message));
+        return next(new AppError(400, message));
       }
 
       next(err);

@@ -4,6 +4,10 @@
     "outDir": "dist",
     "rootDir": "src"
   },
+  "tsc-alias": {
+    "resolveFullPaths": true,
+    "resolveFullExtension": ".js"
+  },
   "include": ["src/**/*.ts"],
   "exclude": ["src/generated", "tests"]
 }

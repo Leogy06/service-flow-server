@@ -1,20 +1,21 @@
-import { prisma } from "@/lib/prisma.js";
-import { auditService } from "@/modules/audit/audit.service.js";
-import type { CustomerListInput, UpdateCustomerInput } from "./customer.schema.js";
-import type { Prisma } from "@/generated/prisma/client.js";
-import { AppError } from "@/utils/AppError.js";
-import { isPrismaError } from "@/utils/errorHelper.js";
-import { requestContext } from "@/lib/requestContext.js";
+import { prisma } from "@/lib/prisma";
+import { auditService } from "@/modules/audit/audit.service";
+import type { CustomerListInput, UpdateCustomerInput } from "./customer.schema";
+import type { Prisma } from "@/generated/prisma/client";
+import { AppError } from "@/utils/AppError";
+import { isPrismaError } from "@/utils/errorHelper";
+import { requestContext } from "@/lib/requestContext";
 import {
   DEFAULT_TTL_SECONDS,
   getOrSetCache,
   invalidateCache,
-} from "@/utils/cache.js";
-import { CreateCustomerInput } from "./types.js";
+} from "@/utils/cache";
+import { CreateCustomerInput } from "./types";
 
 function customerOrganization() {
   const organizationId = requestContext.getValue("organizationId");
-  if (!organizationId) throw new AppError(422, "Organization context is required");
+  if (!organizationId)
+    throw new AppError(422, "Organization context is required");
   return organizationId;
 }
 
@@ -22,19 +23,20 @@ export const customerService = {
   async create(data: CreateCustomerInput) {
     const organizationId = customerOrganization();
 
-    const [existingEmail, existingMobileNumber, existingName] = await Promise.all([
-      prisma.customer.findUnique({
-        where: {
-          email: data.email,
-        },
-      }),
-      prisma.customer.findUnique({
-        where: {
-          phoneNumber: data.phoneNumber,
-        },
-      }),
-      prisma.customer.findUnique({ where: { name: data.name } }),
-    ]);
+    const [existingEmail, existingMobileNumber, existingName] =
+      await Promise.all([
+        prisma.customer.findUnique({
+          where: {
+            email: data.email,
+          },
+        }),
+        prisma.customer.findUnique({
+          where: {
+            phoneNumber: data.phoneNumber,
+          },
+        }),
+        prisma.customer.findUnique({ where: { name: data.name } }),
+      ]);
 
     if (existingMobileNumber)
       throw new AppError(409, "Mobile number already in use");
@@ -43,8 +45,12 @@ export const customerService = {
 
     const newCustomer = await prisma.customer.create({
       data: {
-        name: data.name, email: data.email, phoneNumber: data.phoneNumber,
-        address: data.address, notes: data.notes, organizationId,
+        name: data.name,
+        email: data.email,
+        phoneNumber: data.phoneNumber,
+        address: data.address,
+        notes: data.notes,
+        organizationId,
       },
     });
 
@@ -74,12 +80,16 @@ export const customerService = {
     const conditions: Prisma.CustomerWhereInput[] = [];
     const words = search.trim().split(/\s+/).filter(Boolean);
     for (const word of words) {
-      conditions.push({ OR: ["name", "email", "phoneNumber", "address"].map(
-        (field) => ({ [field]: { contains: word } }),
-      ) });
+      conditions.push({
+        OR: ["name", "email", "phoneNumber", "address"].map((field) => ({
+          [field]: { contains: word },
+        })),
+      });
     }
-    if (filter === "missing_address") conditions.push({ OR: [{ address: null }, { address: "" }] });
-    if (filter === "with_notes") conditions.push({ notes: { not: null } }, { notes: { not: "" } });
+    if (filter === "missing_address")
+      conditions.push({ OR: [{ address: null }, { address: "" }] });
+    if (filter === "with_notes")
+      conditions.push({ notes: { not: null } }, { notes: { not: "" } });
 
     const where: Prisma.CustomerWhereInput = {
       deletedAt: deleted ? { not: null } : null,
@@ -93,18 +103,21 @@ export const customerService = {
       cacheKey,
       DEFAULT_TTL_SECONDS,
       async () => {
-        return prisma.$transaction(async (db) => {
-          const total = await db.customer.count({ where });
-          const totalPages = Math.max(1, Math.ceil(total / pageSize));
-          const currentPage = Math.min(page, totalPages);
-          const customers = await db.customer.findMany({
-            skip: (currentPage - 1) * pageSize,
-            take: pageSize,
-            where,
-            orderBy: [{ [sortBy]: sortOrder }, { id: "asc" }],
-          });
-          return { customers, total, currentPage, totalPages };
-        }, { isolationLevel: "RepeatableRead" });
+        return prisma.$transaction(
+          async (db) => {
+            const total = await db.customer.count({ where });
+            const totalPages = Math.max(1, Math.ceil(total / pageSize));
+            const currentPage = Math.min(page, totalPages);
+            const customers = await db.customer.findMany({
+              skip: (currentPage - 1) * pageSize,
+              take: pageSize,
+              where,
+              orderBy: [{ [sortBy]: sortOrder }, { id: "asc" }],
+            });
+            return { customers, total, currentPage, totalPages };
+          },
+          { isolationLevel: "RepeatableRead" },
+        );
       },
     );
 
@@ -138,19 +151,26 @@ export const customerService = {
 
     if (!existingCustomer) throw new AppError(404, "Customer not found");
 
-    const [existingEmail, existingMobileNumber, existingName] = await Promise.all([
-      data.email === undefined ? null : prisma.customer.findUnique({
-        where: {
-          email: data.email,
-        },
-      }),
-      data.phoneNumber === undefined ? null : prisma.customer.findUnique({
-        where: {
-          phoneNumber: data.phoneNumber,
-        },
-      }),
-      data.name === undefined ? null : prisma.customer.findUnique({ where: { name: data.name } }),
-    ]);
+    const [existingEmail, existingMobileNumber, existingName] =
+      await Promise.all([
+        data.email === undefined
+          ? null
+          : prisma.customer.findUnique({
+              where: {
+                email: data.email,
+              },
+            }),
+        data.phoneNumber === undefined
+          ? null
+          : prisma.customer.findUnique({
+              where: {
+                phoneNumber: data.phoneNumber,
+              },
+            }),
+        data.name === undefined
+          ? null
+          : prisma.customer.findUnique({ where: { name: data.name } }),
+      ]);
 
     if (existingEmail && existingEmail.id !== id)
       throw new AppError(409, "Email already in use");
@@ -193,7 +213,8 @@ export const customerService = {
         data: { deletedAt: null },
       });
     } catch (error) {
-      if (isPrismaError(error, "P2025")) throw new AppError(404, "Customer not found");
+      if (isPrismaError(error, "P2025"))
+        throw new AppError(404, "Customer not found");
       throw error;
     }
 

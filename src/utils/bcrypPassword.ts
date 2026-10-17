@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { env } from "@/config/env.js";
+import { env } from "@/config/env";
 
 export function hashedPassword(password: string) {
   return bcrypt.hash(password, env.SALT_ROUNDS);

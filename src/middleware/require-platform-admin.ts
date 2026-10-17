@@ -1,9 +1,17 @@
 import type { NextFunction, Request, Response } from "express";
-import { requirePlatformAuthority } from "@/modules/role/tenant-access-policy.js";
+import { requirePlatformAuthority } from "@/modules/role/tenant-access-policy";
 
-export async function requirePlatformAdmin(_req: Request, _res: Response, next: NextFunction) {
-  try { await requirePlatformAuthority(); next(); }
-  catch (error) { next(error); }
+export async function requirePlatformAdmin(
+  _req: Request,
+  _res: Response,
+  next: NextFunction,
+) {
+  try {
+    await requirePlatformAuthority();
+    next();
+  } catch (error) {
+    next(error);
+  }
 }
 
 export const requireSystemAdmin = requirePlatformAdmin;

@@ -1,10 +1,10 @@
 import { ErrorRequestHandler } from "express";
-import { AppError } from "@/utils/AppError.js";
-import { logger } from "@/lib/logger.js";
+import { AppError } from "@/utils/AppError";
+import { logger } from "@/lib/logger";
 
 export const errorHandler: ErrorRequestHandler = (err, _, res, _next) => {
   if (err instanceof AppError) {
-    return res.status(err.statusCode).json({
+    return res.status(err.statusCode)on({
       error: err.message,
       ...(err.code && { code: err.code }),
     });
@@ -13,5 +13,5 @@ export const errorHandler: ErrorRequestHandler = (err, _, res, _next) => {
   logger.error({ err }, "Unhandled error");
   return res
     .status(500)
-    .json({ error: "Internal server error" });
+    on({ error: "Internal server error" });
 };

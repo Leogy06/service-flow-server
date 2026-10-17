@@ -1,30 +1,37 @@
 import { Request, Response, NextFunction } from "express";
 // import { z } from "zod";
-import { userService } from "./user.service.js";
-import { sendResponse } from "@/utils/sendResponse.js";
-import { requestContext } from "@/lib/requestContext.js";
+import { userService } from "./user.service";
+import { sendResponse } from "@/utils/sendResponse";
+import { requestContext } from "@/lib/requestContext";
 import {
   CreateUserInviteSchema,
   CreateUserSchema,
   ResetTokenExpirationDateInvitationSchema,
   SetPasswordSchema,
   UserListQuery,
-} from "./user.schema.js";
-import { UserUpdateInput } from "./types.js";
-import { userPasswordService } from "./user-password.service.js";
-import type { ResetStaffPasswordInput } from "./user-password.schema.js";
+} from "./user.schema";
+import { UserUpdateInput } from "./types";
+import { userPasswordService } from "./user-password.service";
+import type { ResetStaffPasswordInput } from "./user-password.schema";
 
 export const userController = {
   async resetStaffPassword(req: Request, res: Response, next: NextFunction) {
     try {
       const id = (req.validated.params as { id: string }).id;
-      const result = await userPasswordService.resetStaffPassword(id, req.validated.body as ResetStaffPasswordInput);
+      const result = await userPasswordService.resetStaffPassword(
+        id,
+        req.validated.body as ResetStaffPasswordInput,
+      );
       sendResponse(res, 200, "Staff password reset successfully", result);
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   },
   async listRoles(_req: Request, res: Response, next: NextFunction) {
     try {
-      const organizationId = requestContext.getValue("organizationId") as string;
+      const organizationId = requestContext.getValue(
+        "organizationId",
+      ) as string;
       const roles = await userService.listRoles(organizationId);
       sendResponse(res, 200, "User roles fetched successfully", roles);
     } catch (err) {

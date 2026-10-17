@@ -1,7 +1,7 @@
 import jwt, { SignOptions } from "jsonwebtoken";
 import crypto from "crypto";
-import { AccessTokenPayload } from "@/types/index.js";
-import { env } from "@/config/env.js";
+import { AccessTokenPayload } from "@/types/index";
+import { env } from "@/config/env";
 
 const ACCESS_SECRET = env.JWT_ACCESS_SECRET;
 const ACCESS_EXPIRY = env.ACCESS_TOKEN_EXPIRY;

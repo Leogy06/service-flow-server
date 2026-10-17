@@ -1,7 +1,7 @@
 import "dotenv/config";
-import { PrismaClient } from "../generated/prisma/client.js";
+import { PrismaClient } from "../generated/prisma/client";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
-import { env } from "@/config/env.js";
+import { env } from "@/config/env";
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 // log env

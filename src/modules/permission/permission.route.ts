@@ -1,9 +1,9 @@
-import { permissionController } from "./permission.controller.js";
-import { validate } from "@/middleware/validate.js";
-import { createPermissionSchema } from "./permission.schema.js";
+import { permissionController } from "./permission.controller";
+import { validate } from "@/middleware/validate";
+import { createPermissionSchema } from "./permission.schema";
 import { Router } from "express";
-import { authenticate } from "@/middleware/auth.js";
-import { requirePlatformAdmin } from "@/middleware/require-platform-admin.js";
+import { authenticate } from "@/middleware/auth";
+import { requirePlatformAdmin } from "@/middleware/require-platform-admin";
 
 const permissionRoutes = Router();
 permissionRoutes.use(authenticate);
