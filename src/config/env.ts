@@ -31,6 +31,11 @@ const envSchema = z.object({
   FEEDBACK_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(10 * 60 * 1000),
   FEEDBACK_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
   FEEDBACK_INVITATION_DAYS: z.coerce.number().int().min(1).max(90).default(30),
+  BRANDING_UPLOAD_DIR: z.string().trim().min(1).default("storage/branding"),
+  BRANDING_UPLOAD_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60 * 1000),
+  BRANDING_UPLOAD_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+  BRANDING_ASSET_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60 * 1000),
+  BRANDING_ASSET_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
 
   //resend
   RESEND_API_KEY: z.string().min(1),

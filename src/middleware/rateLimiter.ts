@@ -99,6 +99,26 @@ export const refundLimiter = rateLimit({
   keyGenerator: (req) => req.user?.id ?? ipKeyGenerator(req.ip ?? "unknown"),
 });
 
+export const brandingUploadLimiter = rateLimit({
+  windowMs: env.BRANDING_UPLOAD_RATE_LIMIT_WINDOW_MS ?? 60 * 1000,
+  limit: env.BRANDING_UPLOAD_RATE_LIMIT_MAX ?? 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: redisStore("branding-upload"),
+  handler: limitReached,
+  keyGenerator: (req) => req.user?.id ?? ipKeyGenerator(req.ip ?? "unknown"),
+});
+
+export const brandingAssetLimiter = rateLimit({
+  windowMs: env.BRANDING_ASSET_RATE_LIMIT_WINDOW_MS ?? 60 * 1000,
+  limit: env.BRANDING_ASSET_RATE_LIMIT_MAX ?? 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: redisStore("branding-asset"),
+  handler: limitReached,
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? "unknown"),
+});
+
 export const deleteLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 min
   limit: 1,

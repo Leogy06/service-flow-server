@@ -4,6 +4,7 @@ build/
 .env
 /src/generated/prisma
 logs/*
+storage/
 TODO.md
 scripts/
 !scripts/

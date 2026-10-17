@@ -9,7 +9,9 @@ import {
 import { writeLimmiter } from "@/middleware/rateLimiter";
 import { authenticate } from "@/middleware/auth";
 import { requireSystemAdmin } from "@/middleware/require-platform-admin";
+import { brandingRoutes } from "./branding.routes";
 const organizationRoutes = Router();
+organizationRoutes.use(brandingRoutes);
 
 organizationRoutes.get(
   "/",

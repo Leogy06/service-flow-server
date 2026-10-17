@@ -190,8 +190,23 @@ model Organization {
   productFeedback ProductFeedback[]
   feedbackInvitations FeedbackInvitation[]
   customerFeedback CustomerFeedback[]
+  settings OrganizationSettings?
 
   @@index([status, createdAt])
+}
+
+model OrganizationSettings {
+  organizationId String @id
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  primaryColor String @default("#b91c1c") @db.VarChar(7)
+  displayName String? @db.VarChar(100)
+  logoUrl String? @db.VarChar(191)
+  faviconUrl String? @db.VarChar(191)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([logoUrl])
+  @@index([faviconUrl])
 }
 
 // ─────────────────────────────────────────────

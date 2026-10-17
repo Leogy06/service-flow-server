@@ -69,7 +69,7 @@ const db = {
   },
   auditLog: { create: jest.fn(async ({ data }: { data: unknown }) => { if (failAudit) throw new Error("Audit failed"); auditRows.push(data); return {}; }) },
 };
-const prisma = { ...db, $transaction: async <T>(work: (db: typeof db) => Promise<T>) => {
+const prisma = { ...db, $transaction: async <T>(work: (tx: typeof db) => Promise<T>) => {
   const before = structuredClone({ products, responses, auditRows, invitationHash });
   try { return await work(db); } catch (error) { ({ products, responses, auditRows, invitationHash } = before); throw error; }
 } };
