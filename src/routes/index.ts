@@ -32,4 +32,4 @@ router.use("/system-admin", systemAdminRoutes);
 router.use("/audit-logs", authenticate, auditRoutes);
 router.use("/dashboard", authenticate, dashboardRoutes);
 
-router.get("/health", (_req, res) => reson({ status: "ok" }));
+router.get("/health", (_req, res) => res.json({ status: "ok" }));

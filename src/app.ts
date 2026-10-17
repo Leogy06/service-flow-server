@@ -24,7 +24,7 @@ app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
 app.use(compression()); // gzip reduces the size of the response
 app.use(requestLogger);
 app.use(observeRequests);
-app.use(expresson());
+app.use(express.json());
 app.use(cookieParser());
 
 app.use("/api", apiLimiter);

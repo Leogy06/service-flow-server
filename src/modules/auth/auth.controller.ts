@@ -52,7 +52,7 @@ export const authController = {
       const result = await authService.refresh(token);
       res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
       res.cookie("refreshToken", result.refreshToken, refreshCookieOptions);
-      reson({ accessToken: result.accessToken });
+      res.json({ accessToken: result.accessToken });
     } catch (err) {
       res.clearCookie("refreshToken", { path: "/api/auth" });
       res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
@@ -60,13 +60,14 @@ export const authController = {
     }
   },
 
+
   async logout(req: Request, res: Response, next: NextFunction) {
     try {
       const token = req.cookies.refreshToken;
       if (token) await authService.logout(token);
       res.clearCookie("refreshToken", { path: "/api/auth" });
       res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
-      reson({ message: "Logged out" });
+      res.json({ message: "Logged out" });
     } catch (err) {
       next(err);
     }
@@ -77,7 +78,7 @@ export const authController = {
       await profileService.logoutAll();
       res.clearCookie("refreshToken", { path: "/api/auth" });
       res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
-      reson({ message: "Logged out of all devices" });
+      res.json({ message: "Logged out of all devices" });
     } catch (err) {
       next(err);
     }

@@ -7,6 +7,7 @@ export function sendResponse<T>(
   message: string,
   data: T,
 ) {
-  return res.status(statusCode);
-  on(new ApiResponse(statusCode, message, data));
+  return res
+    .status(statusCode)
+    .json(new ApiResponse(statusCode, message, data));
 }

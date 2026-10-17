@@ -86,7 +86,7 @@ function snapshot(subscription: Subscription) {
     version: subscription.version,
   };
 }
-function coverageRoot(after: PrismaonValue | undefined): string | null {
+function coverageRoot(after: Prisma.JsonValue | undefined): string | null {
   return after &&
     typeof after === "object" &&
     !Array.isArray(after) &&
@@ -108,7 +108,7 @@ async function history(
       subscriptionId: subscription.id,
       kind,
       reason,
-      before: before ?? PrismaonNull,
+      before: before ?? Prisma.JsonNull,
       after: {
         ...snapshot(subscription),
         ...(coverageRootPaymentId ? { coverageRootPaymentId } : {}),
