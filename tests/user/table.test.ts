@@ -185,7 +185,7 @@ describe("User table API", () => {
     expect((await get("/users", "staff-a")).status).toBe(401);
     expect((await restore("staff-a")).status).toBe(200);
     expect(users.find((u) => u.id === "staff-a")).toMatchObject({ deletedAt: null, roleId: "staff-role-a", status: "ACTIVE" });
-    expect(invalidateCache).toHaveBeenCalledWith("cache:users:list*");
+    expect(invalidateCache).toHaveBeenCalledWith("cache:modules:v1:users:org-a:*", "modules:v1:users:org-a");
     expect(record.mock.calls.map(([event]: any) => event.action)).toEqual(["delete.user.success", "restore.user.success"]);
   });
   it("rejects self-deletion, repeated deletion and restoring a current user", async () => {

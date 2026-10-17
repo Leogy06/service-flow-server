@@ -109,7 +109,7 @@ const db = {
 };
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma: db }));
 jest.unstable_mockModule("@/lib/logger.js", () => ({ logger: { error: jest.fn() } }));
-jest.unstable_mockModule("@/utils/cache.js", () => ({ invalidateCache: jest.fn() }));
+jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn() }));
 jest.unstable_mockModule("@/utils/tokens.js", () => ({ verifyAccessToken: (sub: string) =>
   ({ sub, role: "Admin", organizationId: "org-b", permissions: Object.values(P) }) }));
 const { authenticate } = await import("@/middleware/auth.js");

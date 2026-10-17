@@ -1,3 +1,4 @@
+import { cachedRead, invalidating } from "@/utils/module-cache";
 import { prisma } from "@/lib/prisma";
 import { requestContext } from "@/lib/requestContext";
 import { isTenantAdminName } from "@/modules/role/tenant-access-policy";
@@ -27,7 +28,7 @@ async function activeOrganization(db: Prisma.TransactionClient, organizationId: 
 }
 type SettingsChanges = Partial<Pick<OrganizationSettings, "primaryColor" | "displayName" | "logoUrl" | "faviconUrl">>;
 async function updateSettings(organizationId: string, data: SettingsChanges, action: string) {
-  return tenantTransaction(async (db) => {
+  return invalidating("branding", () => tenantTransaction(async (db) => {
     await activeOrganization(db, organizationId);
     const before = await db.organizationSettings.findUnique({ where: { organizationId } });
     const settings = await db.organizationSettings.upsert({
@@ -40,7 +41,7 @@ async function updateSettings(organizationId: string, data: SettingsChanges, act
       before: auditedSettings(before), after: auditedSettings(settings),
     });
     return { settings, before };
-  });
+  }));
 }
 async function removeUnusedAsset(url: string | null) {
   if (!url) return;
@@ -54,9 +55,11 @@ async function removeUnusedAsset(url: string | null) {
 export const brandingService = {
   async get() {
     const organizationId = requireBrandingTenant();
-    const organization = await prisma.organization.findUnique({ where: { id: organizationId, status: "ACTIVE" }, select: { settings: true } });
-    if (!organization) throw new AppError(404, "Organization not found");
-    return organization.settings ?? defaults(organizationId);
+    return cachedRead("branding", "get", [], async () => {
+      const organization = await prisma.organization.findUnique({ where: { id: organizationId, status: "ACTIVE" }, select: { settings: true } });
+      if (!organization) throw new AppError(404, "Organization not found");
+      return organization.settings ?? defaults(organizationId);
+    });
   },
   async update(input: BrandingUpdateInput) {
     const organizationId = requireBrandingTenant(true);

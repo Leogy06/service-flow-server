@@ -5,11 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { AppError } from "@/utils/AppError";
 import { isPrismaError } from "@/utils/errorHelper";
 import { requestContext } from "@/lib/requestContext";
-import {
-  DEFAULT_TTL_SECONDS,
-  getOrSetCache,
-  invalidateCache,
-} from "@/utils/cache";
+import { cachedRead, invalidateModuleCache } from "@/utils/module-cache";
 import { CreateCustomerInput } from "./types";
 
 function customerOrganization() {
@@ -62,7 +58,7 @@ export const customerService = {
       after: JSON.stringify(newCustomer),
     });
 
-    await invalidateCache(`cache:customers:list:${organizationId}:*`);
+    await invalidateModuleCache("customers");
 
     return newCustomer;
   },
@@ -97,11 +93,8 @@ export const customerService = {
       ...(conditions.length ? { AND: conditions } : {}),
     };
 
-    const cacheKey = `cache:customers:list:${organizationId}:v3:${page}:${pageSize}:${sortBy}:${sortOrder}:${filter}:${deleted}:${encodeURIComponent(search)}`;
-
-    const { customers, total, currentPage, totalPages } = await getOrSetCache(
-      cacheKey,
-      DEFAULT_TTL_SECONDS,
+    const { customers, total, currentPage, totalPages } = await cachedRead(
+      "customers", "list", { page, pageSize, search, sortOrder, sortBy, filter, deleted },
       async () => {
         return prisma.$transaction(
           async (db) => {
@@ -136,11 +129,13 @@ export const customerService = {
 
   async get(id: string) {
     const organizationId = customerOrganization();
-    const customer = await prisma.customer.findUnique({
-      where: { id, organizationId, deletedAt: null },
+    return cachedRead("customers", "get", id, async () => {
+      const customer = await prisma.customer.findUnique({
+        where: { id, organizationId, deletedAt: null },
+      });
+      if (!customer) throw new AppError(404, "Customer not found");
+      return customer;
     });
-    if (!customer) throw new AppError(404, "Customer not found");
-    return customer;
   },
 
   async update(id: string, data: UpdateCustomerInput) {
@@ -193,9 +188,7 @@ export const customerService = {
       after: JSON.stringify(updatedCustomer),
     });
 
-    await invalidateCache(
-      `cache:customers:list:${existingCustomer.organizationId}:*`,
-    );
+    await invalidateModuleCache("customers");
 
     return updatedCustomer;
   },
@@ -225,7 +218,7 @@ export const customerService = {
       before: JSON.stringify(existingCustomer),
       after: JSON.stringify(restoredCustomer),
     });
-    await invalidateCache(`cache:customers:list:${organizationId}:*`);
+    await invalidateModuleCache("customers");
     return restoredCustomer;
   },
 
@@ -250,9 +243,7 @@ export const customerService = {
       after: JSON.stringify(deletedCustomer),
     });
 
-    await invalidateCache(
-      `cache:customers:list:${existingCustomer.organizationId}:*`,
-    );
+    await invalidateModuleCache("customers");
 
     return deletedCustomer;
   },

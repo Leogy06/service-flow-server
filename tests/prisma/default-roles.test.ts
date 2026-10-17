@@ -44,7 +44,7 @@ const client = { ...db, $transaction: async (work: (transaction: typeof db) => P
   catch (error) { ({ roles, permissions, audits } = before); throw error; }
 } } as unknown as PrismaClient;
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma: client }));
-jest.unstable_mockModule("@/utils/cache.js", () => ({ invalidateCache: jest.fn() }));
+jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn() }));
 const { seedDefaultRoles } = await import("../../prisma/seeds/defaultRoles.js");
 const { seedAdminRoles } = await import("../../prisma/seeds/adminRoles.js");
 

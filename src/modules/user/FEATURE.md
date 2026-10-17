@@ -1,0 +1,14 @@
+# Tenant users
+
+User routes/controller, schema, `user.service.ts`, password service and platform
+creation service manage accounts, invitations, profiles, archive/restore and
+password reset. Tenant access policy and entitlement helpers enforce role scope,
+effective permissions and seat limits. Security-sensitive changes preserve
+transactional audits and session revocation.
+
+User lists and role choices use shared Redis caching. The internal `getById`
+lookup validates mutations and deliberately reads live database state. User/profile
+and access mutations refresh user lists, role choices, staff/job labels, eligible
+upgrade plans and affected dashboards. Permission-management data remains live;
+cache hits never determine authorization. See `backend/docs/CACHING.md`; tests are
+under `tests/user`, `tests/auth`, `tests/access-management` and `tests/cache`.

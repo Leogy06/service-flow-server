@@ -1,4 +1,6 @@
 ﻿import { jest } from "@jest/globals";
+
+jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn(async () => {}) }));
 import express, { type ErrorRequestHandler, type RequestHandler } from "express";
 import request from "supertest";
 import { PERMISSIONS as P } from "../../src/constants/permission.constants.js";

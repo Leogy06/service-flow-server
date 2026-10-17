@@ -1,5 +1,7 @@
 import { jest } from "@jest/globals";
 
+jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn(async () => {}) }));
+
 const rows = [
   { id: "pending-a", organizationId: "org-a", referenceNumber: "SR-001", title: "Air conditioner repair", status: "PENDING", customer: { organizationId: "org-a", name: "Alice Santos" } },
   { id: "progress-a", organizationId: "org-a", referenceNumber: "SR-002", title: "Air conditioner repair", status: "IN_PROGRESS", customer: { organizationId: "org-a", name: "Alice Santos" } },

@@ -1,3 +1,4 @@
+import { cachedRead } from "@/utils/module-cache";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
@@ -33,7 +34,7 @@ export const operationsService = {
     const window = reportWindow(query.from, query.to);
     const now = new Date();
     const soon = new Date(+now + 30 * 86400000);
-    return prisma.$transaction(
+    return cachedRead("platformDashboard", "dashboard", query, () => prisma.$transaction(
       async (db) => {
         const [
           totalOrganizations,
@@ -176,7 +177,7 @@ export const operationsService = {
         };
       },
       { isolationLevel: "RepeatableRead", timeout: 15000 },
-    );
+    ), { ttl: 30 });
   },
 
   async settings() {

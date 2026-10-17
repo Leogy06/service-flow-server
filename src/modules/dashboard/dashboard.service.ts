@@ -1,3 +1,4 @@
+import { cachedRead } from "@/utils/module-cache";
 import { Prisma } from "@/generated/prisma/client";
 import { requestContext } from "@/lib/requestContext";
 import { PERMISSIONS as P } from "@/constants/permission.constants";
@@ -392,47 +393,49 @@ export const dashboardService = {
     const now = new Date();
     const periods = dashboardPeriods(now);
     // A read-only snapshot avoids locking business writes while keeping metrics consistent.
-    return prisma.$transaction(
-      async (db) => {
-        const [jobs, requests, billing, customers] = await Promise.all([
-          can(P.JOB_READ)
-            ? jobsOverview(
-                db,
-                organizationId,
-                business ? undefined : userId,
-                now,
-                periods,
-                business && can(P.INVOICE_READ),
-              )
-            : null,
-          business && can(P.SERVICE_REQUEST_READ)
-            ? requestsOverview(db, organizationId, periods, now)
-            : null,
-          business && can(P.INVOICE_READ)
-            ? billingOverview(db, organizationId, periods, now)
-            : null,
-          business && can(P.CUSTOMER_READ)
-            ? db.customer.count({ where: { organizationId, deletedAt: null } })
-            : null,
-        ]);
-        return {
-          mode: business ? ("business" as const) : ("staff" as const),
-          generatedAt: now.toISOString(),
-          timeZone: dashboardTimeZone,
-          period: {
-            label: periods.label,
-            start: periods.monthStart.toISOString(),
-            end: now.toISOString(),
-            previousStart: periods.previousStart.toISOString(),
-            previousEnd: periods.previousEnd.toISOString(),
-          },
-          jobs,
-          requests,
-          billing,
-          customers,
-        };
-      },
-      { isolationLevel: "RepeatableRead", maxWait: 5000, timeout: 15000 },
-    );
+    return cachedRead("dashboard", "get", [], async () => {
+      return prisma.$transaction(
+        async (db) => {
+          const [jobs, requests, billing, customers] = await Promise.all([
+            can(P.JOB_READ)
+              ? jobsOverview(
+                  db,
+                  organizationId,
+                  business ? undefined : userId,
+                  now,
+                  periods,
+                  business && can(P.INVOICE_READ),
+                )
+              : null,
+            business && can(P.SERVICE_REQUEST_READ)
+              ? requestsOverview(db, organizationId, periods, now)
+              : null,
+            business && can(P.INVOICE_READ)
+              ? billingOverview(db, organizationId, periods, now)
+              : null,
+            business && can(P.CUSTOMER_READ)
+              ? db.customer.count({ where: { organizationId, deletedAt: null } })
+              : null,
+          ]);
+          return {
+            mode: business ? ("business" as const) : ("staff" as const),
+            generatedAt: now.toISOString(),
+            timeZone: dashboardTimeZone,
+            period: {
+              label: periods.label,
+              start: periods.monthStart.toISOString(),
+              end: now.toISOString(),
+              previousStart: periods.previousStart.toISOString(),
+              previousEnd: periods.previousEnd.toISOString(),
+            },
+            jobs,
+            requests,
+            billing,
+            customers,
+          };
+        },
+        { isolationLevel: "RepeatableRead", maxWait: 5000, timeout: 15000 },
+      );
+    }, { ttl: 30 });
   },
 };

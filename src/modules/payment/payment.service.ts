@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { invalidating } from "@/utils/module-cache";
 import { Prisma } from "@/generated/prisma/client";
 import { auditService } from "@/modules/audit/audit.service";
 import { invoiceSelect, withBalance } from "@/modules/invoice/invoice.service";
@@ -103,13 +104,15 @@ export const paymentService = {
       });
       return { payment, invoice: withBalance(updated), replayed: false };
     };
-    try {
-      return await tenantTransaction(work);
-    } catch (error) {
-      // Concurrent identical requests may race on the primary key. Read the committed result.
-      if (error instanceof AppError && error.code === "DUPLICATE_RECORD")
-        return tenantTransaction(work);
-      throw error;
-    }
+    return invalidating("invoices", async () => {
+      try {
+        return await tenantTransaction(work);
+      } catch (error) {
+        // Concurrent identical requests may race on the primary key. Read the committed result.
+        if (error instanceof AppError && error.code === "DUPLICATE_RECORD")
+          return tenantTransaction(work);
+        throw error;
+      }
+    });
   },
 };

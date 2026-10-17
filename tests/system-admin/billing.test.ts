@@ -1,5 +1,7 @@
 import { jest } from "@jest/globals";
 
+jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn(async () => {}) }));
+
 // Repository transactions are serialized here to exercise idempotent business behavior.
 // Real lock/unique-constraint races are covered by the opt-in MySQL harness.
 type Row = Record<string, any>;

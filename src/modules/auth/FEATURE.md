@@ -4,6 +4,11 @@
 refresh/logout and profile routes. `authorization.ts` reloads account, tenant,
 permissions, security status and billing entitlement for protected requests.
 
+Authentication, authorization and profile/session responses remain uncached.
+Committed profile changes invalidate cached user lists, staff/job labels, role
+choices, eligible plans and dashboards through `utils/module-cache.ts`; cache
+state never determines authentication or permission decisions.
+
 Public `POST /api/auth/register` now returns 202 with `data.submitted: true` and
 queues a platform signup request through `system-admin/signup.service.ts`.
 It accepts a business name and desired slug along with credentials, explicit

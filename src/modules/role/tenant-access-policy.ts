@@ -8,7 +8,7 @@ import {
   type AuthorizationUser,
 } from "@/modules/auth/authorization";
 import { AppError } from "@/utils/AppError";
-import { invalidateCache } from "@/utils/cache";
+import { invalidateModuleCache } from "@/utils/module-cache";
 import { isPrismaError } from "@/utils/errorHelper";
 import { tenantTransaction } from "@/utils/tenant-transaction";
 
@@ -187,8 +187,7 @@ export async function accessTransaction<T>(
 ) {
   try {
     const result = await tenantTransaction(work);
-    await invalidateCache("cache:users:list*");
-    await invalidateCache("cache:user:byId*");
+    await invalidateModuleCache(["users", "roles"]);
     return result;
   } catch (error) {
     if (isPrismaError(error, "P2002"))

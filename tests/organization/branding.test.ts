@@ -45,7 +45,7 @@ const prisma = {
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma }));
 jest.unstable_mockModule("@/lib/logger.js", () => ({ logger: { warn: jest.fn(), error: jest.fn() } }));
 jest.unstable_mockModule("@/lib/redis.js", () => ({ redis: {} }));
-jest.unstable_mockModule("@/utils/cache.js", () => ({ invalidateCache: jest.fn() }));
+jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn() }));
 jest.unstable_mockModule("@/utils/tokens.js", () => ({ verifyAccessToken: (token: string) => ({ sub: token, sessionVersion: 0 }) }));
 jest.unstable_mockModule("rate-limit-redis", async () => { const { MemoryStore } = await import("express-rate-limit"); return { RedisStore: class extends MemoryStore { constructor() { super(); } } }; });
 jest.unstable_mockModule("@/config/env.js", () => ({ env: {

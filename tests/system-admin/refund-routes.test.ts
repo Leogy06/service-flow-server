@@ -8,7 +8,7 @@ jest.unstable_mockModule("rate-limit-redis", async () => {
   return { RedisStore: class extends MemoryStore { constructor() { super(); } } };
 });
 jest.unstable_mockModule("@/lib/redis.js", () => ({ redis: {} }));
-jest.unstable_mockModule("@/utils/cache.js", () => ({ invalidateCache: jest.fn() }));
+jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn() }));
 jest.unstable_mockModule("@/config/env.js", () => ({ env: { REFUND_RATE_LIMIT_WINDOW_MS: 60000, REFUND_RATE_LIMIT_MAX: 2, SIGNUP_RATE_LIMIT_WINDOW_MS: 60000, SIGNUP_RATE_LIMIT_MAX: 2 } }));
 jest.unstable_mockModule("@/utils/tokens.js", () => ({ verifyAccessToken: (token: string) => ({ sub: token, sessionVersion: 0 }) }));
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma: {

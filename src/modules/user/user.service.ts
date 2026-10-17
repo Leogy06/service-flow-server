@@ -1,11 +1,7 @@
 import { Prisma, UserStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/utils/AppError";
-import {
-  DEFAULT_TTL_SECONDS,
-  getOrSetCache,
-  invalidateCache,
-} from "@/utils/cache";
+import { cachedRead, invalidateModuleCache } from "@/utils/module-cache";
 import { hashedPassword } from "@/utils/bcrypPassword";
 import { CreateUserInput } from "@/types/index";
 import crypto from "node:crypto";
@@ -72,14 +68,11 @@ export const userService = {
   ) {
     const { deleted = false, select = DEFAULT_USER_SELECT } = opts;
 
-    const cacheKey = `cache:user:byId:${organizationId}:${id}:${deleted}:${JSON.stringify(select)}`;
-
-    const user = await getOrSetCache(cacheKey, DEFAULT_TTL_SECONDS, () =>
-      prisma.user.findUnique({
-        where: { id, ...userScope(organizationId, { deleted }) },
-        select,
-      }),
-    );
+    // This lookup is used to validate mutations; always read current DB state.
+    const user = await prisma.user.findUnique({
+      where: { id, ...userScope(organizationId, { deleted }) },
+      select,
+    });
 
     if (!user) throw new AppError(404, "User not found");
     return user;
@@ -100,8 +93,6 @@ export const userService = {
   }: ListProps) {
     if (!organizationId) throw new AppError(400, "Organization ID is required");
     if (!ALLOWED_SORT_FIELDS.includes(sortBy)) sortBy = "createdAt";
-
-    const cacheKey = `cache:users:list:${organizationId}:${JSON.stringify(select)}:${page}:${pageSize}:${search}:${sortOrder}:${sortBy}:${status ?? ""}:${roleId ?? ""}:${roleName ?? ""}:${deleted ?? ""}`;
 
     const where: Prisma.UserWhereInput = {
       organizationId,
@@ -130,9 +121,8 @@ export const userService = {
       },
     };
 
-    const { users, total, currentPage, totalPages } = await getOrSetCache(
-      cacheKey,
-      DEFAULT_TTL_SECONDS,
+    const { users, total, currentPage, totalPages } = await cachedRead(
+      "users", "list", { select, page, pageSize, search, sortOrder, sortBy, status, roleId, roleName, deleted },
       async () => {
         return prisma.$transaction(
           async (db) => {
@@ -151,6 +141,7 @@ export const userService = {
           { isolationLevel: "RepeatableRead" },
         );
       },
+      { scope: organizationId },
     );
 
     return {
@@ -168,21 +159,15 @@ export const userService = {
 
   async listRoles(organizationId: string) {
     if (!organizationId) throw new AppError(400, "Organization ID is required");
-    return prisma.role.findMany({
+    return cachedRead("roles", "userChoices", [], () => prisma.role.findMany({
       where: { organizationId, deletedAt: null },
       select: { id: true, name: true },
       orderBy: [{ name: "asc" }, { id: "asc" }],
-    });
+    }), { scope: organizationId });
   },
 
-  async invalidateUserCache(userId?: string) {
-    try {
-      await invalidateCache("cache:users:list*");
-      if (userId) await invalidateCache(`cache:user:byId:*:${userId}:*`);
-    } catch (err) {
-      console.error("cache invalidation failed:", err);
-      throw err;
-    }
+  async invalidateUserCache() {
+    await invalidateModuleCache("users");
   },
 
   async validateCreateInput(input: CreateUserInput) {
@@ -477,8 +462,7 @@ export const userService = {
       { isolationLevel: "Serializable" },
     );
 
-    await invalidateCache(`cache:users:list:${organizationId}:*`);
-    await invalidateCache(`cache:user:byId:${organizationId}:${user.id}:*`);
+    await invalidateModuleCache("users", organizationId);
     return null;
   },
 
@@ -537,7 +521,7 @@ export const userService = {
       })
       .catch((err) => console.error("audit failed:", err));
 
-    await this.invalidateUserCache(id);
+    await this.invalidateUserCache();
     return safe;
   },
 
@@ -582,7 +566,7 @@ export const userService = {
 
     const safe = stripSecrets(user);
 
-    await this.invalidateUserCache(id);
+    await this.invalidateUserCache();
 
     return safe;
   },
@@ -631,7 +615,7 @@ export const userService = {
 
     const safe = stripSecrets(user);
 
-    await this.invalidateUserCache(id);
+    await this.invalidateUserCache();
 
     return safe;
   },

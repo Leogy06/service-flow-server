@@ -1,3 +1,4 @@
+import { cachedRead } from "@/utils/module-cache";
 import { prisma } from "@/lib/prisma";
 import { auditService } from "@/modules/audit/audit.service";
 import { AppError } from "@/utils/AppError";
@@ -104,14 +105,16 @@ export const roleService = {
       PERMISSIONS.USER_CREATE,
       PERMISSIONS.USER_UPDATE,
     ]);
-    const roles = await prisma.role.findMany({
-      where: { organizationId: actor.organizationId, deletedAt: null },
-      select: managedRoleSelect,
-      orderBy: { name: "asc" },
+    return cachedRead("roles", "listAssignable", { grantable: actor.grantable, roleId: actor.user.role.id }, async () => {
+      const roles = await prisma.role.findMany({
+        where: { organizationId: actor.organizationId, deletedAt: null },
+        select: managedRoleSelect,
+        orderBy: { name: "asc" },
+      });
+      return roles
+        .filter((role) => !roleIsProtected(role, actor))
+        .map((role) => ({ id: role.id, name: role.name, assignable: true }));
     });
-    return roles
-      .filter((role) => !roleIsProtected(role, actor))
-      .map((role) => ({ id: role.id, name: role.name, assignable: true }));
   },
   async getById(id: string) {
     const actor = await requireTenantAdmin(prisma, PERMISSIONS.ROLE_READ);

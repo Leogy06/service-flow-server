@@ -6,6 +6,14 @@ Platform operators manage organizations, plans, subscription entitlements,
 verified manual receipts, refund requests, security and operational reporting.
 Tenant customer invoices/payments are separate modules.
 
+The platform dashboard uses a 30-second Redis cache, and the shared plan catalog
+uses the default five minutes. Persisted platform authority is checked before
+cache access. Platform transactions invalidate dashboard activity after commit;
+plan, subscription and user-security mutations additionally invalidate dependent
+plan choices or user/staff views. Administrative lists/details, audit logs, signup
+review/counts, financial exports and entitlement checks remain live. Monitoring
+keeps its existing health-probe cache and live traffic. See `backend/docs/CACHING.md`.
+
 Public signup requests are platform-owned applications, separate from tenant
 users. `signup.*` validates, lists/counts and reviews applications. Only persisted
 system administrators may inspect them. Signup uses configurable Redis

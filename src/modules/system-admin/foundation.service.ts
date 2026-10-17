@@ -1,4 +1,5 @@
-﻿import type { Prisma } from "@/generated/prisma/client";
+import { invalidating } from "@/utils/module-cache";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePlatformAuthority } from "@/modules/role/tenant-access-policy";
 import { AppError } from "@/utils/AppError";
@@ -299,7 +300,7 @@ export const foundationService = {
     );
   },
   async tenantStatus(id: string, input: TenantStatusInput) {
-    return platformTransaction(async (db) => {
+    return invalidating("organization", () => platformTransaction(async (db) => {
       const actor = await requirePlatformAuthority(db);
       await lockOrganization(db, id);
       const before = await db.organization.findUnique({
@@ -339,10 +340,10 @@ export const foundationService = {
         },
       });
       return result;
-    });
+    }));
   },
   async userSecurity(id: string, input: UserSecurityInput) {
-    return platformTransaction(async (db) => {
+    return invalidating("users", () => platformTransaction(async (db) => {
       const actor = await requirePlatformAuthority(db);
       const initial = await findTenantUser(db, id);
       await lockOrganization(db, initial.organizationId!);
@@ -381,7 +382,7 @@ export const foundationService = {
         },
       });
       return result;
-    });
+    }));
   },
   async revokeSessions(id: string, input: RevokeSessionsInput) {
     return platformTransaction(async (db) => {

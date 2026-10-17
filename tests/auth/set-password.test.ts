@@ -100,7 +100,7 @@ test("public invite acceptance hashes the emailed token, activates only its tena
   expect(users[1]).toEqual(otherTenant);
   expect(db.user.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ inviteToken: hash(rawToken) }) }));
   expect(audits).toEqual([{ event: { action: "set.password.success", entity: "User", entityId: "user-a", after: { status: "ACTIVE" } }, actorId: "user-a", organizationId: "org-a" }]);
-  expect(invalidateCache.mock.calls.map(([key]) => key)).toEqual(["cache:users:list:org-a:*", "cache:user:byId:org-a:user-a:*"]);
+  expect(invalidateCache.mock.calls.map(([key]) => key)).toEqual(["cache:modules:v1:users:org-a:*", "cache:modules:v1:roles:org-a:*", "cache:modules:v1:jobs:org-a:*", "cache:modules:v1:upgradePlans:org-a:*", "cache:modules:v1:dashboard:org-a:*", "cache:modules:v1:platformDashboard:platform:*"]);
 });
 
 test.each([

@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { requestContext } from "@/lib/requestContext";
 import { AppError } from "@/utils/AppError";
+import { invalidating } from "@/utils/module-cache";
 import { tenantTransaction } from "@/utils/tenant-transaction";
 
 type PlatformAuditInput = {
@@ -39,7 +40,11 @@ export function recordPlatformAudit(
   });
 }
 
-export const platformTransaction = tenantTransaction;
+// Every platform write affects dashboard activity, including CLI/background
+// callers. Services invalidate any additional resource projections they change.
+export function platformTransaction<T>(work: (db: Prisma.TransactionClient) => Promise<T>) {
+  return invalidating("platformDashboard", () => tenantTransaction(work));
+}
 
 // All tenant seat and subscription mutations acquire the same tenant row lock.
 export async function lockOrganization(

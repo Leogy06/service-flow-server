@@ -1,3 +1,4 @@
+import { cachedRead, invalidating } from "@/utils/module-cache";
 import { Prisma, type Subscription } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requestContext } from "@/lib/requestContext";
@@ -189,7 +190,7 @@ export const billingService = {
           }
         : {}),
     };
-    return prisma.$transaction(
+    return cachedRead("plans", "listPlans", query, () => prisma.$transaction(
       (db) =>
         page(
           query,
@@ -203,7 +204,7 @@ export const billingService = {
             }),
         ),
       { isolationLevel: "RepeatableRead" },
-    );
+    ));
   },
   async listSubscriptions(query: SubscriptionListQuery) {
     await requirePlatformAuthority();
@@ -307,7 +308,7 @@ export const billingService = {
     return result;
   },
   createPlan(input: CreatePlanInput) {
-    return platformTransaction(async (db) => {
+    return invalidating("plans", () => platformTransaction(async (db) => {
       await requirePlatformAuthority(db);
       const plan = await db.plan.create({
         data: {
@@ -327,10 +328,10 @@ export const billingService = {
         after: json({ ...plan, reason: input.reason }),
       });
       return plan;
-    });
+    }));
   },
   updatePlan(id: string, input: UpdatePlanInput) {
-    return platformTransaction(async (db) => {
+    return invalidating("plans", () => platformTransaction(async (db) => {
       await requirePlatformAuthority(db);
       const before = await db.plan.findUnique({ where: { id } });
       if (!before) throw new AppError(404, "Plan not found");
@@ -381,10 +382,10 @@ export const billingService = {
         after: json({ ...plan, reason: input.reason }),
       });
       return plan;
-    });
+    }));
   },
   assignSubscription(input: AssignSubscriptionInput) {
-    return platformTransaction(async (db) => {
+    return invalidating("subscriptions", () => platformTransaction(async (db) => {
       await requirePlatformAuthority(db);
       await lockOrganization(db, input.organizationId);
       const existing = await db.subscription.findUnique({
@@ -451,12 +452,12 @@ export const billingService = {
         after: { ...snapshot(subscription), reason: input.reason },
       });
       return subscription;
-    });
+    }));
   },
   async startTrial(id: string, input: StartTrialInput) {
     await requirePlatformAuthority();
     const organizationId = await subscriptionOrganization(id);
-    return platformTransaction(async (db) => {
+    return invalidating("subscriptions", () => platformTransaction(async (db) => {
       await requirePlatformAuthority(db);
       await lockOrganization(db, organizationId);
       const before = await requireSubscription(db, id);
@@ -510,12 +511,12 @@ export const billingService = {
         after: { ...snapshot(subscription), reason: input.reason },
       });
       return subscription;
-    });
+    }));
   },
   async changePlan(id: string, input: ChangePlanInput) {
     await requirePlatformAuthority();
     const organizationId = await subscriptionOrganization(id);
-    return platformTransaction(async (db) => {
+    return invalidating("subscriptions", () => platformTransaction(async (db) => {
       await requirePlatformAuthority(db);
       await lockOrganization(db, organizationId);
       const before = await requireSubscription(db, id);
@@ -544,12 +545,12 @@ export const billingService = {
         after: { ...snapshot(subscription), reason: input.reason },
       });
       return subscription;
-    });
+    }));
   },
   async changeStatus(id: string, input: ChangeStatusInput) {
     await requirePlatformAuthority();
     const organizationId = await subscriptionOrganization(id);
-    return platformTransaction(async (db) => {
+    return invalidating("subscriptions", () => platformTransaction(async (db) => {
       await requirePlatformAuthority(db);
       await lockOrganization(db, organizationId);
       const before = await requireSubscription(db, id);
@@ -574,7 +575,7 @@ export const billingService = {
         after: { ...snapshot(subscription), reason: input.reason },
       });
       return subscription;
-    });
+    }));
   },
   async recordPayment(input: RecordPaymentInput) {
     await requirePlatformAuthority();
@@ -640,7 +641,7 @@ export const billingService = {
   async reviewPayment(id: string, input: ReviewPaymentInput) {
     await requirePlatformAuthority();
     const organizationId = await paymentOrganization(id);
-    return platformTransaction(async (db) => {
+    return invalidating("subscriptions", () => platformTransaction(async (db) => {
       const actor = await requirePlatformAuthority(db);
       await lockOrganization(db, organizationId);
       const before = await db.subscriptionPayment.findUnique({ where: { id } });
@@ -752,7 +753,7 @@ export const billingService = {
         after: json({ ...payment, reason: input.reason }),
       });
       return payment;
-    });
+    }));
   },
   async requestRefund(id: string, input: RequestRefundInput) {
     await requirePlatformAuthority();
@@ -872,7 +873,7 @@ export const billingService = {
   async refundPayment(id: string, input: RefundPaymentInput) {
     await requirePlatformAuthority();
     const organizationId = await paymentOrganization(id);
-    return platformTransaction(async (db) => {
+    return invalidating("subscriptions", () => platformTransaction(async (db) => {
       const actor = await requirePlatformAuthority(db);
       await lockOrganization(db, organizationId);
       const existing = await db.subscriptionRefund.findUnique({
@@ -1031,6 +1032,6 @@ export const billingService = {
         }),
       });
       return refund;
-    });
+    }));
   },
 };

@@ -1,3 +1,4 @@
+import { cachedRead, invalidating } from "@/utils/module-cache";
 import { randomUUID } from "node:crypto";
 import { auditService } from "@/modules/audit/audit.service";
 import { AppError } from "@/utils/AppError";
@@ -68,44 +69,48 @@ export const invoiceService = {
           }
         : {}),
     };
-    return tenantTransaction(async (db) => {
-      const meta = pagination(
-        query.page,
-        query.pageSize,
-        await db.invoice.count({ where }),
-      );
-      const invoices = await db.invoice.findMany({
-        where,
-        select: invoiceSelect,
-        skip: (meta.page - 1) * meta.pageSize,
-        take: meta.pageSize,
-        orderBy: [{ createdAt: query.sortOrder }, { id: "asc" }],
+    return cachedRead("invoices", "list", query, async () => {
+      return tenantTransaction(async (db) => {
+        const meta = pagination(
+          query.page,
+          query.pageSize,
+          await db.invoice.count({ where }),
+        );
+        const invoices = await db.invoice.findMany({
+          where,
+          select: invoiceSelect,
+          skip: (meta.page - 1) * meta.pageSize,
+          take: meta.pageSize,
+          orderBy: [{ createdAt: query.sortOrder }, { id: "asc" }],
+        });
+        return { invoices: invoices.map(withBalance), pagination: meta };
       });
-      return { invoices: invoices.map(withBalance), pagination: meta };
     });
   },
   async get(id: string) {
     const organizationId = tenantOrganization();
-    return tenantTransaction(async (db) => {
-      const invoice = await db.invoice.findFirst({
-        where: { id, organizationId },
-        select: {
-          ...invoiceSelect,
-          items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
-          payments: {
-            where: { invoice: { organizationId } },
-            orderBy: [{ receivedAt: "desc" }, { id: "asc" }],
+    return cachedRead("invoices", "get", id, async () => {
+      return tenantTransaction(async (db) => {
+        const invoice = await db.invoice.findFirst({
+          where: { id, organizationId },
+          select: {
+            ...invoiceSelect,
+            items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+            payments: {
+              where: { invoice: { organizationId } },
+              orderBy: [{ receivedAt: "desc" }, { id: "asc" }],
+            },
           },
-        },
+        });
+        if (!invoice) throw new AppError(404, "Invoice not found");
+        return withBalance(invoice);
       });
-      if (!invoice) throw new AppError(404, "Invoice not found");
-      return withBalance(invoice);
     });
   },
   async create(data: CreateInvoice) {
     const organizationId = tenantOrganization();
     const { lines, total } = calculateItems(data.items);
-    return tenantTransaction(async (db) => {
+    return invalidating("invoices", () => tenantTransaction(async (db) => {
       const job = await db.job.findFirst({
         where: { id: data.jobId, organizationId },
         include: { serviceRequest: true },
@@ -154,12 +159,12 @@ export const invoiceService = {
         after: { jobId: job.id, total: total.toFixed(2) },
       });
       return withBalance(invoice);
-    });
+    }));
   },
   async update(id: string, data: UpdateInvoice) {
     const organizationId = tenantOrganization();
     const { lines, total } = calculateItems(data.items);
-    return tenantTransaction(async (db) => {
+    return invalidating("invoices", () => tenantTransaction(async (db) => {
       const invoice = await db.invoice.findFirst({
         where: { id, organizationId },
         include: { _count: { select: { payments: true } } },
@@ -194,11 +199,11 @@ export const invoiceService = {
         after: { total: total.toFixed(2) },
       });
       return withBalance(updated);
-    });
+    }));
   },
   async void(id: string, reason: string) {
     const organizationId = tenantOrganization();
-    return tenantTransaction(async (db) => {
+    return invalidating("invoices", () => tenantTransaction(async (db) => {
       const invoice = await db.invoice.findFirst({
         where: { id, organizationId },
         include: { _count: { select: { payments: true } } },
@@ -226,6 +231,6 @@ export const invoiceService = {
         after: { reason },
       });
       return withBalance(updated);
-    });
+    }));
   },
 };

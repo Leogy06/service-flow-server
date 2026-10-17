@@ -137,7 +137,7 @@ jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma: db }));
 jest.unstable_mockModule("@/modules/audit/audit.service.js", () => ({ auditService: {
   record, recordInTransaction: async (_db: unknown, event: unknown) => record(event),
 } }));
-jest.unstable_mockModule("@/utils/cache.js", () => ({ invalidateCache: jest.fn(async () => {}), getOrSetCache: jest.fn(), DEFAULT_TTL_SECONDS: 60 }));
+jest.unstable_mockModule("@/utils/cache.js", () => ({ invalidateCache: jest.fn(async () => {}), getOrSetCache: jest.fn(async (_key: string, _ttl: number, load: () => Promise<unknown>) => load()), DEFAULT_TTL_SECONDS: 60 }));
 jest.unstable_mockModule("@/utils/tokens.js", () => ({
   verifyAccessToken: (token: string) => ({ sub: token, role: "Admin", organizationId: "org-b", permissions: Object.values(PERMISSIONS) }),
   generateAccessToken, generateRefreshTokenValue: () => "new-refresh", hashToken: (value: string) => value, getRefreshExpiry: () => new Date(), REFRESH_TOKEN_DAYS: 7,

@@ -1,3 +1,4 @@
+import { cachedRead, invalidating } from "@/utils/module-cache";
 import type {
   Prisma,
   SubscriptionUpgradeRequest,
@@ -93,46 +94,49 @@ async function requireSubscriptionAdmin(db: Prisma.TransactionClient) {
 
 export const subscriptionUpgradeService = {
   async plans() {
-    return prisma.$transaction(
-      async (db) => {
-        const { organizationId } = await requireSubscriptionAdmin(db);
-        const subscription = await db.subscription.findUnique({
-          where: { organizationId },
-          include: { plan: true },
-        });
-        if (!subscription) return { plans: [] };
-        const used = await countReservedSeats(db, organizationId);
-        const plans = await db.plan.findMany({
-          where: {
-            isActive: true,
-            currency: subscription.currency,
-            maxActiveUsers: { gt: subscription.plan.maxActiveUsers, gte: used },
-          },
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            price: true,
-            currency: true,
-            billingInterval: true,
-            maxActiveUsers: true,
-            updatedAt: true,
-          },
-          orderBy: [{ maxActiveUsers: "asc" }, { price: "asc" }, { id: "asc" }],
-        });
-        return {
-          plans: plans.map((plan) => ({
-            ...plan,
-            price: plan.price.toFixed(2),
-          })),
-        };
-      },
-      { isolationLevel: "RepeatableRead" },
-    );
+    await requireSubscriptionAdmin(prisma);
+    return cachedRead("upgradePlans", "plans", [], async () => {
+      return prisma.$transaction(
+        async (db) => {
+          const { organizationId } = await requireSubscriptionAdmin(db);
+          const subscription = await db.subscription.findUnique({
+            where: { organizationId },
+            include: { plan: true },
+          });
+          if (!subscription) return { plans: [] };
+          const used = await countReservedSeats(db, organizationId);
+          const plans = await db.plan.findMany({
+            where: {
+              isActive: true,
+              currency: subscription.currency,
+              maxActiveUsers: { gt: subscription.plan.maxActiveUsers, gte: used },
+            },
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              price: true,
+              currency: true,
+              billingInterval: true,
+              maxActiveUsers: true,
+              updatedAt: true,
+            },
+            orderBy: [{ maxActiveUsers: "asc" }, { price: "asc" }, { id: "asc" }],
+          });
+          return {
+            plans: plans.map((plan) => ({
+              ...plan,
+              price: plan.price.toFixed(2),
+            })),
+          };
+        },
+        { isolationLevel: "RepeatableRead" },
+      );
+    });
   },
 
   async request(input: RequestSubscriptionUpgradeInput) {
-    return tenantTransaction(async (db) => {
+    return invalidating("upgradePlans", () => tenantTransaction(async (db) => {
       const { actorId, organizationId } = await requireSubscriptionAdmin(db);
       await lockOrganization(db, organizationId);
       const existing = await db.subscriptionUpgradeRequest.findUnique({
@@ -240,7 +244,7 @@ export const subscriptionUpgradeService = {
         },
       });
       return tenantRequest(request);
-    });
+    }));
   },
 
   async review(subscriptionId: string, input: ReviewUpgradeInput) {
@@ -250,7 +254,7 @@ export const subscriptionUpgradeService = {
       select: { organizationId: true },
     });
     if (!subscription) throw new AppError(404, "Subscription not found");
-    return tenantTransaction(async (db) => {
+    return invalidating("upgradePlans", () => tenantTransaction(async (db) => {
       const actor = await requirePlatformAuthority(db);
       await lockOrganization(db, subscription.organizationId);
       const request = await db.subscriptionUpgradeRequest.findFirst({
@@ -345,6 +349,6 @@ export const subscriptionUpgradeService = {
         },
       });
       return reviewed;
-    });
+    }));
   },
 };

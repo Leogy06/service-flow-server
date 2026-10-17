@@ -145,7 +145,7 @@ describe("Customer table API", () => {
       action: "restore.customer.success", entity: "Customer", entityId: "deleted-a",
       before: JSON.stringify(before), after: JSON.stringify(customers.find((row) => row.id === "deleted-a")),
     }));
-    expect(invalidateCache).toHaveBeenCalledWith("cache:customers:list:org-a:*");
+    expect(invalidateCache).toHaveBeenCalledWith("cache:modules:v1:customers:org-a:*", "modules:v1:customers:org-a");
     expect((await get("/customers")).body.data.pagination.total).toBe(4);
     expect((await get("/customers?deleted=true")).body.data.pagination).toMatchObject({ total: 0, page: 1, totalPages: 1 });
     expect((await get("/customers/deleted-a")).status).toBe(200);
@@ -211,7 +211,7 @@ describe("Customer table API", () => {
     expect((await remove("carol-a")).status).toBe(200);
     expect(customers.find((row) => row.id === "carol-a")?.deletedAt).toBeInstanceOf(Date);
     expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: "delete.customer.success", entityId: "carol-a" }));
-    expect(invalidateCache).toHaveBeenCalledWith("cache:customers:list:org-a:*");
+    expect(invalidateCache).toHaveBeenCalledWith("cache:modules:v1:customers:org-a:*", "modules:v1:customers:org-a");
     const response = await get("/customers?page=3&pageSize=1");
     expect(response.body.data.pagination).toMatchObject({ page: 2, totalPages: 2, total: 2, hasNextPage: false });
     expect(response.body.data.customers.map((row: CustomerRow) => row.id)).toEqual(["alice-a"]);

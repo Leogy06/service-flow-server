@@ -4,6 +4,12 @@ Organization routes cover platform provisioning, tenant subscriptions and tenant
 branding. Existing organization names/slugs and billing workflows retain their
 contracts; branding display names never rename an organization or change URLs.
 
+Branding settings and eligible upgrade-plan choices use shared Redis caching;
+settings/uploads/removal, seat/role changes and plan/subscription mutations
+invalidate their dependent data after commit. Eligible-plan service guards still
+reload the actor before a cache hit. Subscription entitlement summaries and public
+asset-reference checks remain live. See `backend/docs/CACHING.md`.
+
 `branding.routes.ts`, schema, controller and service implement authenticated
 `GET/PATCH /api/organization/settings`, `POST/DELETE /settings/logo` and
 `POST/DELETE /settings/favicon`. Reads are available to every active tenant user;

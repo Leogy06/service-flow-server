@@ -1,3 +1,4 @@
+import { cachedRead, invalidating } from "@/utils/module-cache";
 import { randomUUID } from "node:crypto";
 import { auditService } from "@/modules/audit/audit.service";
 import { AppError } from "@/utils/AppError";
@@ -85,17 +86,19 @@ export const serviceRequestService = {
           }
         : {}),
     };
-    return transaction(async (db) => {
-      const total = await db.serviceRequest.count({ where });
-      const meta = pagination(query.page, query.pageSize, total);
-      const requests = await db.serviceRequest.findMany({
-        where,
-        select: requestSelect,
-        skip: (meta.page - 1) * meta.pageSize,
-        take: meta.pageSize,
-        orderBy: [{ createdAt: query.sortOrder }, { id: "asc" }],
+    return cachedRead("serviceRequests", "list", query, async () => {
+      return transaction(async (db) => {
+        const total = await db.serviceRequest.count({ where });
+        const meta = pagination(query.page, query.pageSize, total);
+        const requests = await db.serviceRequest.findMany({
+          where,
+          select: requestSelect,
+          skip: (meta.page - 1) * meta.pageSize,
+          take: meta.pageSize,
+          orderBy: [{ createdAt: query.sortOrder }, { id: "asc" }],
+        });
+        return { requests, pagination: meta };
       });
-      return { requests, pagination: meta };
     });
   },
   async customers(query: { page: number; pageSize: number; search: string }) {
@@ -104,64 +107,68 @@ export const serviceRequestService = {
       deletedAt: null,
       name: { contains: query.search },
     };
-    return transaction(async (db) => {
-      const meta = pagination(
-        query.page,
-        query.pageSize,
-        await db.customer.count({ where }),
-      );
-      const customers = await db.customer.findMany({
-        where,
-        select: { id: true, name: true },
-        orderBy: [{ name: "asc" }, { id: "asc" }],
-        skip: (meta.page - 1) * meta.pageSize,
-        take: meta.pageSize,
+    return cachedRead("customers", "customers", query, async () => {
+      return transaction(async (db) => {
+        const meta = pagination(
+          query.page,
+          query.pageSize,
+          await db.customer.count({ where }),
+        );
+        const customers = await db.customer.findMany({
+          where,
+          select: { id: true, name: true },
+          orderBy: [{ name: "asc" }, { id: "asc" }],
+          skip: (meta.page - 1) * meta.pageSize,
+          take: meta.pageSize,
+        });
+        return { customers, pagination: meta };
       });
-      return { customers, pagination: meta };
     });
   },
   async get(id: string) {
     const organizationId = organization();
-    return transaction(async (db) => {
-      await existing(db, id, organizationId);
-      const request = await db.serviceRequest.findFirstOrThrow({
-        where: { id, organizationId },
-        select: {
-          ...requestSelect,
-          jobs: {
-            where: { organizationId },
-            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-            select: {
-              id: true,
-              referenceNumber: true,
-              status: true,
-              description: true,
-              scheduledStart: true,
-              completedAt: true,
+    return cachedRead("serviceRequests", "get", id, async () => {
+      return transaction(async (db) => {
+        await existing(db, id, organizationId);
+        const request = await db.serviceRequest.findFirstOrThrow({
+          where: { id, organizationId },
+          select: {
+            ...requestSelect,
+            jobs: {
+              where: { organizationId },
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+              select: {
+                id: true,
+                referenceNumber: true,
+                status: true,
+                description: true,
+                scheduledStart: true,
+                completedAt: true,
+              },
             },
           },
-        },
+        });
+        const activity = await db.auditLog.findMany({
+          where: { organizationId, entity: "ServiceRequest", entityId: id },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          select: {
+            id: true,
+            action: true,
+            createdAt: true,
+            metadata: true,
+          },
+        });
+        return {
+          ...request,
+          activity,
+          allowedTransitions: requestTransitions[request.status],
+        };
       });
-      const activity = await db.auditLog.findMany({
-        where: { organizationId, entity: "ServiceRequest", entityId: id },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: {
-          id: true,
-          action: true,
-          createdAt: true,
-          metadata: true,
-        },
-      });
-      return {
-        ...request,
-        activity,
-        allowedTransitions: requestTransitions[request.status],
-      };
     });
   },
   async create(data: CreateRequest) {
     const organizationId = organization();
-    return transaction(async (db) => {
+    return invalidating("serviceRequests", () => transaction(async (db) => {
       await related(db, organizationId, data.customerId, data.serviceTypeId);
       const request = await db.serviceRequest.create({
         data: {
@@ -178,11 +185,11 @@ export const serviceRequestService = {
         after: { status: request.status },
       });
       return request;
-    });
+    }));
   },
   async update(id: string, data: UpdateRequest) {
     const organizationId = organization();
-    return transaction(async (db) => {
+    return invalidating("serviceRequests", () => transaction(async (db) => {
       const row = await existing(db, id, organizationId);
       if (["COMPLETED", "CANCELLED"].includes(row.status))
         throw new AppError(409, "Closed requests cannot be edited");
@@ -220,11 +227,11 @@ export const serviceRequestService = {
         after: { changedFields: Object.keys(data) },
       });
       return request;
-    });
+    }));
   },
   async status(id: string, status: ServiceRequestStatus) {
     const organizationId = organization();
-    return transaction(async (db) => {
+    return invalidating("serviceRequests", () => transaction(async (db) => {
       const row = await existing(db, id, organizationId);
       const jobs = await db.job.findMany({
         where: { serviceRequestId: id, organizationId },
@@ -244,7 +251,7 @@ export const serviceRequestService = {
         after: { status },
       });
       return request;
-    });
+    }));
   },
   async types(query: TypeList) {
     const where = {
@@ -254,24 +261,26 @@ export const serviceRequestService = {
         ? { isActive: query.active === "active" }
         : {}),
     };
-    return transaction(async (db) => {
-      const meta = pagination(
-        query.page,
-        query.pageSize,
-        await db.serviceType.count({ where }),
-      );
-      const serviceTypes = await db.serviceType.findMany({
-        where,
-        orderBy: [{ name: "asc" }, { id: "asc" }],
-        skip: (meta.page - 1) * meta.pageSize,
-        take: meta.pageSize,
+    return cachedRead("serviceTypes", "types", query, async () => {
+      return transaction(async (db) => {
+        const meta = pagination(
+          query.page,
+          query.pageSize,
+          await db.serviceType.count({ where }),
+        );
+        const serviceTypes = await db.serviceType.findMany({
+          where,
+          orderBy: [{ name: "asc" }, { id: "asc" }],
+          skip: (meta.page - 1) * meta.pageSize,
+          take: meta.pageSize,
+        });
+        return { serviceTypes, pagination: meta };
       });
-      return { serviceTypes, pagination: meta };
     });
   },
   async createType(data: CreateType) {
     const organizationId = organization();
-    return transaction(async (db) => {
+    return invalidating("serviceTypes", () => transaction(async (db) => {
       const row = await db.serviceType.create({
         data: { ...data, organizationId },
       });
@@ -281,11 +290,11 @@ export const serviceRequestService = {
         entityId: row.id,
       });
       return row;
-    });
+    }));
   },
   async updateType(id: string, data: UpdateType | { isActive: false }) {
     const organizationId = organization();
-    return transaction(async (db) => {
+    return invalidating("serviceTypes", () => transaction(async (db) => {
       if (!(await db.serviceType.findFirst({ where: { id, organizationId } })))
         throw new AppError(404, "Service type not found");
       const row = await db.serviceType.update({
@@ -302,6 +311,6 @@ export const serviceRequestService = {
         after: { changedFields: Object.keys(data) },
       });
       return row;
-    });
+    }));
   },
 };

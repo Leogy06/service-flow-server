@@ -1,3 +1,4 @@
+import { cachedRead, invalidating } from "@/utils/module-cache";
 import { randomUUID } from "node:crypto";
 import { requestContext } from "@/lib/requestContext";
 import { auditService } from "@/modules/audit/audit.service";
@@ -94,47 +95,49 @@ export const jobService = {
   async filters(query: JobFilters) {
     const organizationId = tenantOrganization();
     const where = jobScopeWhere(query, organizationId);
-    return tenantTransaction(async (db) => {
-      // Choices cover this entire view, independent of pagination and column filters.
-      const [groups, customers, serviceTypes, staff, unassigned] =
-        await Promise.all([
-          db.job.groupBy({ by: ["status"], where, _count: { _all: true } }),
-          db.customer.findMany({
-            where: { organizationId, jobs: { some: where } },
-            select: { id: true, name: true },
-            orderBy: [{ name: "asc" }, { id: "asc" }],
-          }),
-          db.serviceType.findMany({
-            where: { organizationId, jobs: { some: where } },
-            select: { id: true, name: true },
-            orderBy: [{ name: "asc" }, { id: "asc" }],
-          }),
-          db.user.findMany({
-            where: { organizationId, jobs: { some: where } },
-            select: { id: true, firstName: true, lastName: true },
-            orderBy: [{ firstName: "asc" }, { lastName: "asc" }, { id: "asc" }],
-          }),
-          db.job.count({ where: { AND: [where, { assignedStaffId: null }] } }),
-        ]);
-      const byStatus: Record<JobStatus, number> = {
-        ASSIGNED: 0,
-        IN_PROGRESS: 0,
-        COMPLETED: 0,
-        CANCELLED: 0,
-      };
-      for (const group of groups) byStatus[group.status] = group._count._all;
-      return {
-        counts: {
-          total: groups.reduce((total, group) => total + group._count._all, 0),
-          byStatus,
-        },
-        filters: {
-          customers,
-          serviceTypes,
-          staff,
-          hasUnassigned: unassigned > 0,
-        },
-      };
+    return cachedRead("jobs", "filters", query, async () => {
+      return tenantTransaction(async (db) => {
+        // Choices cover this entire view, independent of pagination and column filters.
+        const [groups, customers, serviceTypes, staff, unassigned] =
+          await Promise.all([
+            db.job.groupBy({ by: ["status"], where, _count: { _all: true } }),
+            db.customer.findMany({
+              where: { organizationId, jobs: { some: where } },
+              select: { id: true, name: true },
+              orderBy: [{ name: "asc" }, { id: "asc" }],
+            }),
+            db.serviceType.findMany({
+              where: { organizationId, jobs: { some: where } },
+              select: { id: true, name: true },
+              orderBy: [{ name: "asc" }, { id: "asc" }],
+            }),
+            db.user.findMany({
+              where: { organizationId, jobs: { some: where } },
+              select: { id: true, firstName: true, lastName: true },
+              orderBy: [{ firstName: "asc" }, { lastName: "asc" }, { id: "asc" }],
+            }),
+            db.job.count({ where: { AND: [where, { assignedStaffId: null }] } }),
+          ]);
+        const byStatus: Record<JobStatus, number> = {
+          ASSIGNED: 0,
+          IN_PROGRESS: 0,
+          COMPLETED: 0,
+          CANCELLED: 0,
+        };
+        for (const group of groups) byStatus[group.status] = group._count._all;
+        return {
+          counts: {
+            total: groups.reduce((total, group) => total + group._count._all, 0),
+            byStatus,
+          },
+          filters: {
+            customers,
+            serviceTypes,
+            staff,
+            hasUnassigned: unassigned > 0,
+          },
+        };
+      });
     });
   },
   async list(query: JobList) {
@@ -182,20 +185,22 @@ export const jobService = {
           }
         : {}),
     };
-    return tenantTransaction(async (db) => {
-      const meta = pagination(
-        query.page,
-        query.pageSize,
-        await db.job.count({ where }),
-      );
-      const jobs = await db.job.findMany({
-        where,
-        select: jobSelect,
-        skip: (meta.page - 1) * meta.pageSize,
-        take: meta.pageSize,
-        orderBy: [{ createdAt: query.sortOrder }, { id: "asc" }],
+    return cachedRead("jobs", "list", query, async () => {
+      return tenantTransaction(async (db) => {
+        const meta = pagination(
+          query.page,
+          query.pageSize,
+          await db.job.count({ where }),
+        );
+        const jobs = await db.job.findMany({
+          where,
+          select: jobSelect,
+          skip: (meta.page - 1) * meta.pageSize,
+          take: meta.pageSize,
+          orderBy: [{ createdAt: query.sortOrder }, { id: "asc" }],
+        });
+        return { jobs, pagination: meta };
       });
-      return { jobs, pagination: meta };
     });
   },
   async staff(query: { page: number; pageSize: number; search: string }) {
@@ -214,50 +219,54 @@ export const jobService = {
           }
         : {}),
     };
-    return tenantTransaction(async (db) => {
-      const meta = pagination(
-        query.page,
-        query.pageSize,
-        await db.user.count({ where }),
-      );
-      const staff = await db.user.findMany({
-        where,
-        select: { id: true, firstName: true, lastName: true },
-        skip: (meta.page - 1) * meta.pageSize,
-        take: meta.pageSize,
-        orderBy: [{ firstName: "asc" }, { id: "asc" }],
+    return cachedRead("jobs", "staff", query, async () => {
+      return tenantTransaction(async (db) => {
+        const meta = pagination(
+          query.page,
+          query.pageSize,
+          await db.user.count({ where }),
+        );
+        const staff = await db.user.findMany({
+          where,
+          select: { id: true, firstName: true, lastName: true },
+          skip: (meta.page - 1) * meta.pageSize,
+          take: meta.pageSize,
+          orderBy: [{ firstName: "asc" }, { id: "asc" }],
+        });
+        return { staff, pagination: meta };
       });
-      return { staff, pagination: meta };
     });
   },
   async get(id: string) {
     const organizationId = tenantOrganization();
-    return tenantTransaction(async (db) => {
-      const job = await db.job.findFirst({
-        where: { id, organizationId },
-        select: {
-          ...jobSelect,
-          internalNotes: true,
-          statusHistory: {
-            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-            select: {
-              id: true,
-              fromStatus: true,
-              toStatus: true,
-              note: true,
-              createdAt: true,
-              changedBy: { select: { firstName: true, lastName: true } },
+    return cachedRead("jobs", "get", id, async () => {
+      return tenantTransaction(async (db) => {
+        const job = await db.job.findFirst({
+          where: { id, organizationId },
+          select: {
+            ...jobSelect,
+            internalNotes: true,
+            statusHistory: {
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+              select: {
+                id: true,
+                fromStatus: true,
+                toStatus: true,
+                note: true,
+                createdAt: true,
+                changedBy: { select: { firstName: true, lastName: true } },
+              },
             },
           },
-        },
+        });
+        if (!job) throw new AppError(404, "Job not found");
+        return job;
       });
-      if (!job) throw new AppError(404, "Job not found");
-      return job;
     });
   },
   async create(data: CreateJob) {
     const organizationId = tenantOrganization();
-    return tenantTransaction(async (db) => {
+    return invalidating("jobs", () => tenantTransaction(async (db) => {
       const request = await openRequest(
         db,
         data.serviceRequestId,
@@ -303,11 +312,11 @@ export const jobService = {
         },
       });
       return job;
-    });
+    }));
   },
   async update(id: string, data: UpdateJob) {
     const organizationId = tenantOrganization();
-    return tenantTransaction(async (db) => {
+    return invalidating("jobs", () => tenantTransaction(async (db) => {
       const job = await db.job.findFirst({ where: { id, organizationId } });
       if (!job) throw new AppError(404, "Job not found");
       if (job.serviceRequestId)
@@ -343,11 +352,11 @@ export const jobService = {
         },
       });
       return updated;
-    });
+    }));
   },
   async status(id: string, status: JobStatus, note: string) {
     const organizationId = tenantOrganization();
-    return tenantTransaction(async (db) => {
+    return invalidating("jobs", () => tenantTransaction(async (db) => {
       const job = await db.job.findFirst({ where: { id, organizationId } });
       if (!job) throw new AppError(404, "Job not found");
       const request = job.serviceRequestId
@@ -403,6 +412,6 @@ export const jobService = {
             select: jobSelect,
           })
         : updated;
-    });
+    }));
   },
 };

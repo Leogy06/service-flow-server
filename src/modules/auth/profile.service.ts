@@ -5,7 +5,7 @@ import { env } from "@/config/env";
 import { auditService } from "@/modules/audit/audit.service";
 import { AppError } from "@/utils/AppError";
 import { comparePassword, hashedPassword } from "@/utils/bcrypPassword";
-import { invalidateCache } from "@/utils/cache";
+import { invalidateModuleCache } from "@/utils/module-cache";
 import { isPrismaError } from "@/utils/errorHelper";
 import { loadAuthorization, resolvePermissions } from "./authorization";
 import type { ChangePasswordInput, UpdateProfileInput } from "./profile.schema";
@@ -73,8 +73,7 @@ async function profileMutation<T>(
       isolationLevel: "Serializable",
       timeout: 10000,
     });
-    await invalidateCache("cache:users:list*");
-    await invalidateCache("cache:user:byId*");
+    await invalidateModuleCache("users");
     return result;
   } catch (error) {
     if (isPrismaError(error, "P2002"))
