@@ -66,7 +66,7 @@ const names = (id: string) => roles.find((role) => role.id === id)!.permissions.
 test("resets all tenant defaults, restores CRUD, replaces obsolete names and preserves protected roles", async () => {
   const untouched = structuredClone(roles.slice(4));
   const result = await seedDefaultRoles(client);
-  expect(result).toEqual({ matchedRoles: 4, updatedRoles: 4, permissionsPerRole: { Admin: 25, Manager: 13, Staff: 9 } });
+  expect(result).toEqual({ matchedRoles: 4, updatedRoles: 4, permissionsPerRole: { Admin: 28, Manager: 16, Staff: 9 } });
   for (const [id, name] of [["admin-a", "Admin"], ["admin-b", "Admin"], ["manager-a", "Manager"], ["staff-b", "Staff"]]) {
     expect(names(id)).toEqual([...DEFAULT_ROLE_DEFINITIONS.find((definition) => definition.name === name)!.permissionNames].sort());
   }
@@ -84,7 +84,7 @@ test("repeated runs do not duplicate grants or audit unchanged roles", async () 
 
 test("admin-only seeding preserves manager and staff grants", async () => {
   const untouched = structuredClone(roles.slice(2));
-  expect(await seedAdminRoles(client)).toEqual({ adminRoles: 2, updatedRoles: 2, permissionsPerRole: 25 });
+  expect(await seedAdminRoles(client)).toEqual({ adminRoles: 2, updatedRoles: 2, permissionsPerRole: 28 });
   expect(roles.slice(2)).toEqual(untouched);
 });
 

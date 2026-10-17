@@ -187,6 +187,9 @@ model Organization {
   subscriptionPayments SubscriptionPayment[]
   platformAlerts PlatformAlert[]
   signupRequest SignupRequest?
+  productFeedback ProductFeedback[]
+  feedbackInvitations FeedbackInvitation[]
+  customerFeedback CustomerFeedback[]
 
   @@index([status, createdAt])
 }
@@ -228,6 +231,7 @@ model User {
   auditLogs          AuditLog[]
   jobs               Job[]
   jobStatusHistories JobStatusHistory[]
+  productFeedback ProductFeedback[]
   refreshTokens      RefreshToken[]
   role               Role               @relation(fields: [roleId], references: [id])
   userPermissions    UserPermission[]
@@ -383,6 +387,7 @@ model ServiceRequest {
   serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
 
   jobs           Job[]
+  feedbackInvitation FeedbackInvitation?
   organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String
 
@@ -393,6 +398,73 @@ model ServiceRequest {
   @@index([organizationId, createdAt, id])
   @@index([organizationId, status, createdAt])
   @@index([organizationId, serviceTypeId, createdAt])
+  @@unique([id, organizationId])
+}
+
+enum FeedbackStatus {
+  NEW
+  IN_REVIEW
+  RESOLVED
+}
+
+// Feedback about Service Flow is visible only to its author and platform operators.
+model ProductFeedback {
+  id String @id @default(cuid())
+  organizationId String
+  authorId String
+  submissionKey String @db.VarChar(36)
+  rating Int
+  comment String @db.VarChar(2000)
+  displayName String? @db.VarChar(100)
+  consentGrantedAt DateTime?
+  consentVersion String? @db.VarChar(32)
+  consentWithdrawnAt DateTime?
+  testimonialApprovedAt DateTime?
+  status FeedbackStatus @default(NEW)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id])
+  author User @relation(fields: [authorId], references: [id])
+  @@unique([authorId, submissionKey])
+  @@index([status, createdAt, id])
+  @@index([organizationId, authorId, createdAt])
+}
+
+// Tokens are returned once and stored only as SHA-256 hashes.
+model FeedbackInvitation {
+  id String @id @default(cuid())
+  organizationId String
+  serviceRequestId String @unique
+  tokenHash String @unique @db.VarChar(64)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id])
+  serviceRequest ServiceRequest @relation(fields: [serviceRequestId, organizationId], references: [id, organizationId])
+  feedback CustomerFeedback?
+  @@unique([id, organizationId])
+  @@index([organizationId, createdAt])
+  @@unique([serviceRequestId, organizationId])
+}
+
+model CustomerFeedback {
+  id String @id @default(cuid())
+  organizationId String
+  invitationId String @unique
+  rating Int
+  comment String @db.VarChar(2000)
+  displayName String? @db.VarChar(100)
+  consentGrantedAt DateTime?
+  consentVersion String? @db.VarChar(32)
+  consentWithdrawnAt DateTime?
+  testimonialApprovedAt DateTime?
+  status FeedbackStatus @default(NEW)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id])
+  invitation FeedbackInvitation @relation(fields: [invitationId, organizationId], references: [id, organizationId])
+  @@unique([invitationId, organizationId])
+  @@index([organizationId, status, createdAt, id])
 }
 
 // ─────────────────────────────────────────────

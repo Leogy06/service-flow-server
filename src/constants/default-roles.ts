@@ -24,7 +24,7 @@ export const DEFAULT_ROLE_DEFINITIONS = [
   {
     name: "Staff",
     permissionNames: TENANT_GRANTABLE_PERMISSIONS.filter(
-      (name) => name.endsWith(":read") || name.endsWith(":update"),
+      (name) => !name.startsWith("feedback:") && (name.endsWith(":read") || name.endsWith(":update")),
     ),
   },
 ] as const;

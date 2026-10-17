@@ -34,6 +34,10 @@ regenerate Prisma. Existing tenants do not receive a new login gate.
 
 ## Key files
 
+Product feedback is routed through `../feedback/feedback.routes.ts` with the same
+persisted platform guard and an additional authority check inside service
+transactions. Tenant customer feedback is excluded from the platform inbox.
+
 - `billing.routes.ts`, `billing.schema.ts`, `billing.service.ts`: billing contracts and transactions.
 - `billing-policy.ts`, `entitlement.ts`: exact pricing, paid intervals, trials and access checks.
 - `platform-audit.ts`: organization locks, transaction retries and immutable audits.

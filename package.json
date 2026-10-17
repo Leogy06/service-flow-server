@@ -13,6 +13,7 @@
     "alerts:process:dev": "tsx src/modules/system-admin/process-alerts.cli.ts",
     "test:system-admin:mysql": "cross-env RUN_DB_PLATFORM_TESTS=1 LOG_LEVEL=error NODE_ENV=test node --import tsx tests/system-admin/mysql.integration.mjs",
     "test:system-admin:mysql:isolated": "node scripts/run-platform-mysql-tests.mjs --isolated-test-database",
+    "test:feedback:mysql:isolated": "node scripts/run-platform-mysql-tests.mjs --isolated-test-database --feedback-only",
     "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json && node -e \"require('fs').cpSync('src/generated','dist/generated',{recursive:true})\"",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",

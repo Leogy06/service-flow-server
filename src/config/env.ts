@@ -28,6 +28,9 @@ const envSchema = z.object({
   REFUND_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   SIGNUP_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(10 * 60 * 1000),
   SIGNUP_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
+  FEEDBACK_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(10 * 60 * 1000),
+  FEEDBACK_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  FEEDBACK_INVITATION_DAYS: z.coerce.number().int().min(1).max(90).default(30),
 
   //resend
   RESEND_API_KEY: z.string().min(1),

@@ -19,14 +19,21 @@ try {
   // Identifier is restricted by the regex above. No user-supplied SQL fragments are accepted.
   await connection.query(`CREATE DATABASE IF NOT EXISTS \`${target}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
   await connection.end(); connection = undefined;
-  for (const args of [
-    ["node_modules/prisma/build/index.js", "migrate", "deploy"],
+  const feedbackOnly = process.argv.includes("--feedback-only");
+  const suites = feedbackOnly ? [
+    ["--import", "tsx", "tests/feedback/mysql.integration.mjs"],
+  ] : [
     ["--import", "tsx", "tests/system-admin/signup.mysql.mjs"],
     ["--import", "tsx", "tests/system-admin/mysql.integration.mjs"],
     ["--import", "tsx", "tests/system-admin/trials.mysql.mjs"],
     ["--import", "tsx", "tests/user/password-reset.mysql.mjs"],
     ["--import", "tsx", "tests/system-admin/operations.mysql.mjs"],
     ["--import", "tsx", "tests/system-admin/cli.mysql.mjs"],
+    ["--import", "tsx", "tests/feedback/mysql.integration.mjs"],
+  ];
+  for (const args of [
+    ["node_modules/prisma/build/index.js", "migrate", "deploy"],
+    ...suites,
   ]) {
     const result = spawnSync(process.execPath, args, { env: testEnvironment, stdio: "inherit" });
     if (result.status !== 0) { process.exitCode = result.status ?? 1; break; }

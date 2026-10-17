@@ -14,10 +14,14 @@ import organizationRoutes from "@/modules/organization/organization.route";
 import systemAdminRoutes from "@/modules/system-admin/system-admin.routes";
 import auditRoutes from "@/modules/audit/audit.routes";
 import dashboardRoutes from "@/modules/dashboard/dashboard.routes";
+import { tenantFeedbackRoutes, platformFeedbackRoutes, publicFeedbackRoutes } from "@/modules/feedback/feedback.routes";
 
 export const router = Router();
 
 router.use("/auth", authRoutes);
+router.use("/feedback", tenantFeedbackRoutes);
+router.use("/system-admin/feedback", platformFeedbackRoutes);
+router.use("/public/feedback", publicFeedbackRoutes);
 router.use("/users", authenticate, userRoutes);
 router.use("/organization", organizationRoutes);
 router.use("/customers", authenticate, customerRoutes);

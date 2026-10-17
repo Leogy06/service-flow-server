@@ -20,6 +20,9 @@ export const PERMISSIONS = {
   INVOICE_DELETE: "invoice:delete",
 
   DASHBOARD_READ: "dashboard:read",
+  FEEDBACK_CREATE: "feedback:create",
+  FEEDBACK_READ: "feedback:read",
+  FEEDBACK_UPDATE: "feedback:update",
 
   USER_CREATE: "user:create",
   USER_UPDATE: "user:update",

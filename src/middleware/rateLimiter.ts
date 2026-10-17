@@ -45,6 +45,17 @@ export const signupLimiter = rateLimit({
   keyGenerator: (req) => ipKeyGenerator(req.ip ?? "unknown"),
 });
 
+// Public feedback context, submission and consent withdrawal share an IP budget.
+export const feedbackLimiter = rateLimit({
+  windowMs: env.FEEDBACK_RATE_LIMIT_WINDOW_MS,
+  limit: env.FEEDBACK_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: redisStore("feedback"),
+  handler: limitReached,
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? "unknown"),
+});
+
 // Looser — general authenticated API traffic
 export const apiLimiter = rateLimit({
   // Keep the authorized dependency probe reachable during a Redis outage.
