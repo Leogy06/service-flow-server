@@ -25,6 +25,8 @@
     "seed:customers": "cross-env LOG_LEVEL=error NODE_ENV=test node --import tsx prisma/seed-customers.ts",
     "seed:service-types": "cross-env LOG_LEVEL=error NODE_ENV=test node --import tsx prisma/seed-service-types.ts",
     "seed:plans": "cross-env LOG_LEVEL=error NODE_ENV=test node --import tsx prisma/seed-plans.ts",
+    "seed:bright-star": "cross-env LOG_LEVEL=error node --import tsx prisma/seed-bright-star.ts",
+    "test:seed:bright-star:mysql": "cross-env LOG_LEVEL=error node --import tsx tests/prisma/bright-star.mysql.mjs",
     "generate": "prisma generate",
     "dev:setup": "npm run generate",
     "prod:build": "npm run generate && npm run build",
