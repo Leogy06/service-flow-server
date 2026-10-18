@@ -1,3 +1,21 @@
+## [2026-10-18 14:41] Codex
+
+- **Task:** Implement frontend/backend Dockerfiles and Docker ignore files.
+- **Summary:** Filled the empty backend files with a Node 24 Linux build, non-root production runtime and separate migration target. Kept secrets/host outputs out of context, preserved SQL migrations, and documented environment injection and volume requirements. Added/tested the corresponding frontend packaging and private server API URL.
+- **Files changed:** `Dockerfile`, `.dockerignore`, `docs/DOCKER.md`, `ACTIVITY.md`; frontend Docker/config/website docs/loader and sample-only `../artifacts/docker-20261018/` verification artifacts.
+- **Endpoints / rate limiting:** N/A; no routes, API contracts, schemas, migration contents, permissions or limiter settings changed. Only isolated test Redis counters were exercised.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** All three Linux images built; migration schema validation passed with networking disabled and 34 SQL migrations retained. Runtime HTTP, non-root/secret/toolchain exclusion, storage/logs/static assets/private API SSR/share-image/404 checks passed; 5 frontend metadata tests and affected lint/diff checks passed. No existing DB or env changed and no email sent. Sample containers stopped/retained. Final API dependency install still reports 5 findings including 1 critical; frontend lockfile audit flags Next.js critical. Versions were not updated; see artifact REPORT.md before public launch. Full Compose/DB/HTTPS/restore/load tests remain next.
+
+## [2026-10-18 14:12] Codex
+
+- **Task:** Identify the next deployment step after local checks.
+- **Summary:** Found the latest report still contained only backend checks; corrected premature PASS headings so unfinished runs show RUNNING, JSON completed=false and exitCode=null. Identified Docker packaging and local proxy/container verification as the next step.
+- **Files changed:** `scripts/predeploy.mjs`, `scripts/predeploy-utils.mjs`, `scripts/predeploy-safety.mjs`, `scripts/PREDEPLOY.md`, `ACTIVITY.md`.
+- **Endpoints / rate limiting:** N/A; no application, API, database, migration, permission or rate-limit changes.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Four runner safety tests, affected-script ESLint and diff checks passed. Did not restart or rerun the full suite; already-running processes retain the previous heading logic. Dockerfiles/dockerignore remain absent, Compose is empty and Next standalone output is not configured. Create/test these locally before provisioning paid hosting.
+
 ## [2026-10-18 14:06] Codex
 
 - **Task:** Review API request logging and prevent unbounded log-file growth.

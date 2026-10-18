@@ -43,6 +43,11 @@ export function resultExitCode(results) {
   return results.some(({ status }) => status === "BLOCKED") ? 2 : 0;
 }
 
+export function reportResult(results, completed) {
+  if (!completed) return "RUNNING — wait for the final terminal summary";
+  return resultExitCode(results) === 0 ? "PASS (automated scope only)" : "INCOMPLETE — review failures and blocked checks";
+}
+
 export async function freePort() {
   const server = createServer();
   await new Promise((resolve, reject) => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { assertLocalServices, createRedactor, resultExitCode } from "./predeploy-utils.mjs";
+import { assertLocalServices, createRedactor, reportResult, resultExitCode } from "./predeploy-utils.mjs";
 
 const local = { DATABASE_URL: "mysql://tester:sample@127.0.0.1:3306/test_db",
   DATABASE_HOST: "localhost", DATABASE_PORT: "3306", DATABASE_NAME: "test_db",
@@ -27,4 +27,12 @@ test("blocked checks cannot produce a successful exit code", () => {
   assert.equal(resultExitCode([{ status: "PASS" }]), 0);
   assert.equal(resultExitCode([{ status: "PASS" }, { status: "BLOCKED" }]), 2);
   assert.equal(resultExitCode([{ status: "BLOCKED" }, { status: "FAIL" }]), 1);
+});
+
+test("an unfinished run never reports PASS", () => {
+  assert.match(reportResult([], false), /^RUNNING/);
+  assert.match(reportResult([{ status: "PASS" }], false), /^RUNNING/);
+  assert.match(reportResult([{ status: "PASS" }], true), /^PASS/);
+  assert.match(reportResult([{ status: "FAIL" }], true), /^INCOMPLETE/);
+  assert.match(reportResult([{ status: "BLOCKED" }], true), /^INCOMPLETE/);
 });

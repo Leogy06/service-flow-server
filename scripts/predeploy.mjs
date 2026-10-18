@@ -7,7 +7,7 @@ import { resolve, join } from "node:path";
 import { existsSync, readFileSync, mkdirSync, writeFileSync, appendFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import { assertLocalServices, createRedactor, freePort, resultExitCode } from "./predeploy-utils.mjs";
+import { assertLocalServices, createRedactor, freePort, reportResult, resultExitCode } from "./predeploy-utils.mjs";
 
 const backend = fileURLToPath(new URL("../", import.meta.url));
 const frontend = resolve(backend, "../frontend");
@@ -34,11 +34,12 @@ const children = new Set();
 const retained = [];
 const npmCli = process.env.npm_execpath;
 let interrupted = false;
+let completed = false;
 
 function report() {
   const code = resultExitCode(results);
   const lines = ["# Local predeployment checks", "", `Run: ${runId}`, "",
-    `Result: ${code === 0 ? "PASS (automated scope only)" : "INCOMPLETE — review failures and blocked checks"}`, "",
+    `Result: ${reportResult(results, completed)}`, "",
     "| Check | Result | Details |", "| --- | --- | --- |",
     ...results.map(({ name, status, detail }) => `| ${name} | ${status} | ${secrets.redact(detail).replace(/[\r\n|]/g, " ")} |`),
     "", "These checks do not certify public HTTPS, DNS, email delivery, browser business workflows,",
@@ -51,7 +52,7 @@ function report() {
     "Redis probes use an expiring diagnostic key; the API smoke check also exercises local rate-limit counters.",
     "", "## Retained isolated resources", "", ...(retained.length ? retained : ["None."]), ""];
   writeFileSync(join(directory, "REPORT.md"), lines.join("\n"));
-  writeFileSync(join(directory, "results.json"), JSON.stringify({ runId, exitCode: code, results, retained }, null, 2));
+  writeFileSync(join(directory, "results.json"), JSON.stringify({ runId, completed, exitCode: completed ? (interrupted ? 130 : code) : null, results, retained }, null, 2));
 }
 function record(name, status, detail) {
   results.push({ name, status, detail: secrets.redact(detail) });
@@ -274,6 +275,7 @@ try {
 } catch (error) { record("Runner", "FAIL", error.message); }
 finally {
   for (const child of children) await stop(child);
+  completed = true;
   report();
   console.table(results.map(({ name, status }) => ({ check: name, result: status })));
   console.log(`Report: ${join(directory, "REPORT.md")}`);

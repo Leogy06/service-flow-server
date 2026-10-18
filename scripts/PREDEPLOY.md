@@ -19,6 +19,8 @@ Reports and sanitized command logs are in ignored `backend/.predeploy/<run>/`.
 Exit **1** means at least one failure; **2** means checks are blocked; **0** means all
 included checks passed. Missing Docker configuration and unverified deployment
 acceptance are explicitly BLOCKED, so the current runner alone cannot certify launch.
+While checks are executing the report shows RUNNING and JSON exitCode is null;
+wait for the final terminal summary before treating a report as complete.
 `npm run test:predeploy -- --skip-linux` runs without the Linux replay, recorded as
 BLOCKED. `npm run test:predeploy:runner` tests the runner's safety/reporting helpers.
 
