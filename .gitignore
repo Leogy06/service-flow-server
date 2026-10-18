@@ -10,3 +10,6 @@ scripts/
 !scripts/
 scripts/*
 !scripts/run-platform-mysql-tests.mjs
+!scripts/predeploy*.mjs
+!scripts/PREDEPLOY.md
+.predeploy/

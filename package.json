@@ -7,6 +7,8 @@
   ],
   "type": "module",
   "scripts": {
+    "test:predeploy": "node scripts/predeploy.mjs",
+    "test:predeploy:runner": "node --test scripts/predeploy-safety.mjs",
     "bootstrap:system-admin": "node dist/modules/system-admin/bootstrap.cli.js --bootstrap-system-admin",
     "bootstrap:system-admin:dev": "tsx src/modules/system-admin/bootstrap.cli.ts --bootstrap-system-admin",
     "alerts:process": "node dist/modules/system-admin/process-alerts.cli.js",
