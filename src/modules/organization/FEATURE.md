@@ -4,6 +4,54 @@ Organization routes cover platform provisioning, tenant subscriptions and tenant
 branding. Existing organization names/slugs and billing workflows retain their
 contracts; branding display names never rename an organization or change URLs.
 
+## Public business pages
+
+`page.{schema,service,controller,routes}.ts` add authenticated tenant-admin
+`GET/PUT /api/organization/page` and anonymous
+`GET /api/organization/public-page/:slug`. The optional one-to-one
+`OrganizationPage` stores separate validated draft/published JSON, publishedAt and
+an updatedAt revision. Missing rows return an empty private draft without writing.
+PUT accepts only content, nullable ISO version and publication (`keep`, `publish`,
+`unpublish`). Strict schemas reject tenant selectors and unknown content fields.
+Stale revisions return 409, including concurrent first saves. All writes and
+tenant audits commit in a serializable transaction; audits record operation and
+revision without copying contact details. No new permission grants.
+
+Publishing requires headline, introduction, at least one named service, location,
+and public phone or email. Service names/descriptions are deliberately separate
+from internal service types; no private contacts are automatically copied. Save
+draft preserves the published snapshot; unpublish clears it and its timestamp.
+Public responses explicitly select only name/slug/brand and published content.
+Missing, unpublished and suspended tenants return the same 404. Both draft and
+public reads are live and responses use no-store so publication, status and
+revision checks cannot use stale caches. Public pages render escaped plain text.
+
+Public content also accepts optional coverImageUrl, facebookUrl, instagramUrl,
+linkedinUrl and googleMapsUrl. Missing keys in existing JSON or older clients
+default to empty strings; no additional migration is required. URLs must be public
+HTTPS links without credentials or custom ports, at most 2048 characters. Social
+profiles use exact base/www Facebook (facebook.com/fb.com), Instagram and LinkedIn
+hosts; Maps accepts Google /maps URLs, maps.google.com, maps.app.goo.gl and
+goo.gl/maps links. Cover photos load directly in the visitor's browser; the API
+never fetches tenant-selected image URLs. Draft/publication/audit rules are unchanged.
+
+Routes inherit global apiLimiter; PUT adds writeLimmiter, public GET adds the
+Redis IP publicPageLimiter configured by PUBLIC_PAGE_RATE_LIMIT_WINDOW_MS (60000)
+and PUBLIC_PAGE_RATE_LIMIT_MAX (60). Limits retain 429/Retry-After responses.
+Deploy `20261018040000_organization_page` and regenerate Prisma before use.
+`npm test -- --runInBand tests/organization` covers isolation, admin/anonymous
+gates, snapshots, validation, revision conflicts, audit rollback and rate limits.
+`npm run test:website:mysql:isolated` with an explicit isolated
+PLATFORM_TEST_DATABASE_NAME verifies real FK/audit rollback, concurrent first saves
+and edits, forged tenant claims, publication and suspension; retains test fixtures.
+
+The `business` workspace slug is reserved in registration/approval and direct
+provisioning to protect the new public route namespace. Before deploying to another
+environment, verify no existing organization uses that slug. The local development
+database was checked and has no collision; no existing tenant was renamed.
+
+## Branding
+
 Branding settings and eligible upgrade-plan choices use shared Redis caching;
 settings/uploads/removal, seat/role changes and plan/subscription mutations
 invalidate their dependent data after commit. Eligible-plan service guards still

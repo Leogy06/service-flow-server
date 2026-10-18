@@ -11,7 +11,8 @@ export const organizationSchema = z.object({
     slug: z
       .string("Minimum 2 characters and maximum 50 characters")
       .min(2, "Organization slug is required")
-      .max(50),
+      .max(50)
+      .refine((value) => value.trim().toLowerCase() !== "business", "Choose another workspace address"),
   }).strict(),
 });
 

@@ -56,6 +56,7 @@ export const registerSchema = z.object({
           (value) =>
             ![
               "api",
+              "business",
               "system-admin",
               "login",
               "signup",

@@ -36,6 +36,8 @@ const envSchema = z.object({
   BRANDING_UPLOAD_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   BRANDING_ASSET_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60 * 1000),
   BRANDING_ASSET_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
+  PUBLIC_PAGE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60 * 1000),
+  PUBLIC_PAGE_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
 
   //resend
   RESEND_API_KEY: z.string().min(1),

@@ -30,5 +30,7 @@ Existing login, HTTP-only refresh cookie, rotation, session-version and tenant
 entitlement rules remain authoritative. The public signup confirmation explains
 waiting for approval; unapproved applicants cannot log in. Tests are under
 `tests/system-admin/signup.test.ts`, `tests/auth` and isolated signup MySQL checks.
+The `business` workspace slug is reserved for public `/business/{slug}` pages;
+registration and signup approval share the same validated slug definition.
 Deploy additive `20261017100000_signup_legal_acceptance` and regenerate Prisma
 before deploying the updated registration contract. Existing tenant login is unchanged.
