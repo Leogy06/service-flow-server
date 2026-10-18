@@ -17,6 +17,7 @@ import {
 import { recordPlatformServerError } from "./modules/system-admin/operations.service";
 
 export const app = express();
+app.set("trust proxy", env.TRUST_PROXY_HOPS);
 onPlatformServerError(recordPlatformServerError);
 
 // Register first so CORS preflights and other early responses are logged too.

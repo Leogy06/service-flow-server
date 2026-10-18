@@ -8,6 +8,7 @@
   "type": "module",
   "scripts": {
     "test:predeploy": "node scripts/predeploy.mjs",
+    "test:predeploy:vps": "node scripts/predeploy.mjs --vps",
     "test:predeploy:runner": "node --test scripts/predeploy-safety.mjs",
     "bootstrap:system-admin": "node dist/modules/system-admin/bootstrap.cli.js --bootstrap-system-admin",
     "bootstrap:system-admin:dev": "tsx src/modules/system-admin/bootstrap.cli.ts --bootstrap-system-admin",
@@ -49,7 +50,7 @@
     "@prisma/adapter-mariadb": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "bcryptjs": "^3.0.3",
-    "compression": "^1.8.1",
+    "compression": "^1.8.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -89,6 +90,9 @@
     "tsx": "^4.23.12",
     "typescript": "5.9",
     "typescript-eslint": "^8.67.0"
+  },
+  "overrides": {
+    "mariadb": "3.5.4"
   },
   "version": "1.0.0",
   "description": "",

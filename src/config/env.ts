@@ -7,6 +7,8 @@ const envSchema = z.object({
     .default("development"),
 
   PORT: z.coerce.number().default(4000),
+  // Enable only behind the single private Caddy proxy; never publish the API port.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(1).default(0),
   DATABASE_URL: z.string().min(1),
   DATABASE_HOST: z.string().min(1),
   DATABASE_PORT: z.coerce.number().default(3306),

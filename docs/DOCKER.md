@@ -1,5 +1,20 @@
 # Application container images
 
+The complete single-VPS setup is now `../../deploy/compose.yml` with instructions
+in `../../deploy/README.md`. From this backend directory, run
+`npm run test:predeploy:vps` to build and exercise it in a fresh isolated test
+project. The empty legacy `docker-compose.yml` in this directory is not used.
+The VPS file supplies production origins, private MySQL/Redis networking,
+persistent volumes and a Caddy HTTPS proxy. Keep development env files unchanged.
+`TRUST_PROXY_HOPS=1` is only appropriate for that single proxy with the API port
+unpublished; its default is 0 for direct local connections. Caddy replaces
+client-supplied forwarded headers before they reach Express and the Redis limiters.
+
+Runtime security patches retain the current Prisma major version. The MariaDB
+connector is overridden to 3.5.4 because the adapter pins an older vulnerable
+connector; review this override when updating the adapter. Production API image
+dependency installation excludes the migration CLI and its optional/peer tools.
+
 Build from the `service_flow` project root with Docker Desktop using Linux containers:
 
 ```powershell

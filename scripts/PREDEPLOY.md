@@ -24,6 +24,19 @@ wait for the final terminal summary before treating a report as complete.
 `npm run test:predeploy -- --skip-linux` runs without the Linux replay, recorded as
 BLOCKED. `npm run test:predeploy:runner` tests the runner's safety/reporting helpers.
 
+For the DigitalOcean VPS configuration, run `npm run test:predeploy:vps` instead.
+This keeps development env files unchanged, supplies the planned public values
+(`/api` and `https://serviceflowph.com`), then builds and starts `../deploy/compose.yml`
+in a unique test project with fresh volumes and random test-only credentials.
+It tests actual migration/API/frontend images, verified local-CA HTTPS,
+database-backed login, cookie rotation/logout, Redis rate limiting and persistence.
+VPS-mode database/Redis/startup checks target only this Compose stack; separately
+running native MySQL/Redis services are not required or contacted. Default mode
+retains the original read-only configured-local-database checks.
+See `deploy/README.md` from the project root. Public DNS, real email and VPS
+capacity still need live acceptance, so exit 2 can remain even when all executable
+checks pass. No external production credentials are created.
+
 ## Configuration and safety
 
 - Backend `.env` is read with inherited environment variables taking precedence.

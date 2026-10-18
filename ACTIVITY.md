@@ -1,3 +1,12 @@
+## [2026-10-18 23:50] Codex
+
+- **Task:** Run predeployment checks and fix only DigitalOcean VPS blockers.
+- **Summary:** Added a self-contained VPS test mode and sibling Compose/Caddy deployment. Fixed standalone startup, production URL handling and trusted proxy configuration; patched runtime dependencies. Separated local-socket administrative migrations from CRUD-only API grants and verified native cold-start authentication.
+- **Files changed:** `package.json`, `package-lock.json`, `src/app.ts`, `src/config/env.ts`, `scripts/predeploy.mjs`, `scripts/PREDEPLOY.md`, `docs/DOCKER.md`, `ACTIVITY.md`; sibling `deploy/` and verification artifacts.
+- **Endpoints / rate limiting:** No routes, API contracts, application permission grants, schemas or migration SQL changed. Existing Redis thresholds are preserved; one private proxy is trusted only in Compose and forwarded headers are replaced.
+- **Status:** Completed local verification. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Final VPS runner: 18 PASS/0 FAIL/1 pending external acceptance; JSON exitCode 2. Backend 35 suites/805 tests, frontend 29 tests, runner 4 tests, both lint/type/build/start checks and 14 Compose checks passed, including 34 fresh migrations, real HTTPS sessions, Redis spoof/rate-limit tests, persistence and separate logical restore. API runtime audit: zero findings; frontend CLI-only advisories remain outside the standalone image. Existing DB/env files untouched; all owned test containers stopped, volumes retained. Public DNS/ACME, real mail, browser workflows, offsite backups and actual VPS capacity remain; see `../artifacts/predeploy-20261018-vps/REPORT.md`. Default native mode remains available; VPS mode no longer depends on native MySQL/Redis.
+
 ## [2026-10-18 16:01] Codex
 
 - **Task:** Review the user's new .env.docker and clarify prior Docker testing.
