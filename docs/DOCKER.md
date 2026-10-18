@@ -18,6 +18,31 @@ code and production dependencies. The migration CLI runs only in the separate
 
 ## Backend runtime
 
+The Dockerfile's `DATABASE_URL=mysql://127.0.0.1:3306/build_only` exists only for
+Prisma code generation during image building. It is not your application's runtime
+database configuration and does not need replacing with credentials.
+
+A file named `.env.docker` is not loaded automatically. Pass it at runtime using
+`docker run --env-file`, or reference it with Compose's `env_file`. It must contain
+the complete required backend environment, not only DATABASE_URL. The application
+uses DATABASE_* fields for its connection and DATABASE_URL for migration commands;
+these must agree. Keep `.env.docker` private and ignored by Git and Docker builds.
+
+To check just its required variables against the existing image, from project root:
+
+```powershell
+docker run --rm --network none --env-file ./backend/.env.docker --entrypoint node serviceflow-backend:local --input-type=module -e "await import('./dist/config/env.js'); console.log('Environment schema OK')"
+```
+
+This imports only the environment validator, with networking disabled. Passing it
+does not prove MySQL/Redis connectivity or a working Compose deployment. Hostnames
+such as `mysql` require running containers on a shared user-defined Docker network.
+
+The already-executed image smoke checks are reproducible from project root with
+`node artifacts/docker-20261018/smoke.mjs`. They use private test Redis and sample
+API data, not your new `.env.docker` or an actual MySQL database. The complete
+Compose/proxy/database deployment remains a separate check.
+
 Inject the backend's existing required environment values at container startup,
 using a private environment file or Compose configuration. Never pass production
 secrets as build arguments or COPY environment files into an image.

@@ -1,3 +1,12 @@
+## [2026-10-18 16:01] Codex
+
+- **Task:** Review the user's new .env.docker and clarify prior Docker testing.
+- **Summary:** Confirmed image tests passed previously but did not exercise this new file or a full MySQL/Compose stack. Secret-safe inspection found only DATABASE_URL; actual API-image environment validation with networking disabled failed on nine missing runtime fields. Added .env variants to Git ignore and documented build/runtime configuration and the safe validation command.
+- **Files changed:** `.gitignore`, `docs/DOCKER.md`, `ACTIVITY.md`. `.env.docker` contents and Dockerfile unchanged.
+- **Endpoints / rate limiting:** N/A; no app startup, API requests, database operations, email sends or permission changes.
+- **Status:** Completed diagnosis. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Git ignore verification and diff checks passed. MySQL named mysql is Created (not running), attached to appnet, with host port 3306 configured; startup error is empty, so no cause was inferred. Full Compose file is still empty. No container was started/reconfigured except the automatically removed network-disabled environment validator. Complete runtime settings and shared service orchestration before connection tests; secrets were not printed or copied.
+
 ## [2026-10-18 14:41] Codex
 
 - **Task:** Implement frontend/backend Dockerfiles and Docker ignore files.
