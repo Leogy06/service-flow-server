@@ -73,6 +73,7 @@ export const serviceRequestService = {
     const where: Prisma.ServiceRequestWhereInput = {
       organizationId,
       status: query.status,
+      priority: query.priority,
       serviceTypeId: query.serviceTypeId,
       ...(query.search
         ? {

@@ -24,6 +24,7 @@ export const statusInput = z.object({ params, body: z.object({ status: z.enum(st
 export const requestListInput = z.object({ query: z.object({
   ...paging,
   status: z.enum(statuses).optional(),
+  priority: requestBody.shape.priority.removeDefault().optional(),
   serviceTypeId: id.optional(),
   sortBy: z.literal("createdAt").default("createdAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),

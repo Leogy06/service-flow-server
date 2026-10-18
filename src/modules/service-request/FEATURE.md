@@ -6,6 +6,10 @@ customers/types must belong to the tenant; closed requests cannot be edited.
 Changing a request's customer/type after jobs exist is prohibited. Completion and
 cancellation follow backend lifecycle rules and transactional audits.
 
+Request lists support optional status, priority and service-type filters combined
+with search before counting and pagination. Priority accepts only LOW, NORMAL,
+HIGH or URGENT; all reads retain the trusted organization scope.
+
 Lists/details, customer choices and service types use shared Redis caching.
 Request writes invalidate requests, related job projections and dashboard;
 service-type writes also refresh service-type choices and embedded names/prices.

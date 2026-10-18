@@ -17,8 +17,8 @@ organization IDs never grant access.
 | `PUT /types/:id` | `service_request:update` | Updated service type |
 | `DELETE /types/:id` | `service_request:delete` | Archive by setting `isActive=false` |
 
-Request list query: `page`, `pageSize` (1–100), `search` (reference or customer),
-`status`, `serviceTypeId`, `sortBy=createdAt`, and `sortOrder=asc|desc`.
+Request list query: `page`, `pageSize` (1–100), `search` (reference, title or customer),
+`status`, `priority=LOW|NORMAL|HIGH|URGENT`, `serviceTypeId`, `sortBy=createdAt`, and `sortOrder=asc|desc`.
 Type list query: `page`, `pageSize`, `search`, and `active=all|active|archived`.
 Responses use the existing `{ data, ... }` response envelope.
 

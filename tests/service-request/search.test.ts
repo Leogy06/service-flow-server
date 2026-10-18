@@ -3,14 +3,16 @@ import { jest } from "@jest/globals";
 jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn(async () => {}) }));
 
 const rows = [
-  { id: "pending-a", organizationId: "org-a", referenceNumber: "SR-001", title: "Air conditioner repair", status: "PENDING", customer: { organizationId: "org-a", name: "Alice Santos" } },
-  { id: "progress-a", organizationId: "org-a", referenceNumber: "SR-002", title: "Air conditioner repair", status: "IN_PROGRESS", customer: { organizationId: "org-a", name: "Alice Santos" } },
-  { id: "closed-a", organizationId: "org-a", referenceNumber: "SR-003", title: "Air conditioner repair", status: "COMPLETED", customer: { organizationId: "org-a", name: "Alice Santos" } },
-  { id: "pending-b", organizationId: "org-b", referenceNumber: "SR-004", title: "Air conditioner repair", status: "PENDING", customer: { organizationId: "org-b", name: "Alice Santos" } },
+  { id: "pending-a", organizationId: "org-a", referenceNumber: "SR-001", title: "Air conditioner repair", status: "PENDING", priority: "HIGH", serviceTypeId: "repair", customer: { organizationId: "org-a", name: "Alice Santos" } },
+  { id: "progress-a", organizationId: "org-a", referenceNumber: "SR-002", title: "Air conditioner repair", status: "IN_PROGRESS", priority: "LOW", serviceTypeId: "repair", customer: { organizationId: "org-a", name: "Alice Santos" } },
+  { id: "closed-a", organizationId: "org-a", referenceNumber: "SR-003", title: "Air conditioner repair", status: "COMPLETED", priority: "HIGH", serviceTypeId: "install", customer: { organizationId: "org-a", name: "Alice Santos" } },
+  { id: "pending-b", organizationId: "org-b", referenceNumber: "SR-004", title: "Air conditioner repair", status: "PENDING", priority: "HIGH", serviceTypeId: "repair", customer: { organizationId: "org-b", name: "Alice Santos" } },
 ];
 function matches(row: typeof rows[number], where: any): boolean {
   return (!where.organizationId || row.organizationId === where.organizationId) &&
     (!where.status || row.status === where.status) &&
+    (!where.priority || row.priority === where.priority) &&
+    (!where.serviceTypeId || row.serviceTypeId === where.serviceTypeId) &&
     (!where.referenceNumber || row.referenceNumber.includes(where.referenceNumber.contains)) &&
     (!where.title || row.title.includes(where.title.contains)) &&
     (!where.customer || row.customer.organizationId === where.customer.organizationId && row.customer.name.includes(where.customer.name.contains)) &&
@@ -54,4 +56,24 @@ test("empty title searches keep valid pagination and do not leak foreign matches
 test("requires a trusted organization context before searching", async () => {
   await expect(search({ search: "repair", organizationId: "org-b" }, null)).rejects.toThrow("An organization session is required");
   expect(db.serviceRequest.count).not.toHaveBeenCalled();
+});
+
+
+test("combines priority, status, service type and search before pagination within the tenant", async () => {
+  const result = await search({ priority: "HIGH", serviceTypeId: "repair", status: "PENDING", search: "repair", pageSize: 1 });
+  expect(result.requests.map((row) => row.id)).toEqual(["pending-a"]);
+  expect(result.pagination.total).toBe(1);
+  expect(db.serviceRequest.findMany).toHaveBeenCalledWith(expect.objectContaining({
+    where: expect.objectContaining({ organizationId: "org-a", priority: "HIGH", serviceTypeId: "repair", status: "PENDING" }),
+  }));
+  expect((await search({ priority: "LOW", status: "PENDING" })).pagination.total).toBe(0);
+  expect((await search({ priority: "HIGH", status: "PENDING" }, "org-b")).requests.map((row) => row.id)).toEqual(["pending-b"]);
+});
+
+test("priority is optional and rejects unsupported values", () => {
+  expect(requestListInput.parse({ query: {} }).query.priority).toBeUndefined();
+  for (const priority of ["LOW", "NORMAL", "HIGH", "URGENT"]) {
+    expect(requestListInput.parse({ query: { priority } }).query.priority).toBe(priority);
+  }
+  expect(requestListInput.safeParse({ query: { priority: "CRITICAL" } }).success).toBe(false);
 });
