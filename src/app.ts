@@ -19,10 +19,11 @@ import { recordPlatformServerError } from "./modules/system-admin/operations.ser
 export const app = express();
 onPlatformServerError(recordPlatformServerError);
 
+// Register first so CORS preflights and other early responses are logged too.
+app.use(requestLogger);
 app.use(helmet());
 app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
 app.use(compression()); // gzip reduces the size of the response
-app.use(requestLogger);
 app.use(observeRequests);
 app.use(express.json());
 app.use(cookieParser());

@@ -1,3 +1,12 @@
+## [2026-10-18 14:06] Codex
+
+- **Task:** Review API request logging and prevent unbounded log-file growth.
+- **Summary:** Confirmed existing Pino HTTP logging; added validated LOG_MAX_FILES retention through the installed pino-roll transport, safe request/response metadata serializers and logging before CORS. Added request IDs on early responses, operational documentation and regression coverage. Existing log files and database audit records were not deleted.
+- **Files changed:** backend/src/lib/logger.ts, backend/src/middleware/request-logger.ts, backend/src/app.ts, backend/src/config/env.ts, backend/docs/LOGGING.md, backend/tests/logging/{logger,request-logger}.test.ts; root/backend ACTIVITY.md.
+- **Endpoints / rate limiting:** No routes, API bodies, database, migrations, permission grants, rate limits or dependencies changed. X-Request-Id is now also returned on CORS preflights and other early responses; existing limiters remain in place.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Full backend Jest passed (35 suites/805 tests), including 14 new logging tests and real temporary-directory rotation/cleanup; full ESLint, TypeScript including tests and production build passed. Retention defaults to 14 files plus active (budget up to 15/~150 MiB), prunes at rotation and includes prior runs; no scheduler needed. Keep LOG_LEVEL=info for all request summaries; stdout-host retention is separate. No live deployment, database integration or frontend checks were required. Initial PowerShell npm shim restriction was resolved using npm.cmd; test/type/lint issues were corrected before final checks.
+
 ## [2026-10-18 13:48] Codex
 
 - **Task:** Add one command for local predeployment checks.

@@ -35,6 +35,11 @@ export const logger = pino(
                   dateFormat: "yyyy-MM-dd",
                   size: "10m",
                   mkdir: true,
+                  limit: {
+                    count: env.LOG_MAX_FILES,
+                    // Include this instance's logs from previous runs in retention.
+                    removeOtherLogFiles: true,
+                  },
                 },
               },
             ],

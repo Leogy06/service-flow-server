@@ -45,7 +45,8 @@ const envSchema = z.object({
 
   //pino
   LOG_LEVEL: z
-    .enum(["trace", "debug", "info", "warn", "error", "fatal"])
+    .enum(["trace", "debug", "info", "warn", "error", "fatal"]),
+  LOG_MAX_FILES: z.coerce.number().int().positive().default(14),
 });
 
 const parsed = envSchema.safeParse(process.env);
