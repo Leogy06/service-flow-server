@@ -4,7 +4,9 @@
 
 ServiceFlow account emails use a shared red-accented, table-based HTML layout with
 inline styles, system fonts, a hidden inbox preheader, a primary action and a
-copyable fallback URL. No remote images or additional packages are required.
+copyable fallback URL. The header pairs the supplied blue/teal ServiceFlow mark
+with live brand text that remains visible when remote images are blocked.
+No additional packages are required.
 
 ## Key files
 
@@ -22,6 +24,13 @@ copyable fallback URL. No remote images or additional packages are required.
 - Templates perform no data access, tenant lookup, token generation or delivery.
   Never pass passwords or unnecessary private information into email content.
 - Preserve inline styles and presentation tables when editing for email clients.
+- Both templates use the shared header. Its decorative 48px raster mark is served
+  by the frontend's existing `/_next/image` optimizer at 96px from
+  `public/system-logo/2.png`. Only the action URL's trusted origin is reused;
+  invitation/reset tokens and recipient query parameters never enter image URLs.
+  Production needs the public frontend origin and image route reachable by mail
+  clients. Localhost logos work only for local previews. Do not use CSS clipping,
+  SVG, theme switching or image-only brand text in email headers.
 
 ## Known gotchas
 

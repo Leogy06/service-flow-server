@@ -1,3 +1,12 @@
+## [2026-10-19 19:06] Codex
+
+- **Task:** Add the selected system logo to account email templates.
+- **Summary:** Shared invitation/reset header now renders the supplied blue/teal mark with visible ServiceFlow text using inline tables. The 96px optimized raster URL reuses only the trusted action origin and has no invitation/reset parameters. Updated email feature documentation and existing safety tests.
+- **Files changed:** `src/lib/email/templates/layout.ts`, `src/lib/email/FEATURE.md`, `tests/email/templates.test.ts`, root/backend activity logs.
+- **Endpoints / rate limiting:** N/A; no API, database, permission, migration, dependency or email-delivery changes.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** All 18 template tests, full ESLint, backend build and diff checks passed. No emails sent or inbox compatibility checks performed. Public frontend origin/image optimizer must be reachable for remote images; live brand text remains when blocked. Reset sender stays an unimplemented placeholder.
+
 ## [2026-10-18 23:50] Codex
 
 - **Task:** Run predeployment checks and fix only DigitalOcean VPS blockers.

@@ -11,7 +11,8 @@ describe.each(templates)("$name email safety", ({ render }) => {
   it("escapes names as text instead of allowing injected HTML", () => {
     const html = render('<img src=x onerror="alert(1)"> & \'Alex\'', actionUrl);
     expect(html).toContain("Hi &lt;img src=x onerror=&quot;alert(1)&quot;&gt; &amp; &#39;Alex&#39;,");
-    expect(html).not.toContain("<img");
+    expect(html).not.toContain('<img src=x');
+    expect(html.match(/<img /g)).toHaveLength(1);
   });
 
   it("preserves query parameters in both action links without allowing attribute injection", () => {
@@ -34,5 +35,24 @@ describe.each(templates)("$name email safety", ({ render }) => {
   it("accepts the local HTTP application origin", () => {
     expect(render("Alex", "http://localhost:4001/set-password?token=sample"))
       .toContain('href="http://localhost:4001/set-password?token=sample"');
+  });
+
+  it("uses the shared system mark from the application origin without private action parameters", () => {
+    const html = render("Alex", actionUrl);
+    const source = html.match(/<img src="([^"]+)"/)?.[1];
+    expect(source).toBeDefined();
+    const imageUrl = new URL(source!.replaceAll("&amp;", "&"));
+    expect(imageUrl.origin).toBe("https://example.com");
+    expect(imageUrl.pathname).toBe("/_next/image");
+    expect([...imageUrl.searchParams]).toEqual([["url", "/system-logo/2.png"], ["w", "96"], ["q", "75"]]);
+    expect(source).not.toContain("token");
+    expect(source).not.toContain("email=");
+    expect(html).toContain('alt="" width="48" height="48"');
+    expect(html).toContain(">ServiceFlow</td>");
+  });
+
+  it("uses the configured local origin for logo previews", () => {
+    expect(render("Alex", "http://localhost:4001/set-password?token=sample"))
+      .toContain('src="http://localhost:4001/_next/image?url=%2Fsystem-logo%2F2.png&amp;w=96&amp;q=75"');
   });
 });

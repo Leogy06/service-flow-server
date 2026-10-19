@@ -32,6 +32,9 @@ export function actionEmailHtml(props: ActionEmailProps): string {
   const actionUrl = escapeHtml(props.actionUrl);
   const actionLabel = escapeHtml(props.actionLabel);
   const firstName = escapeHtml(props.firstName.trim());
+  // Mail clients receive a static PNG with an opaque white background for both modes.
+  // Only reuse the trusted origin; private action parameters never enter image requests.
+  const logoUrl = new URL("/service-flow-logo/handoff/email-mark.png", url.origin);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -58,7 +61,16 @@ export function actionEmailHtml(props: ActionEmailProps): string {
         <!--[if mso]><table role="presentation" width="560" cellspacing="0" cellpadding="0" border="0"><tr><td><![endif]-->
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width: 100%; max-width: 560px; border-collapse: separate;">
           <tr>
-            <td style="padding: 0 0 24px; font-size: 22px; line-height: 30px; font-weight: 700; letter-spacing: -0.7px; color: #1c1917;">ServiceFlow<span style="color: #b91c1c;">.</span></td>
+            <td style="padding: 0 0 24px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse: collapse;">
+                <tr>
+                  <td width="48" valign="middle" style="width: 48px; font-size: 0; line-height: 0;">
+                    <img src="${escapeHtml(logoUrl.href)}" alt="" width="48" height="48" border="0" style="display: block; width: 48px; height: 48px; border: 0; border-radius: 6px; background-color: #ffffff;" />
+                  </td>
+                  <td valign="middle" style="padding-left: 12px; font-size: 22px; line-height: 30px; font-weight: 700; letter-spacing: -0.7px; color: #1c1917;">ServiceFlow</td>
+                </tr>
+              </table>
+            </td>
           </tr>
           <tr>
             <td class="email-content" bgcolor="#ffffff" style="padding: 40px; background-color: #ffffff; border: 1px solid #e7e5e4; border-top: 4px solid #b91c1c; border-radius: 8px;">
