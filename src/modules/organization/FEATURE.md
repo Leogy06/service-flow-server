@@ -68,11 +68,17 @@ No new permission grants are introduced. Settings changes and tenant audits
 commit together using the existing serializable tenant transaction helper.
 
 Settings are an optional one-to-one `OrganizationSettings` relation. Missing rows
-return red `#b91c1c`, null display name/assets/timestamps without a GET write.
+return Handoff teal `#0d887d`, null display name/assets/timestamps without a GET write.
 PATCH accepts a six-digit hex `primaryColor` and nullable `displayName` (1–100
 characters); null restores the color/name default. Responses use the standard
 data envelope and include organizationId, primaryColor, displayName, logoUrl,
 faviconUrl, createdAt and updatedAt. Null assets use Service Flow defaults.
+
+Existing saved colors, including red, are preserved. New partial settings writes
+explicitly use teal. The branding cache key includes the fallback color so old
+cached defaults are not reused after this change. Public pages share the same
+fallback. Deploy `20261019120000_handoff_default_color` to align the database
+default for future inserts; it changes no existing records.
 
 Uploads send the file as the raw request body with its image Content-Type.
 Logos accept PNG, JPEG and WebP; favicons accept PNG. Files must be at most

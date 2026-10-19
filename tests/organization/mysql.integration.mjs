@@ -46,8 +46,11 @@ test("real MySQL tenant branding isolation, concurrent upserts, audit rollback, 
       { id: adminA, organizationId: orgA, roleId: roleA }, { id: adminB, organizationId: orgB, roleId: roleB },
       { id: staff, organizationId: orgA, roleId: roleStaff }, { id: operator, roleId: rolePlatform, platformRole: "SYSTEM_ADMIN" },
     ].map((row) => ({ ...row, email: `${row.id}@example.invalid`, firstName: "Branding", lastName: "Fixture", status: "ACTIVE" })) });
-    assert.deepEqual(await tenant(() => brandingService.get()), { organizationId: orgA, primaryColor: "#b91c1c", displayName: null, logoUrl: null, faviconUrl: null, createdAt: null, updatedAt: null });
+    assert.deepEqual(await tenant(() => brandingService.get()), { organizationId: orgA, primaryColor: "#0d887d", displayName: null, logoUrl: null, faviconUrl: null, createdAt: null, updatedAt: null });
     assert.equal(await prisma.organizationSettings.count({ where: { organizationId: orgA } }), 0);
+    // Omitted color exercises the migrated database default, independently of the service fallback.
+    const databaseDefault = await prisma.organizationSettings.create({ data: { organizationId: orgB } });
+    assert.equal(databaseDefault.primaryColor, "#0d887d");
     const races = await Promise.allSettled(["#112233", "#445566"].map((primaryColor) => tenant(() => brandingService.update({ primaryColor }))));
     assert.ok(races.some((result) => result.status === "fulfilled"));
     assert.equal(await prisma.organizationSettings.count({ where: { organizationId: orgA } }), 1);
@@ -85,7 +88,7 @@ test("real MySQL tenant branding isolation, concurrent upserts, audit rollback, 
     const current = await tenant(() => brandingService.get()); assert.deepEqual(await readFile(join(directory, current.logoUrl.split("/").at(-1))), png);
     const removed = await request(app).delete(`${path}/logo`).auth(authA, { type: "bearer" }); assert.equal(removed.status, 200); assert.equal(removed.body.data.logoUrl, null); assert.equal(removed.body.data.displayName, "Business A");
     assert.equal((await request(app).patch(path).auth(authA, { type: "bearer" }).send({ primaryColor: null, displayName: null })).status, 200);
-    assert.equal((await tenant(() => brandingService.get())).primaryColor, "#b91c1c"); assert.equal((await tenant(() => brandingService.get(), orgB, adminB)).primaryColor, "#abcdef");
+    assert.equal((await tenant(() => brandingService.get())).primaryColor, "#0d887d"); assert.equal((await tenant(() => brandingService.get(), orgB, adminB)).primaryColor, "#abcdef");
     console.log("Branding MySQL fixtures and immutable audits retained in isolated test database.");
   } finally {
     await prisma.$disconnect(); await redis.quit();

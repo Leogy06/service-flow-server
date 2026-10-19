@@ -10,7 +10,7 @@ import type { Prisma, OrganizationSettings } from "@/generated/prisma/client";
 import { brandingAssets, type BrandingAssetKind } from "./branding-assets";
 import type { BrandingUpdateInput } from "./branding.schema";
 
-export const DEFAULT_PRIMARY_COLOR = "#b91c1c";
+export const DEFAULT_PRIMARY_COLOR = "#0d887d";
 export function requireBrandingTenant(admin = false) {
   const ctx = requestContext.get();
   if (!ctx?.userId || !ctx.organizationId) throw new AppError(403, "An organization session is required");
@@ -33,7 +33,7 @@ async function updateSettings(organizationId: string, data: SettingsChanges, act
     const before = await db.organizationSettings.findUnique({ where: { organizationId } });
     const settings = await db.organizationSettings.upsert({
       where: { organizationId },
-      create: { organizationId, ...data },
+      create: { organizationId, primaryColor: DEFAULT_PRIMARY_COLOR, ...data },
       update: data,
     });
     await auditService.recordInTransaction(db, {
@@ -55,7 +55,7 @@ async function removeUnusedAsset(url: string | null) {
 export const brandingService = {
   async get() {
     const organizationId = requireBrandingTenant();
-    return cachedRead("branding", "get", [], async () => {
+    return cachedRead("branding", "get", [DEFAULT_PRIMARY_COLOR], async () => {
       const organization = await prisma.organization.findUnique({ where: { id: organizationId, status: "ACTIVE" }, select: { settings: true } });
       if (!organization) throw new AppError(404, "Organization not found");
       return organization.settings ?? defaults(organizationId);

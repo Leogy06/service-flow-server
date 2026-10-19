@@ -1,3 +1,12 @@
+## [2026-10-19 20:00] Codex
+
+- **Task:** Match the default application color to the teal Handoff logo.
+- **Summary:** Set the frontend/backend default to #0d887d, aligned contrast-adjusted global light/dark palettes and sidebar/accent/focus states, preserved white text on fixed navy account panels, corrected dark canvas links, and updated website fallbacks and sample previews. New partial branding writes use teal and cache keys include the default. Saved tenant colors remain unchanged; Restore default theme stages teal for Save branding.
+- **Files changed:** prisma/schema.prisma, prisma/migrations/20261019120000_handoff_default_color/migration.sql, organization/{branding.service.ts,page.service.ts,FEATURE.md}, tests/organization/{branding.test.ts,page.test.ts,mysql.integration.mjs}, activity logs.
+- **Endpoints / rate limiting:** Existing settings/public website response shapes, tenant/admin checks and rate limiters unchanged; only default color behavior changes. No permission grants or dependencies added.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Frontend/backend lint and production builds including TypeScript passed; Prisma regenerated. Six organization/cache suites passed (115 tests), followed by 19 focused branding tests confirming saved red preservation. Both contrast tests, public desktop/mobile light/dark palette checks, Settings tenant/reset/logo/favicon browser regression and landing preview checks passed. All ten screenshots refreshed and inspected. Default-only migration applied and verified in isolated service_flow_platform_test_handoff_20261019, including direct database default, concurrency, FK/audit rollback and authorization; fixtures retained. Apply migration to the application database during deployment; no existing saved colors were rewritten. Initial browser CSS-format assertion and Windows temp-file cleanup issue were resolved by script normalization and clean rechecks. Pre-existing removal of archived system-logo files was left untouched.
+
 ## [2026-10-19 19:24] Codex
 
 - **Task:** Apply the selected Handoff logo across the application and account email templates, with light/dark visibility.

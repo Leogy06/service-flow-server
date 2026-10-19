@@ -5,13 +5,14 @@ import type { OrganizationPage } from "../../src/generated/prisma/client.js";
 
 let rows = new Map<string, OrganizationPage>();
 let audits: unknown[] = [];
+let hasSettings = true;
 let failAudit = false;
 const organizations = new Map([["org-a", "ACTIVE"], ["org-b", "ACTIVE"]]);
 const db = {
   organization: { findUnique: jest.fn(async ({ where }: { where: { id?: string; slug?: string; status: string } }) => {
     const id = where.id ?? where.slug;
     if (!id || organizations.get(id) !== where.status) return null;
-    return { id, slug: id, name: `Business ${id}`, page: rows.get(id) ?? null, settings: { displayName: null, primaryColor: "#123456", logoUrl: null } };
+    return { id, slug: id, name: `Business ${id}`, page: rows.get(id) ?? null, settings: hasSettings ? { displayName: null, primaryColor: "#123456", logoUrl: null } : null };
   }) },
   organizationPage: {
     findUnique: jest.fn(async ({ where }: { where: { organizationId: string } }) => rows.get(where.organizationId) ?? null),
@@ -63,6 +64,7 @@ const legacyContent = { headline: "Electrical services", about: "We maintain and
 const content = pageContentSchema.parse(legacyContent);
 const input = (version: string | null = null, publication: "keep" | "publish" | "unpublish" = "keep") => ({ content, version, publication });
 beforeEach(async () => {
+  hasSettings = true;
   jest.clearAllMocks(); rows = new Map(); audits = []; failAudit = false; organizations.set("org-a", "ACTIVE");
   for (const ip of ["::ffff:127.0.0.1", "127.0.0.1", "::1"]) for (const limiter of [apiLimiter, writeLimmiter, publicPageLimiter]) await limiter.resetKey(ipKeyGenerator(ip));
 });
@@ -71,6 +73,13 @@ test("new tenant has an empty private draft without writes", async () => {
   expect(await tenant(() => service.get())).toMatchObject({ organizationId: "org-a", content: emptyPageContent(), publishedAt: null, version: null });
   expect(db.organizationPage.upsert).not.toHaveBeenCalled();
   await expect(service.publicPage("org-a")).rejects.toMatchObject({ statusCode: 404 });
+});
+
+test("public pages use teal only when tenant branding is absent", async () => {
+  await tenant(() => service.update(input(null, "publish")));
+  expect((await service.publicPage("org-a")).primaryColor).toBe("#123456");
+  hasSettings = false;
+  expect((await service.publicPage("org-a")).primaryColor).toBe("#0d887d");
 });
 
 test("existing draft and published JSON snapshots receive optional profile defaults without a migration", async () => {

@@ -3,7 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { auditService } from "@/modules/audit/audit.service";
 import { tenantTransaction } from "@/utils/tenant-transaction";
 import { AppError } from "@/utils/AppError";
-import { requireBrandingTenant } from "./branding.service";
+import { DEFAULT_PRIMARY_COLOR, requireBrandingTenant } from "./branding.service";
 import { emptyPageContent, pageContentSchema, pageUpdateSchema, publicationIssues, type PageUpdateInput } from "./page.schema";
 
 export const organizationPageService = {
@@ -68,7 +68,7 @@ export const organizationPageService = {
     return {
       name: organization.settings?.displayName ?? organization.name,
       slug: organization.slug,
-      primaryColor: organization.settings?.primaryColor ?? "#b91c1c",
+      primaryColor: organization.settings?.primaryColor ?? DEFAULT_PRIMARY_COLOR,
       logoUrl: organization.settings?.logoUrl ?? null,
       content: parsed.data,
     };

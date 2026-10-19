@@ -20,7 +20,7 @@ const db = {
     findFirst: jest.fn(async ({ where }: { where: SettingWhere }) => [...rows.values()].find((row) => matches(row, where)) ?? null),
     upsert: jest.fn(async ({ where, create, update }: { where: { organizationId: string }; create: Partial<OrganizationSettings>; update: Partial<OrganizationSettings> }) => {
       const existing = rows.get(where.organizationId);
-      const row: OrganizationSettings = existing ? { ...existing, ...update, updatedAt: new Date() } : { organizationId: where.organizationId, primaryColor: "#b91c1c", displayName: null, logoUrl: null, faviconUrl: null, createdAt: new Date(), updatedAt: new Date(), ...create };
+      const row: OrganizationSettings = existing ? { ...existing, ...update, updatedAt: new Date() } : { organizationId: where.organizationId, primaryColor: "#0d887d", displayName: null, logoUrl: null, faviconUrl: null, createdAt: new Date(), updatedAt: new Date(), ...create };
       rows.set(row.organizationId, row); return row;
     }),
   },
@@ -80,14 +80,14 @@ beforeEach(async () => {
 afterAll(async () => { await rm(directory, { recursive: true, force: true }); });
 
 test("tenant reads return defaults without writes, and persist isolated partial updates", async () => {
-  expect(await asTenant(() => service.get(), "org-a", "Staff")).toEqual({ organizationId: "org-a", primaryColor: "#b91c1c", displayName: null, logoUrl: null, faviconUrl: null, createdAt: null, updatedAt: null });
+  expect(await asTenant(() => service.get(), "org-a", "Staff")).toEqual({ organizationId: "org-a", primaryColor: "#0d887d", displayName: null, logoUrl: null, faviconUrl: null, createdAt: null, updatedAt: null });
   expect(db.organizationSettings.upsert).not.toHaveBeenCalled();
   await asTenant(() => service.update({ primaryColor: "#123456", displayName: "Business A" }));
   await asTenant(() => service.update({ primaryColor: "#abcdef" }), "org-b");
   expect(await asTenant(() => service.get())).toMatchObject({ primaryColor: "#123456", displayName: "Business A" });
   expect(await asTenant(() => service.get(), "org-b")).toMatchObject({ primaryColor: "#abcdef", displayName: null });
   await asTenant(() => service.update({ primaryColor: null }));
-  expect(rows.get("org-a")).toMatchObject({ primaryColor: "#b91c1c", displayName: "Business A" });
+  expect(rows.get("org-a")).toMatchObject({ primaryColor: "#0d887d", displayName: "Business A" });
   await asTenant(() => service.update({ displayName: null })); expect(rows.get("org-a")!.displayName).toBeNull();
   expect(audits).toHaveLength(4); expect(audits[0]).toMatchObject({ organizationId: "org-a", actorId: "user-a", entity: "OrganizationSettings" });
 });
@@ -98,6 +98,15 @@ test("service rejects staff mutations, platform and missing contexts, and inacti
   organizations.set("org-a", "SUSPENDED"); await expect(asTenant(() => service.get())).rejects.toMatchObject({ statusCode: 404 });
   await expect(asTenant(() => service.update({ primaryColor: "#123456" }))).rejects.toMatchObject({ statusCode: 404 });
   expect(rows.size).toBe(0);
+});
+
+test("partial first writes use teal while saved red and other tenant choices are preserved", async () => {
+  await asTenant(() => service.update({ displayName: "Business A" }));
+  expect(rows.get("org-a")).toMatchObject({ primaryColor: "#0d887d", displayName: "Business A" });
+  await asTenant(() => service.update({ primaryColor: "#b91c1c" }));
+  await asTenant(() => service.update({ displayName: "Renamed business" }));
+  expect(await asTenant(() => service.get())).toMatchObject({ primaryColor: "#b91c1c", displayName: "Renamed business" });
+  expect(await asTenant(() => service.get(), "org-b")).toMatchObject({ primaryColor: "#0d887d", displayName: null });
 });
 test("strict validation rejects mass assignment and invalid colors/names", () => {
   for (const body of [{}, { primaryColor: "red" }, { primaryColor: "#fff" }, { primaryColor: "#123456;" }, { displayName: " " }, { displayName: "x".repeat(101) }, { displayName: "x\ny" }, { organizationId: "org-b", primaryColor: "#123456" }, { logoUrl: "https://example.com" }, { faviconUrl: "javascript:alert(1)" }]) expect(brandingUpdateSchema.safeParse({ query: {}, body }).success).toBe(false);
@@ -154,7 +163,7 @@ test("HTTP reads allow staff; role-gated writes and platform reads fail; tenant 
   expect((await request(app).get(`${path}?organizationId=org-b`).auth("admin", { type: "bearer" })).status).toBe(400);
   expect((await request(app).patch(path).auth("admin", { type: "bearer" }).send({ organizationId: "org-b", primaryColor: "#123456" })).status).toBe(400);
   const saved = await request(app).patch(path).auth("admin", { type: "bearer" }).send({ primaryColor: "#ABCDEF" }); expect(saved.status).toBe(200); expect(saved.body.data).toMatchObject({ organizationId: "org-a", primaryColor: "#abcdef" }); expect(saved.headers["cache-control"]).toBe("no-store");
-  const foreign = await request(app).get(path).auth("admin-b", { type: "bearer" }); expect(foreign.body.data).toMatchObject({ organizationId: "org-b", primaryColor: "#b91c1c" });
+  const foreign = await request(app).get(path).auth("admin-b", { type: "bearer" }); expect(foreign.body.data).toMatchObject({ organizationId: "org-b", primaryColor: "#0d887d" });
 });
 test("HTTP upload, public raster headers, size limits and traversal validation", async () => {
   const saved = await request(app).post(`${path}/logo`).auth("admin", { type: "bearer" }).type("png").send(png);
