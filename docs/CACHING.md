@@ -1,5 +1,11 @@
 # Service read caching
 
+Connection setup: see [Upstash Redis setup](UPSTASH.md). The shared `ioredis`
+client accepts a backend-only `REDIS_URL` (`rediss://` for Upstash, `redis://` for
+local Redis). Production Compose uses Upstash; isolated tests retain local Redis.
+The same database stores API rate limits, so keep eviction disabled and use
+separate databases for production and development.
+
 `src/utils/cache.ts` provides best-effort Redis read-through caching. Redis
 failures fall back to the database; database failures still propagate. Tagged
 serialization preserves Date, Prisma Decimal, bigint and nested JSON values.

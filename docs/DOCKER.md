@@ -4,7 +4,8 @@ The complete single-VPS setup is now `../../deploy/compose.yml` with instruction
 in `../../deploy/README.md`. From this backend directory, run
 `npm run test:predeploy:vps` to build and exercise it in a fresh isolated test
 project. The empty legacy `docker-compose.yml` in this directory is not used.
-The VPS file supplies production origins, private MySQL/Redis networking,
+The VPS file supplies production origins, private MySQL networking and external
+Upstash Redis via a backend-only TLS `REDIS_URL` (see [setup](UPSTASH.md)),
 persistent volumes and a Caddy HTTPS proxy. Keep development env files unchanged.
 `TRUST_PROXY_HOPS=1` is only appropriate for that single proxy with the API port
 unpublished; its default is 0 for direct local connections. Caddy replaces
@@ -65,7 +66,7 @@ secrets as build arguments or COPY environment files into an image.
 `DATABASE_URL` is used by the migration CLI; runtime `DATABASE_HOST`,
 `DATABASE_PORT`, `DATABASE_USER`, `DATABASE_PASSWORD`, `DATABASE_NAME` must point
 to that same database. In a private Docker network use service names such as
-`mysql` and `redis`, rather than localhost. Configure the existing REDIS_URL and
+`mysql`, rather than localhost. Use the Upstash `rediss://` TCP URL for REDIS_URL and
 an exact HTTPS CORS_ORIGIN for the real app. The build-only DATABASE_URL is a
 noncredential placeholder and is never used to connect to a database.
 
@@ -73,8 +74,9 @@ Compose must mount named volumes at `/app/storage/branding` for persistent
 branding uploads and `/app/logs` for file logs. Directories are writable by the
 image's node user (UID 1000); host bind mounts need matching permissions. Existing
 log retention remains controlled by LOG_MAX_FILES; Docker stdout retention needs
-its own logging configuration. MySQL and Redis need their own persistence and
-memory configuration. Initialize the NEW Linux MySQL database with
+its own logging configuration. MySQL needs its own persistence and memory
+configuration; Upstash manages Redis storage and capacity. Initialize the NEW
+Linux MySQL database with
 lower_case_table_names=1 before its first startup, as verified by predeploy tests.
 
 ## Frontend build and runtime

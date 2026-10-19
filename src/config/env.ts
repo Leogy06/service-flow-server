@@ -1,5 +1,6 @@
 import { z } from "zod";
 import "dotenv/config";
+import { redisUrlSchema } from "./redis-url";
 
 const envSchema = z.object({
   NODE_ENV: z
@@ -25,7 +26,7 @@ const envSchema = z.object({
   SALT_ROUNDS: z.coerce.number().default(10),
 
   //redis
-  REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
+  REDIS_URL: redisUrlSchema.default("redis://localhost:6379"),
   REFUND_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60 * 60 * 1000),
   REFUND_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   SIGNUP_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(10 * 60 * 1000),
