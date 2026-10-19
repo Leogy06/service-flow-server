@@ -1,3 +1,12 @@
+## [2026-10-19 20:45] Codex
+
+- **Task:** Fix production dependency cleanup failing with Windows esbuild EPERM.
+- **Summary:** Confirmed local running esbuild PID 10816; added a dependency-free Windows process check before npm ci, clear Ctrl+C recovery instructions, script-relative working directory and gitignore allowlist. Restored dependencies after the lock and concurrent installer exited.
+- **Files changed:** scripts/prod.sh, scripts/check-dependency-locks.mjs, .gitignore, ACTIVITY.md; parent activity log.
+- **Endpoints / rate limiting:** N/A; no frontend, database, migration, API, permission, rate-limit or package/lockfile changes.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Bash/Node syntax, ten simulated guard cases, actual temporary esbuild lock/release checks, full lint, Prisma generation, production build and diff checks passed. Initial restore hit ENOTEMPTY while another npm ci ran; subsequent restore succeeded. Full production launcher/prune not executed. Guard covers the observed local esbuild executable lock; other Windows locks remain possible.
+
 ## [2026-10-19 20:00] Codex
 
 - **Task:** Match the default application color to the teal Handoff logo.

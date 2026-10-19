@@ -10,6 +10,7 @@ TODO.md
 scripts/
 !scripts/
 scripts/*
+!scripts/check-dependency-locks.mjs
 !scripts/run-platform-mysql-tests.mjs
 !scripts/predeploy*.mjs
 !scripts/PREDEPLOY.md
