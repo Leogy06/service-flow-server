@@ -73,26 +73,26 @@ export function actionEmailHtml(props: ActionEmailProps): string {
             </td>
           </tr>
           <tr>
-            <td class="email-content" bgcolor="#ffffff" style="padding: 40px; background-color: #ffffff; border: 1px solid #e7e5e4; border-top: 4px solid #b91c1c; border-radius: 8px;">
-              <p style="margin: 0 0 14px; color: #b91c1c; font-size: 11px; line-height: 18px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase;">${escapeHtml(props.eyebrow)}</p>
+            <td class="email-content" bgcolor="#ffffff" style="padding: 40px; background-color: #ffffff; border: 1px solid #e7e5e4; border-top: 4px solid #08786f; border-radius: 8px;">
+              <p style="margin: 0 0 14px; color: #08786f; font-size: 11px; line-height: 18px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase;">${escapeHtml(props.eyebrow)}</p>
               <h1 class="email-heading" style="margin: 0 0 28px; color: #1c1917; font-size: 32px; line-height: 40px; font-weight: 700; letter-spacing: -1px;">${escapeHtml(props.title)}</h1>
               <p style="margin: 0 0 12px; font-size: 15px; line-height: 25px;">${firstName ? `Hi ${firstName},` : "Hi there,"}</p>
               <p style="margin: 0 0 28px; color: #57534e; font-size: 15px; line-height: 25px;">${escapeHtml(props.message)}</p>
               <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse: separate; margin: 0 0 28px;">
                 <tr>
-                  <td align="center" bgcolor="#b91c1c" style="background-color: #b91c1c; border: 1px solid #b91c1c; border-radius: 6px; mso-padding-alt: 14px 24px;">
+                  <td align="center" bgcolor="#08786f" style="background-color: #08786f; border: 1px solid #08786f; border-radius: 6px; mso-padding-alt: 14px 24px;">
                     <a href="${actionUrl}" style="display: inline-block; padding: 14px 24px; border-radius: 6px; color: #ffffff; font-size: 15px; line-height: 22px; font-weight: 700; text-align: center; text-decoration: none; mso-padding-alt: 0;"><span style="color: #ffffff;">${actionLabel}</span></a>
                   </td>
                 </tr>
               </table>
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width: 100%; border-collapse: collapse;">
                 <tr>
-                  <td bgcolor="#fafaf9" style="padding: 14px 16px; border-left: 3px solid #b91c1c; color: #57534e; font-size: 13px; line-height: 21px;">${escapeHtml(props.notice)}</td>
+                  <td bgcolor="#fafaf9" style="padding: 14px 16px; border-left: 3px solid #08786f; color: #57534e; font-size: 13px; line-height: 21px;">${escapeHtml(props.notice)}</td>
                 </tr>
               </table>
               <p style="margin: 28px 0 8px; color: #78716c; font-size: 12px; line-height: 20px;">If the button doesn&rsquo;t work, copy and paste this link into your browser:</p>
               <p style="margin: 0; font-size: 12px; line-height: 20px; word-break: break-all; overflow-wrap: anywhere;">
-                <a href="${actionUrl}" style="color: #b91c1c; text-decoration: underline; word-break: break-all; overflow-wrap: anywhere;">${actionUrl}</a>
+                <a href="${actionUrl}" style="color: #08786f; text-decoration: underline; word-break: break-all; overflow-wrap: anywhere;">${actionUrl}</a>
               </p>
               <p style="margin: 28px 0 0; padding-top: 24px; border-top: 1px solid #e7e5e4; color: #78716c; font-size: 12px; line-height: 20px;">${escapeHtml(props.securityNote)}</p>
             </td>

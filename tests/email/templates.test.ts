@@ -43,8 +43,8 @@ describe.each(templates)("$name email safety", ({ render }) => {
     expect(source).toBeDefined();
     const imageUrl = new URL(source!.replaceAll("&amp;", "&"));
     expect(imageUrl.origin).toBe("https://example.com");
-    expect(imageUrl.pathname).toBe("/_next/image");
-    expect([...imageUrl.searchParams]).toEqual([["url", "/system-logo/2.png"], ["w", "96"], ["q", "75"]]);
+    expect(imageUrl.pathname).toBe("/service-flow-logo/handoff/email-mark.png");
+    expect([...imageUrl.searchParams]).toEqual([]);
     expect(source).not.toContain("token");
     expect(source).not.toContain("email=");
     expect(html).toContain('alt="" width="48" height="48"');
@@ -53,6 +53,6 @@ describe.each(templates)("$name email safety", ({ render }) => {
 
   it("uses the configured local origin for logo previews", () => {
     expect(render("Alex", "http://localhost:4001/set-password?token=sample"))
-      .toContain('src="http://localhost:4001/_next/image?url=%2Fsystem-logo%2F2.png&amp;w=96&amp;q=75"');
+      .toContain('src="http://localhost:4001/service-flow-logo/handoff/email-mark.png"');
   });
 });

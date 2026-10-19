@@ -2,9 +2,9 @@
 
 ## Purpose and scope
 
-ServiceFlow account emails use a shared red-accented, table-based HTML layout with
+ServiceFlow account emails use a shared teal-accented, table-based HTML layout with
 inline styles, system fonts, a hidden inbox preheader, a primary action and a
-copyable fallback URL. The header pairs the supplied blue/teal ServiceFlow mark
+copyable fallback URL. The header pairs the selected Handoff ServiceFlow mark
 with live brand text that remains visible when remote images are blocked.
 No additional packages are required.
 
@@ -25,10 +25,11 @@ No additional packages are required.
   Never pass passwords or unnecessary private information into email content.
 - Preserve inline styles and presentation tables when editing for email clients.
 - Both templates use the shared header. Its decorative 48px raster mark is served
-  by the frontend's existing `/_next/image` optimizer at 96px from
-  `public/system-logo/2.png`. Only the action URL's trusted origin is reused;
+  from the frontend's static `public/service-flow-logo/handoff/email-mark.png`
+  at 96px. The PNG has an opaque white background to preserve symbol contrast
+  when viewed in light or dark mail clients. Only the trusted action origin is reused;
   invitation/reset tokens and recipient query parameters never enter image URLs.
-  Production needs the public frontend origin and image route reachable by mail
+  Production needs the public frontend origin and static image reachable by mail
   clients. Localhost logos work only for local previews. Do not use CSS clipping,
   SVG, theme switching or image-only brand text in email headers.
 

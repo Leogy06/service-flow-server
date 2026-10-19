@@ -1,3 +1,12 @@
+## [2026-10-19 19:24] Codex
+
+- **Task:** Apply the selected Handoff logo across the application and account email templates, with light/dark visibility.
+- **Summary:** Integrated theme-aware outlined SVG lockups and symbols, fixed tones for navy panels and independent Settings previews, legal navigation, website attribution, browser/Apple icons, static opaque email PNG and matching teal email accents. Refreshed all ten sample product screenshots and documented asset use. Tenant-uploaded logos/favicons and tenant colors retain precedence.
+- **Files changed:** src/lib/email/templates/layout.ts, src/lib/email/FEATURE.md, tests/email/templates.test.ts, activity logs; matching public frontend assets and verification artifacts.
+- **Endpoints / rate limiting:** N/A; no API contracts, database, migrations, permissions, rate limits, dependencies or mail-delivery behavior changed.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Backend 18 email safety tests, full lint/build, frontend affected-code lint and production build with TypeScript passed. Light/dark desktop/mobile public branding/icon checks and Settings tenant/logo/favicon regression passed. All ten sample previews captured; the initial landing-image timeout passed on rerun. Fixed a transient navigation race in the artifact verification script. SVG/XML, PNG/ICO and syntax/diff checks passed; screenshots visually inspected. Browser checks required approved process-spawn escalation. No emails sent; real Gmail/Outlook rendering and live deployment remain unverified. Deploy frontend assets with the backend email change.
+
 ## [2026-10-19 19:06] Codex
 
 - **Task:** Add the selected system logo to account email templates.
