@@ -273,6 +273,14 @@ export const billingService = {
     if (!result) throw new AppError(404, "Subscription not found");
     return result;
   },
+  async countPaymentReviews() {
+    await requirePlatformAuthority();
+    return {
+      needsReview: await prisma.subscriptionPayment.count({
+        where: { status: { in: ["PENDING", "UNDER_REVIEW"] } },
+      }),
+    };
+  },
   async listPayments(query: PaymentListQuery) {
     await requirePlatformAuthority();
     const where: Prisma.SubscriptionPaymentWhereInput = {

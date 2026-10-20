@@ -158,6 +158,10 @@ router.get(
   ),
 );
 router.get(
+  "/payments/count",
+  handle(() => service.countPaymentReviews(), "Payment reviews counted"),
+);
+router.get(
   "/payments/:id",
   validate(billingDetailSchema),
   handle((req) => service.payment(id(req)), "Payment fetched"),

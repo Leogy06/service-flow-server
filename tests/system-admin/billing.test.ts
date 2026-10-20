@@ -123,6 +123,26 @@ test("review count requires platform authority before any database count", async
   expect(db.subscription.count).not.toHaveBeenCalled();
 });
 
+test("payment review count includes pending and under-review receipts but excludes finalized payments", async () => {
+  state.payments = ["PENDING", "UNDER_REVIEW", "PAID", "REJECTED", "REFUNDED"].map((status, index) => ({ id: `receipt-${index}`, status }));
+  expect(await billingService.countPaymentReviews()).toEqual({ needsReview: 2 });
+  expect(requirePlatformAuthority).toHaveBeenCalledTimes(1);
+  expect(db.subscriptionPayment.count).toHaveBeenCalledWith({ where: { status: { in: ["PENDING", "UNDER_REVIEW"] } } });
+  expect(db.subscriptionPayment.findMany).not.toHaveBeenCalled();
+});
+
+test("payment review count returns zero and propagates database failures", async () => {
+  expect(await billingService.countPaymentReviews()).toEqual({ needsReview: 0 });
+  db.subscriptionPayment.count.mockRejectedValueOnce(new Error("Database unavailable"));
+  await expect(billingService.countPaymentReviews()).rejects.toThrow("Database unavailable");
+});
+
+test("payment review count checks platform authority before querying", async () => {
+  jest.mocked(requirePlatformAuthority).mockRejectedValueOnce(new Error("Platform administration is required"));
+  await expect(billingService.countPaymentReviews()).rejects.toThrow("Platform administration is required");
+  expect(db.subscriptionPayment.count).not.toHaveBeenCalled();
+});
+
 test("initial trial enrollment grants 14 days, enables billing, audits and creates no financial records", async () => {
   state.subscriptions = [];
   state.organizations[0].billingEnabled = false;

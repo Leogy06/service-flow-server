@@ -12,6 +12,12 @@ database count with OR avoids double counting; reviewed upgrades alone do not
 qualify. The route inherits authentication, persisted platform authority and the
 global API limiter; the service checks platform authority before its live query.
 
+`GET /system-admin/payments/count` returns `{ needsReview: number }` for subscription
+receipts in `PENDING` or `UNDER_REVIEW`, matching dashboard pending verifications.
+Finalized receipts are excluded. It uses a live count with the same router
+authentication/system-admin guard, persisted service authority and global API
+limiter as the subscription count. Tenant invoice payments remain separate.
+
 The platform dashboard uses a 30-second Redis cache, and the shared plan catalog
 uses the default five minutes. Persisted platform authority is checked before
 cache access. Platform transactions invalidate dashboard activity after commit;

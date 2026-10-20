@@ -22,6 +22,7 @@ jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma: {
 } }));
 const service = {
   countSubscriptionReviews: jest.fn(async () => ({ needsReview: 3 })),
+  countPaymentReviews: jest.fn(async () => ({ needsReview: 2 })),
   requestRefund: jest.fn(async () => ({ status: "REQUESTED" })),
   reviewRefund: jest.fn(async () => ({ status: "APPROVED" })),
   refundPayment: jest.fn(async () => ({ status: "COMPLETED" })),
@@ -56,6 +57,19 @@ test("subscription count resolves before the subscription detail route", async (
   expect(response.body.data).toEqual({ needsReview: 3 });
   expect(service.countSubscriptionReviews).toHaveBeenCalledTimes(1);
 });
+test("payment count rejects unauthenticated and tenant administrators before querying", async () => {
+  expect((await request(app).get("/billing/payments/count")).status).toBe(401);
+  expect((await request(app).get("/billing/payments/count").auth("tenant", { type: "bearer" })).status).toBe(403);
+  expect(service.countPaymentReviews).not.toHaveBeenCalled();
+});
+
+test("payment count resolves before the payment detail route", async () => {
+  const response = await request(app).get("/billing/payments/count").auth("operator-count", { type: "bearer" });
+  expect(response.status).toBe(200);
+  expect(response.body.data).toEqual({ needsReview: 2 });
+  expect(service.countPaymentReviews).toHaveBeenCalledTimes(1);
+});
+
 test.each(stages)("$path requires authentication and rejects tenant administrators", async ({ path, body, method }) => {
   expect((await request(app).post(`/billing/payments/payment-a/${path}`).send(body)).status).toBe(401);
   expect((await request(app).post(`/billing/payments/payment-a/${path}`).auth("tenant", { type: "bearer" }).send(body)).status).toBe(403);
