@@ -5,7 +5,7 @@ Implemented across `src/modules/system-admin`, authentication/authorization, use
 ## Deployment and provisioning
 
 1. Back up the target database and review `prisma/migrations/20261015090000_platform_administration/migration.sql`. Deploy backend and frontend together; older backends do not enforce the new security fields. Maintenance during rollout is recommended.
-2. Run `npm run prisma:generate`, `npm run build`, then `npx prisma migrate deploy` against the intended target environment. MySQL DDL is not transactional; use the normal migration recovery procedure if deployment fails. The migration adds fields/tables/indexes and immutable platform-audit triggers. It does not delete data, promote identities, enroll existing tenants or seed prices. Provisioning and scheduler CLIs run compiled JavaScript and do not require development-only tsx in the deployed runtime.
+2. Run `npm run prisma:generate -- prod`, `npm run build`, then `npm run prisma:prod -- migrate deploy` against the intended target environment. MySQL DDL is not transactional; use the normal migration recovery procedure if deployment fails. The migration adds fields/tables/indexes and immutable platform-audit triggers. It does not delete data, promote identities, enroll existing tenants or seed prices. Provisioning and scheduler CLIs run compiled JavaScript and do not require development-only tsx in the deployed runtime.
 3. Provision a separate platform identity with operator-supplied `SYSTEM_ADMIN_EMAIL`, `SYSTEM_ADMIN_PASSWORD` (14–72 bytes) and `SYSTEM_ADMIN_REASON`, then run `npm run bootstrap:system-admin`. Supply these through the shell or secret manager, never source control. Existing emails are refused. Normal seeds and tenant APIs cannot grant platform authority. Remove the bootstrap password from the process environment afterward.
 4. Sign in at `/login`. An authorized organization-less administrator is routed to `/system-admin/dashboard`. Create monthly or yearly plans through `/system-admin/plans`. Proposed Starter PHP 2,999/3 users, Growth PHP 5,999/10 users, Business PHP 9,999/25 users are configurable proposals; no billing records or revenue are seeded.
 5. Schedule `npm run alerts:process` at least daily using the deployment scheduler. Multiple workers can safely repeat the scan. Each bounded batch uses stable alert keys, organization locks and serializable transactions; the CLI follows cursors until complete (maximum 1,000 batches). It expires subscriptions and reconciles resolved conditions. The dashboard button runs the same processing with an audited operator reason.
@@ -45,7 +45,7 @@ There is no payment gateway integration and no stored card credentials. CARD is 
 ## Subscription refund process (16 October 2026)
 
 Apply the additive `20261016140000_subscription_refund_requests` migration and run
-`npm run prisma:generate` before deploying this feature. Existing completed refunds
+`npm run prisma:generate -- prod` before deploying this feature. Existing completed refunds
 remain valid, with a nullable request link; they are neither reopened nor counted twice.
 
 In **System Admin > Payments**, use **Request refund** on a verified payment, enter
@@ -178,7 +178,7 @@ to YEARLY. The API now uses `price` (per billing period) and `billingInterval`
 (`MONTHLY` or `YEARLY`), including price sorting. Prisma maps price to the existing
 SQL annualPrice column to preserve records. Historical audit JSON remains unchanged.
 
-Run `npm run seed:plans` for the development catalog. It creates only missing plans
+Run `npm run seed:plans -- dev` for the development catalog. It creates only missing plans
 by unique name, records each creation in the platform audit and never overwrites
 operator edits, enrolls tenants, creates payments or changes a default plan.
 

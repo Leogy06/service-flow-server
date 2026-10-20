@@ -3,6 +3,7 @@ dist/
 build/
 .env
 .env.*
+!.env.example
 /src/generated/prisma
 logs/*
 storage/
@@ -11,6 +12,10 @@ scripts/
 !scripts/
 scripts/*
 !scripts/check-dependency-locks.mjs
+!scripts/run.sh
+!scripts/prisma.mjs
+!scripts/dev.sh
+!scripts/prod.sh
 !scripts/run-platform-mysql-tests.mjs
 !scripts/predeploy*.mjs
 !scripts/PREDEPLOY.md

@@ -4,10 +4,11 @@ import { AppError } from "@/utils/AppError";
 import { REFRESH_TOKEN_DAYS } from "@/utils/tokens";
 import { sendResponse } from "@/utils/sendResponse";
 import { profileService } from "./profile.service";
+import { env } from "@/config/env";
 
 const refreshCookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
+  secure: env.NODE_ENV === "production",
   sameSite: "strict" as const,
   path: "/api/auth",
   maxAge: REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000,

@@ -8,11 +8,12 @@ import { BRIGHT_STAR_SLUG, brightStarCustomers, brightStarScenarios } from "./se
 try {
   const flags = process.argv.slice(2);
   if (flags.some((flag) => !["--apply", "--dry-run"].includes(flag)) || (flags.includes("--apply") && flags.includes("--dry-run")))
-    throw new Error("Usage: npm run seed:bright-star -- [--dry-run | --apply]");
+    throw new Error("Usage: npm run seed:bright-star -- dev [--dry-run | --apply]");
   if (env.NODE_ENV === "production") throw new Error("This fictional workflow seed cannot run in production.");
-  if (!["localhost", "127.0.0.1", "::1"].includes(env.DATABASE_HOST))
+  const target = new URL(env.DATABASE_URL);
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(target.hostname))
     throw new Error("This workflow seed is restricted to a local development database.");
-  console.log(`Target: ${env.DATABASE_HOST}:${env.DATABASE_PORT}/${env.DATABASE_NAME}; tenant: ${BRIGHT_STAR_SLUG}`);
+  console.log(`Target: ${target.hostname}:${target.port || 3306}/${decodeURIComponent(target.pathname.slice(1))}; tenant: ${BRIGHT_STAR_SLUG}`);
   const { organization, marker } = await inspectBrightStarSeed(prisma);
   if (!flags.includes("--apply")) {
     console.log(JSON.stringify({ mode: "dry-run", organization: organization.name, alreadySeeded: Boolean(marker),

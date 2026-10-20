@@ -1,21 +1,22 @@
 // Provisions an isolated test database, deploys migrations there, and runs real locks/constraints.
 // Never reset or drop a database. Fixtures and immutable audit history are retained.
-import "dotenv/config";
+import { tsImport } from "tsx/esm/api";
 import mariadb from "mariadb";
 import { spawnSync } from "node:child_process";
 
-const target = process.env.PLATFORM_TEST_DATABASE_NAME ?? "";
-if (!process.argv.includes("--isolated-test-database") || !/^service_flow_platform_test_[a-z0-9_]+$/.test(target) || target === process.env.DATABASE_NAME) {
+const { env } = await tsImport("../src/config/env.ts", import.meta.url);
+const { databaseOptions } = await tsImport("../src/config/database.ts", import.meta.url);
+const url = new URL(env.DATABASE_URL);
+const target = env.PLATFORM_TEST_DATABASE_NAME ?? "";
+if (!process.argv.includes("--isolated-test-database") || !/^service_flow_platform_test_[a-z0-9_]+$/.test(target) || target === decodeURIComponent(url.pathname.slice(1))) {
   throw new Error("Choose an isolated PLATFORM_TEST_DATABASE_NAME beginning service_flow_platform_test_ and acknowledge --isolated-test-database");
 }
-const url = new URL(process.env.DATABASE_URL);
 url.pathname = `/${target}`;
 const testEnvironment = { ...process.env, NODE_ENV: "test", LOG_LEVEL: "error", DATABASE_NAME: target,
   DATABASE_URL: url.toString(), PLATFORM_TEST_DATABASE_NAME: target, RUN_DB_PLATFORM_TESTS: "1" };
 let connection;
 try {
-  connection = await mariadb.createConnection({ host: process.env.DATABASE_HOST, port: Number(process.env.DATABASE_PORT ?? 3306),
-    user: process.env.DATABASE_USER, password: process.env.DATABASE_PASSWORD, allowPublicKeyRetrieval: true, connectTimeout: 5000 });
+  connection = await mariadb.createConnection({ ...databaseOptions(env), database: undefined, connectTimeout: 5000 });
   // Identifier is restricted by the regex above. No user-supplied SQL fragments are accepted.
   await connection.query(`CREATE DATABASE IF NOT EXISTS \`${target}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
   await connection.end(); connection = undefined;

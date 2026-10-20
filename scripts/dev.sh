@@ -1,14 +1,3 @@
-#!/bin/bash
-
-set -e
-
-echo "Service Flow - Development"
-
-# --- Set environment ---
-export NODE_ENV=development
-export LOG_LEVEL=debug
-
-# --- Install deps, generate Prisma client, run dev server ---
-# npm install
-npm run generate
-npm run dev
+#!/usr/bin/env bash
+set -euo pipefail
+exec bash "$(dirname -- "${BASH_SOURCE[0]}")/run.sh" dev "$@"

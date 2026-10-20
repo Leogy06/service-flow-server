@@ -8,15 +8,15 @@ customers, jobs, invoices, payments, service types, roles or permission grants.
 From `backend`, with development dependencies installed:
 
 ```sh
-npm run seed:catalog -- --dry-run
-npm run seed:catalog -- --apply
+npm run seed:catalog -- prod --dry-run
+npm run seed:catalog -- prod --apply
 ```
 
-Default mode is a read-only dry run. The CLI prints the actual adapter target
-(`DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`), never credentials. These
-variables control application/seed connections; `DATABASE_URL` controls Prisma
-migrations. Ensure both configurations refer to the intended database and apply
-existing migrations before seeding. No migration or reset runs during seeding.
+Default mode is a read-only dry run. The CLI prints the hostname, port and database
+from `DATABASE_URL`, never credentials. This single URL controls application,
+seed and migration connections. The wrapper requires explicit `dev` or `prod`;
+production apply also requires typing `production`. Apply existing migrations before seeding. No migration
+or reset runs during seeding. See `../../docs/ENVIRONMENT.md`.
 
 Apply creates missing entries and platform operator audit records in a single
 serializable transaction. Audit failures roll back the entire catalog. Concurrent
@@ -38,4 +38,7 @@ Service types require tenant-specific services and prices.
 
 This source CLI requires `tsx` and the generated Prisma client. In Docker, use
 the existing `migrate` build target, which includes source and development tools;
-the minimal API runtime image does not include this CLI.
+the minimal API runtime image does not include this CLI. Container build targets
+omit local scripts, so invoke `node --import tsx prisma/seed-catalog.ts` directly
+there with explicit NODE_ENV and injected DATABASE_URL/REDIS_URL; the npm mode
+wrapper is intended for the local checkout.

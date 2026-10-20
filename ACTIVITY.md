@@ -1,3 +1,39 @@
+## [2026-10-20 21:14] Codex
+
+- **Task:** Make database selection explicit for migrations, seeds and other Prisma commands.
+- **Summary:** Added prisma:dev/prisma:prod wrapper with credential-free target display and required mode for existing migration/generation/seed shortcuts. Dev file replaces inherited DB/cache settings; production injected variables retain priority. Production blocks reset/dev migration/db push/execute/studio/tenant samples and confirms deploy/catalog apply; preserves the production-only catalog distinction. Integrated explicit selection into the backend launcher and updated affected instructions.
+- **Files changed:** backend/scripts/prisma.mjs, backend/scripts/run.sh, backend/package.json, backend/.gitignore, backend/tests/config/{prisma-cli.mjs,launcher.mjs}, backend/docs/{ENVIRONMENT.md,SYSTEM_ADMIN.md}, backend/prisma/{seed-catalog.ts,seed-bright-star.ts,BRIGHT_STAR_DEMO.md,seeds/FEATURE.md}; activity logs.
+- **Endpoints / rate limiting:** N/A; no frontend, API, permission, Prisma schema or migration SQL changes. Existing env values preserved.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Ten CLI guard/precedence/prompt tests, six mocked launcher checks, 60 targeted Jest checks, build, lint, wrapper/Bash syntax, diff checks and real wrapper schema validation passed. Validation proved dev ignores an inherited remote URL without querying it. No real migrations, resets, seeds, Docker starts or production writes performed. Full unrelated test suite not repeated. Manual DB operations should use wrappers; direct npx still inherits its shell. Source tools need dev dependencies. run.sh staged update retains 100755.
+
+## [2026-10-20 21:02] Codex
+
+- **Task:** Explain how to target the development database for Prisma migrate reset.
+- **Summary:** Inspected Prisma config, mode-file precedence and package scripts; checked official Prisma 7 reset documentation. Provided Bash instructions to explicitly source .env.development, select development mode, inspect migrate status and then run the interactive reset.
+- **Files changed:** Root/backend activity logs only.
+- **Endpoints / rate limiting:** N/A; no application, schema, migration, API or permission changes.
+- **Status:** Completed guidance. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** No database contacted, reset executed or tests run. Reset destroys all data in the selected database and reapplies migrations; verify datasource host/name first. Existing process DATABASE_URL overrides dotenv defaults, so explicit sourcing is required to replace an inherited target. Prisma 7 seeding is separate.
+
+## [2026-10-20 18:58] Codex
+
+- **Task:** Simplify development startup to Docker Redis only with existing local MySQL.
+- **Summary:** Replaced Compose with direct Redis container create/start/readiness checks and persistent volume. Removed newly added development Compose and MySQL bootstrap logic; removed root/3307 constraints. Backend remains a local Node process; production behavior and existing env values preserved.
+- **Files changed:** backend/scripts/run.sh, backend/tests/config/launcher.mjs, backend/.env.example, backend/docs/ENVIRONMENT.md; removed backend/docker-compose.dev.yml; activity logs.
+- **Endpoints / rate limiting:** N/A; no frontend, schema, API, permission or rate-limit changes.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Six isolated mocked launcher tests, lint, Bash syntax and diff checks passed. No real container or database operations performed; application build/unit suites not repeated for shell/docs-only changes. Start the existing local MySQL service and keep its actual DATABASE_URL credentials/port. Redis uses serviceflow-dev-redis and serviceflow-dev-redis-data; Compose is not required. Updated staged run.sh while retaining executable mode 100755.
+
+## [2026-10-20 18:40] Codex
+
+- **Task:** Configure backend development/production environments and a single MySQL/Redis launcher.
+- **Summary:** Added mode-file loading, typed Zod startup validation, single DATABASE_URL adapter/CLI/seed configuration, verified production TLS and remote-host checks, Docker-only local dev services, production migration confirmation, and runtime dependency pruning. Retained the existing shared Redis client and Prisma singleton; preserved existing env values.
+- **Files changed:** backend config/Prisma/auth/CLI files, package scripts, scripts/run.sh and delegating wrappers, development Compose, .env.example/private production template, ignore/line-ending rules, configuration tests and environment/feature docs; activity logs.
+- **Endpoints / rate limiting:** N/A; no frontend, API contract, permission, schema or migration SQL changes. Refresh-cookie security now uses typed NODE_ENV.
+- **Status:** Completed implementation and available checks. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** All 896 Jest tests, five mocked launcher checks, four predeploy safety checks, build/lint, Prisma generation/validation, Compose config, Bash syntax and diff checks passed. Initial sandbox logging timeout passed on full rerun outside sandbox. No real migrations, seeds, Docker service starts or production prune/start performed. Existing dev DATABASE_URL needs local root@127.0.0.1:3307; production blanks/provider remote TLS/DDL privileges need operator setup. Legacy VPS/socket and production-local predeploy flows conflict with the requested production rules (documented). run.sh alone staged to record mode 100755 on Windows.
+
 ## [2026-10-20 18:12] Codex
 
 - **Task:** Correct all remaining migration casing failures and prevent repeat Linux deployment errors.

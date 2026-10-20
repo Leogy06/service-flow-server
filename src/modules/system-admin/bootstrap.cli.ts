@@ -1,4 +1,4 @@
-import "dotenv/config";
+import { env } from "@/config/env";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -17,7 +17,7 @@ const input = z
       .refine((v) => Buffer.byteLength(v, "utf8") <= 72),
     SYSTEM_ADMIN_REASON: z.string().trim().min(10).max(1000),
   })
-  .parse(process.env);
+  .parse(env);
 
 try {
   if (!process.argv.includes("--bootstrap-system-admin"))

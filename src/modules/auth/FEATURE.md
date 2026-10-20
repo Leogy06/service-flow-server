@@ -34,3 +34,7 @@ The `business` workspace slug is reserved for public `/business/{slug}` pages;
 registration and signup approval share the same validated slug definition.
 Deploy additive `20261017100000_signup_legal_acceptance` and regenerate Prisma
 before deploying the updated registration contract. Existing tenant login is unchanged.
+
+Refresh-cookie `secure` is derived from the central validated `env.NODE_ENV`.
+Backend mode files and production CORS/TLS requirements are documented in
+`../../../docs/ENVIRONMENT.md`.

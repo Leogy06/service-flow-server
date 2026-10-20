@@ -25,7 +25,7 @@ if (process.platform === "win32") {
         for (const { Id, Path: executable } of locked) {
           console.error(`PID ${Id}: ${executable}`);
         }
-        console.error("Stop the backend development server with Ctrl+C in its terminal, then rerun scripts/prod.sh.");
+        console.error("Stop the backend development server with Ctrl+C in its terminal, then rerun scripts/run.sh prod.");
         process.exitCode = 1;
       }
     } catch {

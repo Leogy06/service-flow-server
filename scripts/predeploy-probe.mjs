@@ -4,10 +4,11 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { assertLocalServices } from "./predeploy-utils.mjs";
+import { tsImport } from "tsx/esm/api";
 
 const backend = fileURLToPath(new URL("../", import.meta.url));
-const require = createRequire(new URL("../package.json", import.meta.url));
-require("dotenv").config({ path: resolve(backend, ".env"), quiet: true });
+const { loadEnvironment } = await tsImport("../src/config/env-file.ts", import.meta.url);
+loadEnvironment();
 const mode = process.argv[2];
 
 async function probe() {

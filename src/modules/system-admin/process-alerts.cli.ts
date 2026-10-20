@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { processPlatformAlerts } from "./operations.service";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";

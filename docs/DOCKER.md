@@ -1,5 +1,10 @@
 # Application container images
 
+For the environment-based local/remote launcher, see [ENVIRONMENT.md](ENVIRONMENT.md).
+Its production configuration now requires remote MySQL with verified TLS and
+rejects local/socket connections. The legacy VPS Compose/socket migration flow
+below needs adaptation before reuse with these restrictions.
+
 The complete single-VPS setup is now `../../deploy/compose.yml` with instructions
 in `../../deploy/README.md`. From this backend directory, run
 `npm run test:predeploy:vps` to build and exercise it in a fresh isolated test
@@ -34,15 +39,15 @@ code and production dependencies. The migration CLI runs only in the separate
 
 ## Backend runtime
 
-The Dockerfile's `DATABASE_URL=mysql://127.0.0.1:3306/build_only` exists only for
+The Dockerfile's `DATABASE_URL=mysql://build@127.0.0.1:3306/build_only` exists only for
 Prisma code generation during image building. It is not your application's runtime
 database configuration and does not need replacing with credentials.
 
 A file named `.env.docker` is not loaded automatically. Pass it at runtime using
 `docker run --env-file`, or reference it with Compose's `env_file`. It must contain
 the complete required backend environment, not only DATABASE_URL. The application
-uses DATABASE_* fields for its connection and DATABASE_URL for migration commands;
-these must agree. Keep `.env.docker` private and ignored by Git and Docker builds.
+uses DATABASE_URL for runtime, seed and migration connections; separate DATABASE_*
+connection fields are ignored. Keep `.env.docker` private and ignored by Git and Docker builds.
 
 To check just its required variables against the existing image, from project root:
 
@@ -63,10 +68,9 @@ Inject the backend's existing required environment values at container startup,
 using a private environment file or Compose configuration. Never pass production
 secrets as build arguments or COPY environment files into an image.
 
-`DATABASE_URL` is used by the migration CLI; runtime `DATABASE_HOST`,
-`DATABASE_PORT`, `DATABASE_USER`, `DATABASE_PASSWORD`, `DATABASE_NAME` must point
-to that same database. In a private Docker network use service names such as
-`mysql`, rather than localhost. Use the Upstash `rediss://` TCP URL for REDIS_URL and
+`DATABASE_URL` is shared by the migration CLI and runtime. Production requires a
+remote host and verified TLS; private non-TLS MySQL in the legacy VPS stack needs
+deployment changes. Use the Upstash `rediss://` TCP URL for REDIS_URL and
 an exact HTTPS CORS_ORIGIN for the real app. The build-only DATABASE_URL is a
 noncredential placeholder and is never used to connect to a database.
 

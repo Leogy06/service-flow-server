@@ -13,6 +13,7 @@ import {
   cpSync,
 } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { tsImport } from "tsx/esm/api";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   assertLocalServices,
@@ -51,10 +52,10 @@ const originalEnv = {
       }
     : {}),
 };
-const fileEnv = require("dotenv").parse(
-  existsSync(join(backend, ".env")) ? readFileSync(join(backend, ".env")) : "",
-);
-const backendEnv = { ...fileEnv, ...originalEnv };
+const { loadEnvironment } = await tsImport("../src/config/env-file.ts", import.meta.url);
+loadEnvironment();
+// Diagnostics retain raw inputs so the environment probe can report schema errors.
+const backendEnv = { ...process.env, ...originalEnv };
 const runtimeEnv = {
   ...backendEnv,
   NODE_ENV: "production",

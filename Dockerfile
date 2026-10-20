@@ -12,7 +12,7 @@ COPY tsconfig.json tsconfig.build.json prisma.config.ts ./
 COPY prisma ./prisma
 COPY src ./src
 # Prisma reads this variable while generating code; no database is contacted.
-RUN DATABASE_URL=mysql://127.0.0.1:3306/build_only npm run prod:build
+RUN DATABASE_URL=mysql://build@127.0.0.1:3306/build_only npm run prod:build
 
 # Build separately with --target migrate; keep the CLI out of the API image.
 FROM build AS migrate

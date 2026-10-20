@@ -72,6 +72,10 @@ transactions. Tenant customer feedback is excluded from the platform inbox.
 
 ## Known gotchas
 
+- Bootstrap and alert CLIs use the central typed environment and selected mode
+  file, just like the API. Set NODE_ENV explicitly for production; see
+  `../../../docs/ENVIRONMENT.md`. No operator credentials are loaded from `.env`.
+
 - Deploy `20261016140000_subscription_refund_requests` and regenerate Prisma.
   Existing refunds keep a nullable request link. Completion requires requestId.
 - The app records externally returned funds; it does not initiate money transfers.

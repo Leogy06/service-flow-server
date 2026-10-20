@@ -3,8 +3,8 @@
 Run from `backend` against the existing local development database:
 
 ```sh
-npm run seed:bright-star -- --dry-run
-npm run seed:bright-star -- --apply
+npm run seed:bright-star -- dev --dry-run
+npm run seed:bright-star -- dev --apply
 ```
 
 This adds examples only to the existing `bright-star-electrical` tenant. It refuses
