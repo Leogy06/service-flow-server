@@ -11,18 +11,22 @@ export const subscriptionPlanCatalog = [
 ]);
 
 // Repeated seeds preserve edited prices/retirement and never enable tenant billing.
-export async function seedPlans(prisma: PrismaClient) {
+export async function seedPlanCatalog(db: Prisma.TransactionClient) {
   const results = [];
   for (const item of subscriptionPlanCatalog) {
-    const result = await prisma.$transaction(async (db) => {
-      const existing = await db.plan.findUnique({ where: { name: item.name } });
-      if (existing) return { name: existing.name, created: false };
-      const plan = await db.plan.create({ data: { ...item, price: new Prisma.Decimal(item.price) } });
-      await recordPlatformAudit(db, { action: "platform.plan.seed", entity: "Plan", entityId: plan.id, actorType: "OPERATOR",
-        after: { ...item, reason: "Seed approved local monthly and yearly plan catalog" } });
-      return { name: plan.name, created: true };
-    }, { isolationLevel: "Serializable" });
-    results.push(result);
+    const existing = await db.plan.findUnique({ where: { name: item.name } });
+    if (existing) {
+      results.push({ name: existing.name, created: false });
+      continue;
+    }
+    const plan = await db.plan.create({ data: { ...item, price: new Prisma.Decimal(item.price) } });
+    await recordPlatformAudit(db, { action: "platform.plan.seed", entity: "Plan", entityId: plan.id, actorType: "OPERATOR",
+      after: { ...item, reason: "Seed existing monthly and yearly plan catalog" } });
+    results.push({ name: plan.name, created: true });
   }
   return results;
+}
+
+export async function seedPlans(prisma: PrismaClient) {
+  return prisma.$transaction(seedPlanCatalog, { isolationLevel: "Serializable", timeout: 60000 });
 }

@@ -1,3 +1,12 @@
+## [2026-10-20 06:14] Codex
+
+- **Task:** Implement production-safe global catalog provisioning and seed the hosted database.
+- **Summary:** Added seed:catalog with default dry run and explicit --apply; global permission collision checks; one transaction for permissions, existing plan catalog and operator audits; preserved existing rows/grants; invalidated plan projections after apply. Documented tenant catalogs/configuration exclusions and source/Docker prerequisites.
+- **Files changed:** package.json, prisma/{seed-catalog.ts,seeds/catalog.ts,seeds/plans.ts,seeds/FEATURE.md}, tests/prisma/catalog.test.ts, ACTIVITY.md and parent activity log.
+- **Endpoints / rate limiting:** N/A; no schema, migration, API, permission-grant, tenant or frontend changes.
+- **Status:** Partial: code complete, hosted seed blocked. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Seven unit tests, full lint/build and diff checks passed; locked dependencies restored with npm ci --include=dev --ignore-scripts. Dry run could not authenticate; read-only TCP probe succeeded and MySQL probe returned ER_ACCESS_DENIED_ERROR (1045 / 28000). No hosted writes attempted. Correct configured DATABASE_* authentication/remote-host grants before rerunning dry run and --apply; real MySQL rollback and cache invalidation on apply remain unverified.
+
 ## [2026-10-19 20:45] Codex
 
 - **Task:** Fix production dependency cleanup failing with Windows esbuild EPERM.
