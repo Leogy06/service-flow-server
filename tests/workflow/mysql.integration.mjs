@@ -252,6 +252,36 @@ test("request -> assigned jobs -> completion -> invoice -> payments", { timeout:
       await denied(() => as(readerToken, () => jobs.list(listParams)), 403); await denied(() => as(readerToken, () => jobs.get(firstJob.id)), 403);
       await denied(() => as(readerToken, () => invoices.list(listParams)), 403); await denied(() => as(readerToken, () => invoices.get(invoiceA.id)), 403);
     });
+    await t.test("serializes conflicting assignments and audits explicit staff overrides", async () => {
+      const request = await as(tokenA, () => requests.create(requestInput("Staff conflict checks")));
+      const start = new Date(Date.now() + 2 * 86400000).toISOString();
+      const end = new Date(Date.parse(start) + 3600000).toISOString();
+      const input = { ...jobInput(request.id), scheduledStart: start, scheduledEnd: end };
+      const attempts = await Promise.allSettled([
+        as(tokenA, () => jobs.create(input)), as(tokenA, () => jobs.create(input)),
+      ]);
+      const saved = attempts.filter((result) => result.status === "fulfilled");
+      const rejected = attempts.filter((result) => result.status === "rejected");
+      assert.equal(saved.length, 1, "Only one concurrent assignment may commit without acknowledgement");
+      assert.equal(rejected.length, 1);
+      assert.equal(rejected[0].reason.status, 409);
+      assert.match(rejected[0].reason.message, /overlapping scheduled work/);
+      const first = saved[0].value;
+      await denied(() => as(tokenA, () => jobs.create(input)), 409);
+      const second = await as(tokenA, () => jobs.create({ ...input, overrideStaffConflict: true }));
+      const audit = await prisma.auditLog.findFirst({ where: { organizationId: orgA, entityId: second.id, action: "create.job.success" } });
+      assert.equal(audit.metadata.after.staffConflictOverride, true);
+      assert.ok(audit.metadata.after.conflictingJobIds.includes(first.id));
+      // Starting uses actual time and needs its own acknowledgement of the overlap.
+      await denied(() => as(tokenA, () => jobs.status(first.id, "IN_PROGRESS")), 409);
+      await as(tokenA, () => jobs.status(first.id, "IN_PROGRESS", "Intentional overlap", true));
+      await denied(() => as(tokenA, () => jobs.create(jobInput(request.id))), 409);
+      const queued = await as(tokenA, () => jobs.create({ ...jobInput(request.id), overrideStaffConflict: true }));
+      await as(tokenA, () => jobs.cancel(queued.id, "Fixture cleanup"));
+      await as(tokenA, () => jobs.cancel(first.id, "Fixture cleanup"));
+      await as(tokenA, () => jobs.cancel(second.id, "Fixture cleanup"));
+      await as(tokenA, () => requests.status(request.id, "CANCELLED"));
+    });
     if (process.env.RUN_BROWSER_WORKFLOW_TESTS === "1") await t.test("actual browser finishes a request and recovers a lost payment response", async () => {
       const request = await as(tokenA, () => requests.create(requestInput("Browser workflow repair")));
       browserMode = true;

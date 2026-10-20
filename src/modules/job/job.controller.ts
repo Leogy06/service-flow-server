@@ -89,6 +89,7 @@ export const jobController: Record<string, RequestHandler> = {
     const body = req.validated.body as {
       status: "IN_PROGRESS" | "COMPLETED";
       note: string;
+      overrideStaffConflict?: boolean;
     };
     try {
       sendResponse(
@@ -99,6 +100,7 @@ export const jobController: Record<string, RequestHandler> = {
           (req.validated.params as { id: string }).id,
           body.status,
           body.note,
+          body.overrideStaffConflict,
         ),
       );
     } catch (error) {

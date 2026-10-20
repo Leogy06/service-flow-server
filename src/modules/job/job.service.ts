@@ -11,6 +11,7 @@ import {
 import type { Prisma, JobStatus } from "@/generated/prisma/client";
 import type { CreateJob, UpdateJob, JobList, JobFilters } from "./job.schema";
 import { checkJobTransition } from "./lifecycle";
+import { checkStaffConflicts } from "./staff-conflicts";
 
 const jobSelect = {
   id: true,
@@ -265,6 +266,7 @@ export const jobService = {
     });
   },
   async create(data: CreateJob) {
+    const { overrideStaffConflict, ...fields } = data;
     const organizationId = tenantOrganization();
     return invalidating("jobs", () => tenantTransaction(async (db) => {
       const request = await openRequest(
@@ -285,9 +287,16 @@ export const jobService = {
       )
         throw new AppError(404, "Service type not found");
       await activeStaff(db, data.assignedStaffId, organizationId);
+      const conflictAudit = await checkStaffConflicts(db, {
+        organizationId,
+        assignedStaffId: data.assignedStaffId,
+        scheduledStart: data.scheduledStart ?? null,
+        scheduledEnd: data.scheduledEnd ?? null,
+        overrideStaffConflict,
+      });
       const job = await db.job.create({
         data: {
-          ...data,
+          ...fields,
           organizationId,
           customerId: request.customerId,
           serviceTypeId: request.serviceTypeId,
@@ -309,12 +318,14 @@ export const jobService = {
         after: {
           serviceRequestId: request.id,
           assignedStaffId: data.assignedStaffId,
+          ...conflictAudit,
         },
       });
       return job;
     }));
   },
   async update(id: string, data: UpdateJob) {
+    const { overrideStaffConflict, ...fields } = data;
     const organizationId = tenantOrganization();
     return invalidating("jobs", () => tenantTransaction(async (db) => {
       const job = await db.job.findFirst({ where: { id, organizationId } });
@@ -333,9 +344,19 @@ export const jobService = {
         data.scheduledEnd === undefined ? job.scheduledEnd : data.scheduledEnd;
       if (end && (!start || end < start))
         throw new AppError(400, "Scheduled end must follow scheduled start");
+      const assignedStaffId = data.assignedStaffId ?? job.assignedStaffId;
+      const assignmentChanged = assignedStaffId !== job.assignedStaffId ||
+        start?.getTime() !== job.scheduledStart?.getTime() ||
+        end?.getTime() !== job.scheduledEnd?.getTime();
+      const conflictAudit = assignmentChanged && assignedStaffId
+        ? await checkStaffConflicts(db, {
+            organizationId, assignedStaffId, jobId: id,
+            scheduledStart: start, scheduledEnd: end, overrideStaffConflict,
+          })
+        : {};
       const updated = await db.job.update({
         where: { id, organizationId },
-        data,
+        data: fields,
         select: jobSelect,
       });
       await auditService.recordInTransaction(db, {
@@ -348,13 +369,14 @@ export const jobService = {
         before: { assignedStaffId: job.assignedStaffId },
         after: {
           assignedStaffId: updated.assignedStaffId,
-          changedFields: Object.keys(data),
+          changedFields: Object.keys(fields),
+          ...conflictAudit,
         },
       });
       return updated;
     }));
   },
-  async status(id: string, status: JobStatus, note: string) {
+  async status(id: string, status: JobStatus, note: string, overrideStaffConflict = false) {
     const organizationId = tenantOrganization();
     return invalidating("jobs", () => tenantTransaction(async (db) => {
       const job = await db.job.findFirst({ where: { id, organizationId } });
@@ -363,16 +385,24 @@ export const jobService = {
         ? await openRequest(db, job.serviceRequestId, organizationId)
         : null;
       checkJobTransition(job.status, status);
+      const now = new Date();
+      let conflictAudit = {};
       if (status === "IN_PROGRESS") {
         if (!job.assignedStaffId)
           throw new AppError(409, "Assign staff before starting the job");
         await activeStaff(db, job.assignedStaffId, organizationId);
+        conflictAudit = await checkStaffConflicts(db, {
+          organizationId, assignedStaffId: job.assignedStaffId, jobId: id,
+          scheduledStart: now,
+          scheduledEnd: job.scheduledEnd && job.scheduledEnd > now ? job.scheduledEnd : null,
+          overrideStaffConflict,
+        });
       }
       const updated = await db.job.update({
         where: { id, organizationId },
         data: {
           status,
-          ...(status === "IN_PROGRESS" ? { startedAt: new Date() } : {}),
+          ...(status === "IN_PROGRESS" ? { startedAt: now } : {}),
           ...(status === "COMPLETED" ? { completedAt: new Date() } : {}),
           statusHistory: {
             create: {
@@ -403,7 +433,7 @@ export const jobService = {
         entity: "Job",
         entityId: id,
         before: { status: job.status },
-        after: { status },
+        after: { status, ...conflictAudit },
       });
       // Request completion remains explicit, even after the last job completes.
       return status === "IN_PROGRESS" && request?.status === "PENDING"

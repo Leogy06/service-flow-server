@@ -1,3 +1,12 @@
+## [2026-10-20 21:41] Codex
+
+- **Task:** Add staff scheduling and active-work warnings with explicit overrides.
+- **Summary:** Added live availability checks within existing serializable job-write transactions, half-open/open-ended schedule handling, busy-job checks and transactional override audit metadata. Preserved omitted update text fields and excluded completed/cancelled/self jobs. Added API/permission/tenant/failure tests and an opt-in MySQL concurrency case.
+- **Files changed:** src/modules/job/{staff-conflicts.ts,job.schema.ts,job.controller.ts,job.service.ts,FEATURE.md}, tests/workflow/{staff-conflicts.test.ts,mysql.integration.mjs}, ACTIVITY.md.
+- **Endpoints / rate limiting:** POST /api/jobs, PUT /api/jobs/:id, PATCH /api/jobs/:id/status; existing apiLimiter/writeLimmiter and permissions retained. Added optional boolean overrideStaffConflict and 409 JOB_STAFF_CONFLICT; no schema, migration, dependency or permission changes.
+- **Status:** Completed implementation and available checks. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** 121 focused tests, build, lint, integration-script syntax and diff checks passed. Broader run: 926/928 passed; logging timeout passed on isolated rerun. Unrelated untracked init_dev migration still fails subscriptionrefund table-casing validation; untouched. MySQL concurrency/integration case not run because it requires a configured test database; no database operations performed.
+
 ## [2026-10-20 21:14] Codex
 
 - **Task:** Make database selection explicit for migrations, seeds and other Prisma commands.

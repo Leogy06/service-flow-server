@@ -14,18 +14,24 @@ const futureDate = (label: string) => date.refine(
 );
 const jobFields = z.object({
   assignedStaffId: resourceId,
-  description: z.string().trim().max(191).default(""),
-  location: z.string().trim().max(191).default(""),
-  internalNotes: z.string().trim().max(191).default(""),
+  description: z.string().trim().max(191),
+  location: z.string().trim().max(191),
+  internalNotes: z.string().trim().max(191),
   scheduledStart: futureDate("Scheduled start").nullable().optional(),
   scheduledEnd: futureDate("Scheduled end").nullable().optional(),
+  overrideStaffConflict: z.boolean().optional(),
 });
-export const createJobInput = z.object({ body: jobFields.extend({ serviceRequestId: resourceId }).refine(
+export const createJobInput = z.object({ body: jobFields.extend({
+  serviceRequestId: resourceId,
+  description: jobFields.shape.description.default(""),
+  location: jobFields.shape.location.default(""),
+  internalNotes: jobFields.shape.internalNotes.default(""),
+}).refine(
   (value) => !value.scheduledEnd || !!value.scheduledStart && value.scheduledEnd >= value.scheduledStart,
   { message: "Scheduled end must follow scheduled start", path: ["scheduledEnd"] },
 ) });
 export const updateJobInput = resourceParams.extend({ body: jobFields.partial().refine(
-  (value) => Object.keys(value).length > 0, "At least one field is required",
+  (value) => Object.keys(value).some((key) => key !== "overrideStaffConflict"), "At least one field is required",
 ) });
 export const jobListInput = z.object({ query: listQuery.extend({
   status: z.enum(["ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).optional(),
@@ -43,6 +49,7 @@ export const staffListInput = z.object({ query: listQuery });
 export const jobStatusInput = resourceParams.extend({ body: z.object({
   status: z.enum(["IN_PROGRESS", "COMPLETED"]),
   note: z.string().trim().max(191).default(""),
+  overrideStaffConflict: z.boolean().optional(),
 }) });
 export const cancelJobInput = resourceParams.extend({ body: z.object({ note: z.string().trim().min(1, "Cancellation reason is required").max(191) }) });
 export type CreateJob = z.infer<typeof createJobInput>["body"];
