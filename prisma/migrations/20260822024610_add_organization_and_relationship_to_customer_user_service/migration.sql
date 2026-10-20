@@ -9,25 +9,25 @@
 
 */
 -- AlterTable
-ALTER TABLE `auditlog` ADD COLUMN `organizationId` VARCHAR(191) NOT NULL;
+ALTER TABLE `AuditLog` ADD COLUMN `organizationId` VARCHAR(191) NOT NULL;
 
 -- AlterTable
-ALTER TABLE `customer` ADD COLUMN `organizationId` VARCHAR(191) NOT NULL;
+ALTER TABLE `Customer` ADD COLUMN `organizationId` VARCHAR(191) NOT NULL;
 
 -- AlterTable
-ALTER TABLE `invoice` ADD COLUMN `organizationId` VARCHAR(191) NOT NULL;
+ALTER TABLE `Invoice` ADD COLUMN `organizationId` VARCHAR(191) NOT NULL;
 
 -- AlterTable
-ALTER TABLE `job` ADD COLUMN `organizationId` VARCHAR(191) NOT NULL;
+ALTER TABLE `Job` ADD COLUMN `organizationId` VARCHAR(191) NOT NULL;
 
 -- AlterTable
-ALTER TABLE `servicerequest` ADD COLUMN `organizationId` VARCHAR(191) NOT NULL;
+ALTER TABLE `ServiceRequest` ADD COLUMN `organizationId` VARCHAR(191) NOT NULL;
 
 -- AlterTable
-ALTER TABLE `servicetype` ADD COLUMN `organizationId` VARCHAR(191) NULL;
+ALTER TABLE `ServiceType` ADD COLUMN `organizationId` VARCHAR(191) NULL;
 
 -- AlterTable
-ALTER TABLE `user` ADD COLUMN `organizationId` VARCHAR(191) NULL;
+ALTER TABLE `User` ADD COLUMN `organizationId` VARCHAR(191) NULL;
 
 -- CreateTable
 CREATE TABLE `Organization` (

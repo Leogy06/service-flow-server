@@ -371,7 +371,7 @@ async function linuxMigrations() {
       "-e",
       "MYSQL_DATABASE",
       "mysql:8.4",
-      "--lower-case-table-names=1",
+      "--lower-case-table-names=0",
     ],
     { env, timeout: 60000 },
   );
@@ -414,8 +414,8 @@ async function linuxMigrations() {
     const [row] = await connection.query(
       "SELECT @@lower_case_table_names AS casing",
     );
-    if (Number(row.casing) !== 1)
-      throw new Error("New Linux MySQL must use lower_case_table_names=1.");
+    if (Number(row.casing) !== 0)
+      throw new Error("Linux migration replay requires case-sensitive table names (lower_case_table_names=0).");
     await connection.end();
     connection = undefined;
     const migrated = await command(

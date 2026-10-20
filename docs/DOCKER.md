@@ -75,9 +75,11 @@ branding uploads and `/app/logs` for file logs. Directories are writable by the
 image's node user (UID 1000); host bind mounts need matching permissions. Existing
 log retention remains controlled by LOG_MAX_FILES; Docker stdout retention needs
 its own logging configuration. MySQL needs its own persistence and memory
-configuration; Upstash manages Redis storage and capacity. Initialize the NEW
-Linux MySQL database with
-lower_case_table_names=1 before its first startup, as verified by predeploy tests.
+configuration; Upstash manages Redis storage and capacity. Migration table names
+match their original CREATE TABLE casing. The standalone predeploy runner tests
+Linux defaults (`lower_case_table_names=0`); the provided VPS Compose stack retains
+its existing `lower_case_table_names=1` setting. Do not change the casing setting
+of an already initialized MySQL data directory.
 
 ## Frontend build and runtime
 

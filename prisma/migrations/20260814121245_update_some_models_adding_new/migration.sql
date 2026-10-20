@@ -1,11 +1,11 @@
 /*
   Warnings:
 
-  - You are about to alter the column `status` on the `job` table. The data in that column could be lost. The data in that column will be cast from `Enum(EnumId(1))` to `Enum(EnumId(5))`.
-  - You are about to drop the column `notes` on the `servicerequest` table. All the data in the column will be lost.
-  - You are about to drop the column `requestedAt` on the `servicerequest` table. All the data in the column will be lost.
-  - You are about to drop the column `duration` on the `servicetype` table. All the data in the column will be lost.
-  - You are about to drop the column `price` on the `servicetype` table. All the data in the column will be lost.
+  - You are about to alter the column `status` on the `Job` table. The data in that column could be lost. The data in that column will be cast from `Enum(EnumId(1))` to `Enum(EnumId(5))`.
+  - You are about to drop the column `notes` on the `ServiceRequest` table. All the data in the column will be lost.
+  - You are about to drop the column `requestedAt` on the `ServiceRequest` table. All the data in the column will be lost.
+  - You are about to drop the column `duration` on the `ServiceType` table. All the data in the column will be lost.
+  - You are about to drop the column `price` on the `ServiceType` table. All the data in the column will be lost.
   - A unique constraint covering the columns `[referenceNumber]` on the table `Job` will be added. If there are existing duplicate values, this will fail.
   - A unique constraint covering the columns `[serviceRequestId]` on the table `Job` will be added. If there are existing duplicate values, this will fail.
   - A unique constraint covering the columns `[referenceNumber]` on the table `ServiceRequest` will be added. If there are existing duplicate values, this will fail.
@@ -25,16 +25,16 @@
 
 */
 -- DropForeignKey
-ALTER TABLE `job` DROP FOREIGN KEY `Job_assignedStaffId_fkey`;
+ALTER TABLE `Job` DROP FOREIGN KEY `Job_assignedStaffId_fkey`;
 
 -- AlterTable
-ALTER TABLE `customer` ADD COLUMN `address` VARCHAR(191) NULL,
+ALTER TABLE `Customer` ADD COLUMN `address` VARCHAR(191) NULL,
     ADD COLUMN `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     ADD COLUMN `notes` VARCHAR(191) NULL,
     ADD COLUMN `updatedAt` DATETIME(3) NOT NULL;
 
 -- AlterTable
-ALTER TABLE `job` ADD COLUMN `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ALTER TABLE `Job` ADD COLUMN `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     ADD COLUMN `customerId` VARCHAR(191) NOT NULL,
     ADD COLUMN `description` VARCHAR(191) NULL,
     ADD COLUMN `internalNotes` VARCHAR(191) NULL,
@@ -49,7 +49,7 @@ ALTER TABLE `job` ADD COLUMN `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TI
     MODIFY `status` ENUM('ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED') NOT NULL DEFAULT 'ASSIGNED';
 
 -- AlterTable
-ALTER TABLE `servicerequest` DROP COLUMN `notes`,
+ALTER TABLE `ServiceRequest` DROP COLUMN `notes`,
     DROP COLUMN `requestedAt`,
     ADD COLUMN `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     ADD COLUMN `description` VARCHAR(191) NULL,
@@ -60,7 +60,7 @@ ALTER TABLE `servicerequest` DROP COLUMN `notes`,
     ADD COLUMN `updatedAt` DATETIME(3) NOT NULL;
 
 -- AlterTable
-ALTER TABLE `servicetype` DROP COLUMN `duration`,
+ALTER TABLE `ServiceType` DROP COLUMN `duration`,
     DROP COLUMN `price`,
     ADD COLUMN `basePrice` DECIMAL(10, 2) NOT NULL,
     ADD COLUMN `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -68,7 +68,7 @@ ALTER TABLE `servicetype` DROP COLUMN `duration`,
     ADD COLUMN `updatedAt` DATETIME(3) NOT NULL;
 
 -- AlterTable
-ALTER TABLE `user` ADD COLUMN `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ALTER TABLE `User` ADD COLUMN `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     ADD COLUMN `phone` VARCHAR(191) NULL,
     ADD COLUMN `status` ENUM('ACTIVE', 'INACTIVE') NOT NULL DEFAULT 'ACTIVE',
     ADD COLUMN `updatedAt` DATETIME(3) NOT NULL;
@@ -250,10 +250,10 @@ ALTER TABLE `Payment` ADD CONSTRAINT `Payment_invoiceId_fkey` FOREIGN KEY (`invo
 ALTER TABLE `AuditLog` ADD CONSTRAINT `AuditLog_actorId_fkey` FOREIGN KEY (`actorId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- RenameIndex
-ALTER TABLE `job` RENAME INDEX `Job_assignedStaffId_fkey` TO `Job_assignedStaffId_idx`;
+ALTER TABLE `Job` RENAME INDEX `Job_assignedStaffId_fkey` TO `Job_assignedStaffId_idx`;
 
 -- RenameIndex
-ALTER TABLE `servicerequest` RENAME INDEX `ServiceRequest_customerId_fkey` TO `ServiceRequest_customerId_idx`;
+ALTER TABLE `ServiceRequest` RENAME INDEX `ServiceRequest_customerId_fkey` TO `ServiceRequest_customerId_idx`;
 
 -- RenameIndex
-ALTER TABLE `servicerequest` RENAME INDEX `ServiceRequest_serviceTypeId_fkey` TO `ServiceRequest_serviceTypeId_idx`;
+ALTER TABLE `ServiceRequest` RENAME INDEX `ServiceRequest_serviceTypeId_fkey` TO `ServiceRequest_serviceTypeId_idx`;

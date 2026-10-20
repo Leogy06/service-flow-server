@@ -12,7 +12,8 @@ The command runs runner safety tests; Prisma generation; backend/frontend lint,
 TypeScript, unit tests and production builds; production environment validation;
 compiled Prisma/Redis connectivity; read-only configured migration status; real
 compiled API startup (health and unauthenticated denial); optimized Next startup;
-and fresh Linux MySQL 8.4 migration replay with `lower_case_table_names=1`.
+and fresh Linux MySQL 8.4 migration replay with `lower_case_table_names=0`
+to detect table-name casing errors under Linux defaults.
 
 It reuses package scripts and installed dependencies without installing/pruning them.
 Reports and sanitized command logs are in ignored `backend/.predeploy/<run>/`.

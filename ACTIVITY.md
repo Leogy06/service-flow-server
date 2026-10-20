@@ -1,3 +1,29 @@
+## [2026-10-20 18:12] Codex
+
+- **Task:** Correct all remaining migration casing failures and prevent repeat Linux deployment errors.
+- **Summary:** Fixed exact table casing in 16 remaining SQL migrations, including UPDATE and index operations; preserved the earlier Job fix. Added 35 migration regression checks, case-sensitive standalone predeploy replay and recovery/compatibility docs.
+- **Files changed:** prisma/migrations/*/migration.sql, prisma/migrations/FEATURE.md, tests/prisma/migrations.test.ts, scripts/{predeploy.mjs,PREDEPLOY.md}, docs/DOCKER.md, activity logs; sibling artifacts/migration-casing-20261020.
+- **Endpoints / rate limiting:** N/A; no frontend, API contracts, permissions, Prisma models or application business rules changed. SQL differences across all 17 edited files are casing/whitespace only.
+- **Status:** Completed code and isolated verification. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Fresh Linux MySQL 8.4.11 casing=0 and casing=1 each passed all 35 migrations, zero unresolved failures, two audit triggers, migration status and repeat deploy. All 35 Jest checks, four predeploy safety tests, backend lint, Prisma validate, runner syntax and diff checks passed. Safety tests initially hit sandbox EPERM; reran without Node test process isolation. Docker needed approved execution. Test containers stopped, data retained; no configured/hosted database touched. App builds/full predeploy/unrelated suites not run. Deploy corrected files then inspect failed migration logs before conditional rollback marking/redeploy; populated upgrades and successful-history checksum reconciliation remain environment-specific.
+
+## [2026-10-20 18:00] Codex
+
+- **Task:** Explain P3009 after the migration casing correction and identify safe recovery.
+- **Summary:** Verified Prisma guidance distinguishes failed migration history from edited successfully applied migrations. Prepared read-only migration-log query and conditional resolve --rolled-back/redeploy instructions only when failure occurred before any successful statement.
+- **Files changed:** Root/backend activity logs only; no additional migration, frontend, API, permission or rate-limit edits.
+- **Status:** Completed diagnosis guidance; deployed failure logs/state remain unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** No database accessed, history updated, migration applied or tests run. Inspect target _prisma_migrations.logs and partial DDL before recovery; rollback marking does not undo SQL. Sixteen later migrations still have casing mismatches. Official Prisma error/recovery documentation checked.
+
+## [2026-10-20 17:54] Codex
+
+- **Task:** Fix Linux MySQL table casing in migration 20260814121245_update_some_models_adding_new.
+- **Summary:** Corrected nine ALTER TABLE targets and five warning references to the existing Job, Customer, ServiceRequest, ServiceType and User casing. Preserved all columns, indexes, constraints and business behavior.
+- **Files changed:** prisma/migrations/20260814121245_update_some_models_adding_new/migration.sql, root/backend activity logs.
+- **Endpoints / rate limiting:** N/A; no frontend, API, permission, Prisma model or tenant-boundary changes. No database contacted or migration applied.
+- **Status:** Completed requested file correction. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Static verification passed for all 49 table references and casing-only diff; Prisma validate and git diff --check passed. Initial Node subprocess check hit sandbox EPERM; rerun using PowerShell-provided baseline passed. Linux SQL replay unavailable because Docker engine is stopped; application lint/build/tests were not run for SQL-only edits. Sixteen other migrations retain casing mismatches, beginning with 20260818111948_add_user_deleted_at. Existing successful migration histories need checksum reconciliation planning; failed runs require partial-DDL inspection before recovery/retry.
+
 ## [2026-10-20 06:14] Codex
 
 - **Task:** Implement production-safe global catalog provisioning and seed the hosted database.

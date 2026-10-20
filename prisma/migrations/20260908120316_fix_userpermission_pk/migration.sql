@@ -8,14 +8,14 @@
 */
 
 -- add new columns first
-ALTER TABLE `userpermission` ADD COLUMN `id` VARCHAR(191) NOT NULL,
+ALTER TABLE `UserPermission` ADD COLUMN `id` VARCHAR(191) NOT NULL,
     ADD COLUMN `isActive` BOOLEAN NOT NULL DEFAULT true;
 
 -- add unique index BEFORE drop old pk (keeps fk index alive)
-CREATE UNIQUE INDEX `UserPermission_userId_permissionId_key` ON `userpermission`(`userId`, `permissionId`);
+CREATE UNIQUE INDEX `UserPermission_userId_permissionId_key` ON `UserPermission`(`userId`, `permissionId`);
 
 -- now safe: drop old pk
-ALTER TABLE `userpermission` DROP PRIMARY KEY;
+ALTER TABLE `UserPermission` DROP PRIMARY KEY;
 
 -- add new pk on id
-ALTER TABLE `userpermission` ADD PRIMARY KEY (`id`);  
+ALTER TABLE `UserPermission` ADD PRIMARY KEY (`id`);

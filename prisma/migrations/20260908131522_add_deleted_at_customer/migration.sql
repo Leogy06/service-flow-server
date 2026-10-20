@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE `customer` ADD COLUMN `deletedAt` DATETIME(3) NULL;
+ALTER TABLE `Customer` ADD COLUMN `deletedAt` DATETIME(3) NULL;
