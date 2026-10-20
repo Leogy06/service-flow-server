@@ -28,8 +28,11 @@ const seeds = {
   plans: ["prisma/seed-plans.ts"],
   catalog: ["prisma/seed-catalog.ts"],
   "bright-star": ["prisma/seed-bright-star.ts"],
+  development: ["prisma/seed-development.ts"],
+  production: ["prisma/seed-production.ts"],
+  "development-check": ["tests/prisma/development.mysql.mjs"],
 };
-const usage = "Usage: npm run prisma:dev -- <Prisma command> [args]\n       npm run prisma:prod -- <Prisma command> [args]\n       npm run seed:catalog -- {dev|prod} [--dry-run|--apply]\nExamples: migrate status | migrate dev --name change | migrate reset | db seed | seed catalog --apply | studio";
+const usage = "Usage: npm run prisma:dev -- <Prisma command> [args]\n       npm run prisma:prod -- <Prisma command> [args]\n       npm run seed:prod -- [--dry-run|--apply]\n       npm run seed:catalog -- dev [--dry-run|--apply]\nExamples: migrate status | migrate dev --name change | migrate reset | db seed | seed production --apply | studio";
 
 export function commandPlan(argv) {
   let args = [...argv];
@@ -50,9 +53,9 @@ export function commandPlan(argv) {
   const help = args.includes("--help") || args.includes("-h");
   const command = args.slice(0, 2).join(" ");
   if (mode === "prod" && !help) {
-    const allowed = ["migrate deploy", "migrate status", "migrate diff", "db pull", "seed catalog"];
+    const allowed = ["migrate deploy", "migrate status", "migrate diff", "db pull", "seed production"];
     if (!["generate", "validate", "format", "version", "--version", "-v"].includes(args[0]) && !allowed.includes(command)) {
-      throw new Error("Production permits generate/validate/format/version, migrate deploy/status/diff, db pull, and seed catalog. Reset, migrate dev, db push/execute, studio and tenant/sample seeds are blocked. Use seed catalog for production catalogs.");
+      throw new Error("Production permits generate/validate/format/version, migrate deploy/status/diff, db pull, and seed production. Catalog plans, reset, migrate dev, db push/execute, studio and tenant/sample seeds are blocked. Use seed:prod for system-admin and permissions only.");
     }
   }
   let childArgs = [resolve(backend, "node_modules/prisma/build/index.js"), ...args];
@@ -64,7 +67,7 @@ export function commandPlan(argv) {
   return {
     mode, childArgs,
     seed: args[0] === "seed" || command === "db seed",
-    confirmation: mode === "prod" && !help && (command === "migrate deploy" || (command === "seed catalog" && args.includes("--apply"))),
+    confirmation: mode === "prod" && !help && (command === "migrate deploy" || (command === "seed production" && args.includes("--apply"))),
   };
 }
 

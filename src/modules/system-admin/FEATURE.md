@@ -6,6 +6,12 @@ Platform operators manage organizations, plans, subscription entitlements,
 verified manual receipts, refund requests, security and operational reporting.
 Tenant customer invoices/payments are separate modules.
 
+`GET /system-admin/subscriptions/count` returns `{ needsReview: number }` for
+distinct subscriptions that are `PENDING` or have a `REQUESTED` upgrade. A single
+database count with OR avoids double counting; reviewed upgrades alone do not
+qualify. The route inherits authentication, persisted platform authority and the
+global API limiter; the service checks platform authority before its live query.
+
 The platform dashboard uses a 30-second Redis cache, and the shared plan catalog
 uses the default five minutes. Persisted platform authority is checked before
 cache access. Platform transactions invalidate dashboard activity after commit;
@@ -85,3 +91,9 @@ transactions. Tenant customer feedback is excluded from the platform inbox.
 - Payment detail responses include at most 20 refund requests. All history is audited.
 - Run MySQL tests only against the explicitly isolated test database; audit fixtures
   are retained because platform audit rows cannot be changed or deleted.
+- `bootstrap.ts` shares operator input/ownership checks between the standalone
+  bootstrap and the explicit `seed:prod` setup. Production seeding adds only global
+  permissions and a system administrator (required role/audits included); no plans
+  or tenants. Existing active platform accounts are preserved on seed retries;
+  standalone bootstrap still rejects duplicate emails. Never promote a tenant
+  identity or reactivate blocked/deleted accounts by reusing an email.

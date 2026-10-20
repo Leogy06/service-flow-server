@@ -41,6 +41,12 @@ and set DATABASE_URL to its actual database, account and port, for example
 The launcher does not install, start or provision MySQL. There is no requirement
 to use root or port 3307; separate DATABASE_* settings are ignored.
 
+After the schema is available, `npm run seed:dev` previews a full local sample
+workspace. Set `DEV_SEED_PASSWORD` in `.env.development`, then run
+`npm run seed:dev -- --apply` to add it. This explicit development command refuses
+remote/production databases and preserves existing records on reruns. Account
+emails, fixture coverage and billing behavior: [development seed](../prisma/DEVELOPMENT_SEED.md).
+
 Set `REDIS_URL=redis://127.0.0.1:6379`. Docker is used only for Redis; Compose is
 not required. The launcher creates or starts its `serviceflow-dev-redis` container
 using Redis 7 Alpine, binds port 6379 to loopback, stores data in the named volume
@@ -104,8 +110,8 @@ npm run prisma:dev -- studio
 
 npm run prisma:prod -- migrate status
 npm run prisma:prod -- migrate deploy
-npm run seed:catalog -- prod --dry-run
-npm run seed:catalog -- prod --apply
+npm run seed:prod -- --dry-run
+npm run seed:prod -- --apply
 ```
 
 Development wrappers and the dev launcher explicitly apply .env.development,
@@ -117,11 +123,16 @@ commands cannot silently change that target. No manual sourcing is needed for
 these wrappers. Direct npx prisma commands still inherit the shell environment;
 use the wrappers for manual database work.
 
-Production migrate deploy and catalog --apply require typing production. Reset,
+Production migrate deploy and seed:prod --apply require typing production. Reset,
 migrate dev, db push/execute, studio and tenant/sample seeds are blocked in prod.
 The default db seed updates tenant role permissions, so production uses the
-separate seed catalog command rather than substituting its behavior silently.
-Catalog dry runs and read-only commands need no confirmation. An explicit dev
+separate seed:prod command for global permissions and the system administrator
+only, with the required global role and audit records. No plan or tenant data is
+seeded in production. Configure SYSTEM_ADMIN_EMAIL, SYSTEM_ADMIN_PASSWORD
+(14–72 bytes) and SYSTEM_ADMIN_REASON privately. Existing active platform admins
+and credentials are preserved; tenant identities are never promoted. The catalog
+and plan seeds are restricted to development. Dry runs and read-only commands
+need no confirmation. An explicit dev
 reset still asks Prisma's normal destructive-operation confirmation and erases
 all data in the chosen development database; seeds run separately.
 
@@ -137,7 +148,8 @@ npm run seed:plans -- dev
 npm run seed:bright-star -- dev --dry-run
 ```
 
-All seed shortcuts follow npm run seed:NAME -- {dev|prod} [flags]. Seeds use the
+`seed:dev` and `seed:prod` select their named environment; other seed shortcuts
+require an explicit permitted mode (`npm run seed:NAME -- dev [flags]`). Seeds use the
 shared Prisma singleton and selected DATABASE_URL/REDIS_URL. No seed runs
 automatically. CLI/seed commands need development tools installed; the production
 launcher prunes them. The internal generate/prod:build hooks remain low-level

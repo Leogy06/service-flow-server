@@ -89,6 +89,10 @@ router.get(
   ),
 );
 router.get(
+  "/subscriptions/count",
+  handle(() => service.countSubscriptionReviews(), "Subscription reviews counted"),
+);
+router.get(
   "/subscriptions/:id",
   validate(billingDetailSchema),
   handle((req) => service.subscription(id(req)), "Subscription fetched"),

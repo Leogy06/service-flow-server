@@ -8,9 +8,10 @@ try {
   const args = process.argv.slice(2);
   if (args.some((arg) => !["--apply", "--dry-run"].includes(arg)) ||
       (args.includes("--apply") && args.includes("--dry-run"))) {
-    throw new Error("Usage: npm run seed:catalog -- {dev|prod} [--dry-run | --apply]");
+    throw new Error("Usage: npm run seed:catalog -- dev [--dry-run | --apply]");
   }
   const target = new URL(env.DATABASE_URL);
+  if (env.NODE_ENV === "production") throw new Error("Use seed:prod for production permissions and the system administrator. The plan catalog is for development only.");
   console.log(`Catalog target: ${target.hostname}:${target.port || 3306}/${decodeURIComponent(target.pathname.slice(1))}`);
   const result = await seedCatalog(prisma, !args.includes("--apply"));
   console.log(JSON.stringify(result, null, 2));

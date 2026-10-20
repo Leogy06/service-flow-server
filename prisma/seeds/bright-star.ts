@@ -66,8 +66,7 @@ const billedItems = [
   [{ description: "Emergency lighting maintenance and discharge test", quantity: "1", unitPrice: "1800.00" }, { description: "Replacement emergency-light battery pack", quantity: "4", unitPrice: "625.00" }],
 ];
 
-export async function seedBrightStar(prisma: PrismaClient, now = new Date()) {
-  return prisma.$transaction(async (db) => {
+export async function seedBrightStarInTransaction(db: Prisma.TransactionClient, now = new Date()) {
     // Serialize this additive batch, including concurrent reruns, without resetting tables.
     await db.$queryRaw`SELECT id FROM Organization WHERE slug = ${BRIGHT_STAR_SLUG} FOR UPDATE`;
     const { organization, admin, manager, staff, marker } = await inspectBrightStarSeed(db);
@@ -275,5 +274,9 @@ export async function seedBrightStar(prisma: PrismaClient, now = new Date()) {
     await db.auditLog.create({ data: { id: id("batch"), organizationId, scope: "TENANT", actorType: "SYSTEM",
       action: "seed.bright_star.completed", entity: "Organization", entityId: organizationId, metadata: summary, createdAt: now } });
     return { status: "created" as const, organizationId, summary };
-  }, { isolationLevel: "Serializable", maxWait: 10_000, timeout: 120_000 });
+}
+
+export async function seedBrightStar(prisma: PrismaClient, now = new Date()) {
+  return prisma.$transaction((db) => seedBrightStarInTransaction(db, now),
+    { isolationLevel: "Serializable", maxWait: 10_000, timeout: 120_000 });
 }

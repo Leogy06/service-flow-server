@@ -1,3 +1,21 @@
+## [2026-10-21 05:29] Codex
+
+- **Task:** Restrict production seed to system administrator and global permissions.
+- **Summary:** Added seed:prod and atomic permissions/operator helpers; shared compiled bootstrap validation/provisioning while retaining standalone duplicate rejection. Idempotent production retries preserve existing active platform accounts/passwords; tenant/inactive collisions fail safely. Disabled production plan/catalog seeds and updated setup documentation.
+- **Files changed:** package.json, scripts/prisma.mjs, prisma/{seed-production.ts,seed-catalog.ts,seeds/production.ts,seeds/permission-catalog.ts,seeds/catalog.ts,seeds/FEATURE.md}, src/modules/system-admin/{bootstrap.ts,bootstrap.cli.ts,FEATURE.md}, docs/{ENVIRONMENT.md,SYSTEM_ADMIN.md}, tests/prisma/{production.test.ts,development.mysql.mjs}, tests/config/prisma-cli.mjs, activity logs.
+- **Endpoints / rate limiting:** N/A; no frontend, schema, migration, API or tenant permission-grant changes. Only operator/global permissions plus required role/audits are provisioned by production apply.
+- **Status:** Completed implementation and local checks; no production execution. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** 43 focused seed tests, ten wrapper guard tests, lint/build, full TypeScript source/test check and real local MySQL rollback checks passed. Verified minimal-production writes only to Permission/User/Role/AuditLog, bcrypt login material and credential-preserving reruns; full development batch still passes. Both batches rolled back and every model digest matched its original value. No production connection or committed data changes; configure SYSTEM_ADMIN_* privately and use seed:prod -- --dry-run / --apply. Existing unrelated migration casing test was not repeated or modified.
+
+## [2026-10-21 05:24] Codex
+
+- **Task:** Add full development seed and verify it safely.
+- **Summary:** Added seed:dev using the environment wrapper, local/production guards, DEV_SEED_PASSWORD validation/hashing, shared atomic catalog/electrical helpers, tenant/operator accounts, defaults and overrides, settings/pages, independent workflows and platform billing/signup examples. Existing edits/grants preserved; collisions and seat overflow roll back; batch marker makes reruns additive and repeatable.
+- **Files changed:** package.json, .env.example, scripts/prisma.mjs, docs/ENVIRONMENT.md, prisma/{seed-development.ts,DEVELOPMENT_SEED.md,seeds/development*.ts,seeds/catalog.ts,seeds/bright-star.ts,seeds/FEATURE.md}, tests/prisma/development*, tests/config/prisma-cli.mjs, activity logs.
+- **Endpoints / rate limiting:** N/A; backend seed tooling only, no frontend/schema/migration/API changes or existing permission-grant resets.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** 33 seed tests, ten environment/wrapper guards, lint/build, full TypeScript source/test check, local dry run and diff checks passed. Broader Prisma suite 73/74: pre-existing init_dev subscriptionrefund casing test fails; left unchanged. Real MySQL rollback-only check passed full batch, permissions/passwords, tenant ownership, invoice/payment consistency, history/billing/seat checks and repeatability; all table digests unchanged afterward. No fixtures committed; set DEV_SEED_PASSWORD privately then run seed:dev -- --apply. Redis invalidation after actual commit and frontend browsing were not exercised.
+
 ## [2026-10-20 21:41] Codex
 
 - **Task:** Add staff scheduling and active-work warnings with explicit overrides.

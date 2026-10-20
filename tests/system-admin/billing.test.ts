@@ -76,6 +76,7 @@ jest.unstable_mockModule("@/modules/system-admin/platform-audit.js", () => ({
   }),
 }));
 const { billingService } = await import("@/modules/system-admin/billing.service.js");
+const { requirePlatformAuthority } = await import("@/modules/role/tenant-access-policy.js");
 const { enforceSeatLimit, assertTenantEntitlement } = await import("@/modules/system-admin/entitlement.js");
 const { Prisma } = await import("@/generated/prisma/client.js");
 const tx = db as unknown as import("@/generated/prisma/client.js").Prisma.TransactionClient;
@@ -97,6 +98,29 @@ beforeEach(() => {
     organizations: [{ id: "org-a", billingEnabled: true, status: "ACTIVE" }],
     users: [{ id: "owner-a", organizationId: "org-a", status: "ACTIVE", platformRole: "NONE", securityStatus: "ACTIVE", deletedAt: null }],
     payments: [], refunds: [], refundRequests: [], history: [], audits: [] };
+});
+
+test("review count includes pending subscriptions or requested upgrades in one distinct subscription count", async () => {
+  db.subscription.count.mockResolvedValueOnce(7);
+  expect(await billingService.countSubscriptionReviews()).toEqual({ needsReview: 7 });
+  expect(requirePlatformAuthority).toHaveBeenCalledTimes(1);
+  expect(db.subscription.count).toHaveBeenCalledWith({ where: { OR: [
+    { status: "PENDING" }, { upgradeRequests: { some: { status: "REQUESTED" } } },
+  ] } });
+  expect(db.subscription.findMany).not.toHaveBeenCalled();
+});
+
+test("review count returns zero and propagates database failures", async () => {
+  db.subscription.count.mockResolvedValueOnce(0);
+  expect(await billingService.countSubscriptionReviews()).toEqual({ needsReview: 0 });
+  db.subscription.count.mockRejectedValueOnce(new Error("Database unavailable"));
+  await expect(billingService.countSubscriptionReviews()).rejects.toThrow("Database unavailable");
+});
+
+test("review count requires platform authority before any database count", async () => {
+  jest.mocked(requirePlatformAuthority).mockRejectedValueOnce(new Error("Platform administration is required"));
+  await expect(billingService.countSubscriptionReviews()).rejects.toThrow("Platform administration is required");
+  expect(db.subscription.count).not.toHaveBeenCalled();
 });
 
 test("initial trial enrollment grants 14 days, enables billing, audits and creates no financial records", async () => {

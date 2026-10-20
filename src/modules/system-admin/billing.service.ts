@@ -206,6 +206,20 @@ export const billingService = {
       { isolationLevel: "RepeatableRead" },
     ));
   },
+  async countSubscriptionReviews() {
+    await requirePlatformAuthority();
+    return {
+      needsReview: await prisma.subscription.count({
+        // Count subscriptions once even when both conditions need attention.
+        where: {
+          OR: [
+            { status: "PENDING" },
+            { upgradeRequests: { some: { status: "REQUESTED" } } },
+          ],
+        },
+      }),
+    };
+  },
   async listSubscriptions(query: SubscriptionListQuery) {
     await requirePlatformAuthority();
     const where: Prisma.SubscriptionWhereInput = {

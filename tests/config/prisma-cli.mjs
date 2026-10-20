@@ -37,7 +37,7 @@ test("a missing dev Redis setting cannot inherit a production cache URL", () => 
 });
 
 test("production rejects destructive commands, tenant seeds and connection overrides", () => {
-  for (const args of [["migrate", "reset"], ["migrate", "dev"], ["db", "push"], ["db", "execute"], ["db", "seed"], ["studio"], ["seed", "roles"], ["seed", "bright-star"]]) {
+  for (const args of [["migrate", "reset"], ["migrate", "dev"], ["db", "push"], ["db", "execute"], ["db", "seed"], ["studio"], ["seed", "roles"], ["seed", "bright-star"], ["seed", "development"], ["seed", "catalog"], ["seed", "plans"]]) {
     assert.throws(() => commandPlan(["prod", ...args]), /Production permits/);
   }
   for (const args of [["--url", remote], ["--url=" + remote], ["--config=other.ts"], ["--schema", "other.prisma"], ["-sother.prisma"], ["--from-url", remote]]) {
@@ -46,24 +46,28 @@ test("production rejects destructive commands, tenant seeds and connection overr
 });
 
 test("read commands/generation need no production confirmation; write commands always do", () => {
-  for (const args of [["migrate", "status"], ["migrate", "diff"], ["generate"], ["validate"], ["db", "pull"], ["seed", "catalog", "--dry-run"]]) {
+  for (const args of [["migrate", "status"], ["migrate", "diff"], ["generate"], ["validate"], ["db", "pull"], ["seed", "production", "--dry-run"]]) {
     assert.equal(commandPlan(["prod", ...args]).confirmation, false);
   }
   assert.equal(commandPlan(["prod", "migrate", "deploy"]).confirmation, true);
-  assert.equal(commandPlan(["prod", "seed", "catalog", "--apply"]).confirmation, true);
+  assert.equal(commandPlan(["prod", "seed", "production", "--apply"]).confirmation, true);
   assert.equal(commandPlan(["dev", "migrate", "reset"]).confirmation, false);
 });
 
 test("seed shortcuts use the exact existing seed file and preserve flags", () => {
-  const plan = commandPlan(["--preset=seed-catalog", "prod", "--apply"]);
-  assert.deepEqual(plan.childArgs, ["--import", "tsx", "prisma/seed-catalog.ts", "--apply"]);
+  const plan = commandPlan(["prod", "seed", "production", "--apply"]);
+  assert.deepEqual(plan.childArgs, ["--import", "tsx", "prisma/seed-production.ts", "--apply"]);
   assert.equal(plan.confirmation, true);
+  assert.deepEqual(commandPlan(["--preset=seed-catalog", "dev", "--apply"]).childArgs,
+    ["--import", "tsx", "prisma/seed-catalog.ts", "--apply"]);
   assert.deepEqual(commandPlan(["dev", "db", "seed"]).childArgs.slice(1), ["db", "seed"]);
+  assert.deepEqual(commandPlan(["dev", "seed", "development", "--apply"]).childArgs,
+    ["--import", "tsx", "prisma/seed-development.ts", "--apply"]);
   assert.throws(() => commandPlan(["dev", "seed", "unknown"]), /Unknown seed/);
 });
 
 test("cancelled production confirmation never launches Prisma or a seed", async () => {
-  for (const args of [["migrate", "deploy"], ["seed", "catalog", "--apply"]]) {
+  for (const args of [["migrate", "deploy"], ["seed", "production", "--apply"]]) {
     let executed = false;
     await assert.rejects(executePlan(commandPlan(["prod", ...args]), {}, {
       confirm: async () => false,
