@@ -1,5 +1,7 @@
 # Service Flow — Engineering Rules
 
+Read and follow `../AGENTS.md` first, including its engineering, commenting, testing, and communication standards. This file adds backend conventions; keep new universal rules in the root file.
+
 These rules apply to every agent and contributor working in this repository.
 If a feature folder contains its own `FEATURE.md` or `AGENTS.md`, read it too. Where the two conflict, the more specific file wins, except for sections 4 (Tenant Isolation), 5 (Authentication), and 6 (Permissions), which are never overridden.
 
@@ -150,6 +152,9 @@ When changing permission logic, inspect permission definitions, database relatio
 
 ## 8. Backend Architecture and REST APIs
 
+- Follow the existing route, controller, service, repository (where present), and middleware conventions. Keep controllers thin and business logic in services.
+- Validate and sanitize untrusted inputs at system boundaries using consistent TypeScript types and Zod schemas. Centralize authentication, authorization, error handling, and logging through existing infrastructure.
+- Use Redis caching only where appropriate and explicitly implemented; invalidate affected cache entries after updates or deletions and preserve tenant boundaries in cache keys.
 - Follow existing layering and folder conventions. Keep routing, validation, business logic, database access, and response handling separated.
 - Do not move substantial business logic into route handlers when services already handle it.
 - Validate bodies, params, and query strings with existing Zod patterns, including IDs, enums, pagination limits, sort fields, and relationship ownership.
