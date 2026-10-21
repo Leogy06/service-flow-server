@@ -1,3 +1,12 @@
+## [2026-10-22 06:26] Codex
+
+- **Task:** Diagnose and repair the TypeScript errors reported during npm run prod:all.
+- **Summary:** Reproduced all 356 errors and traced the incompatible lowercase schema to commit c79a906. Restored the preceding application schema, including model/enum/relation names, cuid defaults and updatedAt behavior; regenerated Prisma with a placeholder test URL. Added schema-to-migration table-casing regression coverage and troubleshooting guidance.
+- **Files changed:** prisma/schema.prisma, tests/prisma/migrations.test.ts, prisma/migrations/FEATURE.md, README.md; root/backend ACTIVITY.md. Generated client/build artifacts refreshed locally.
+- **Endpoints / rate limiting:** N/A; backend schema/client contract restoration only. No frontend, migration SQL, API, permission or database-record changes.
+- **Status:** Completed local repair. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** New regression failed before repair (72 passed/1 failed). After repair, backend build, all 46 Jest suites/1079 tests, lint and diff checks passed. Production launcher fails during build before its migration confirmation. No database connections, migrations, seeds, reset, production startup or deployment performed; live database/runtime acceptance remains unverified. Retry npm run prod:all from backend.
+
 ## [2026-10-22 01:04] Codex
 
 - **Task:** Reset disposable production Aiven defaultdb after explicit user confirmation to delete all tables/data and rebuild.

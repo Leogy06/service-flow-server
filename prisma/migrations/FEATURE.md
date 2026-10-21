@@ -6,6 +6,14 @@ including `User`, `Job`, `RolePermission` and `UserPermission`. Prisma models ha
 no table-name mappings that make those names lowercase. Preserve column names,
 index names, foreign-key names and existing business/data transformations.
 
+`prisma/schema.prisma` is the application contract: preserve its model/enum names,
+relation fields, `@default(cuid())` and `@updatedAt` attributes. Database
+introspection can replace these with lowercase names and omit Prisma-managed
+defaults. Compare an introspection using `db pull --print`; do not overwrite the
+application schema to diagnose a production table problem. Regenerate the client
+and build after schema edits. The regression suite also compares schema table
+names with the migration history's exact casing.
+
 `tests/prisma/migrations.test.ts` checks quoted table operands against preceding
 table declarations. Run `npm test -- --runInBand tests/prisma/migrations.test.ts`.
 The standalone `npm run test:predeploy` additionally replays the history into a

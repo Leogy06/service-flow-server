@@ -31,6 +31,15 @@ test.each(results)("%s uses previously declared table names with exact casing", 
   expect(errors).toEqual([]);
 });
 
+test("Prisma models target the exact table names created by the migrations", () => {
+  const schema = readFileSync(join(process.cwd(), "prisma/schema.prisma"), "utf8");
+  const tables = [...schema.matchAll(/^model\s+(\w+)\s*\{([^]*?)^\}/gm)]
+    .map(([, name, body]) => body!.match(/@@map\("([^"]+)"\)/)?.[1] ?? name!);
+  // A lowercased introspection can compile a different client and target tables
+  // that do not exist on case-sensitive production MySQL.
+  expect(tables.sort()).toEqual([...knownTables].sort());
+});
+
 test.each(migrations)("%s preserves a primary key when replacing it", (_name, sql) => {
   const statements = sql.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--[^\r\n]*/g, "").split(";");
   for (const statement of statements) {

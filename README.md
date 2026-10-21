@@ -30,6 +30,15 @@ containers and runs no seeds. Check the displayed database before confirming.
 
 The existing `./scripts/prod.sh` is an alias for the same launcher.
 
+If the build reports missing Prisma members such as `platformAlert` with a
+suggestion of `platformalert`, check the application schema and regenerate the
+client. The models, enums and relation fields must match the application, and
+table names must match the migrations. A database introspection can overwrite
+these names and remove Prisma-managed defaults. See the
+[schema and migration rules](prisma/migrations/FEATURE.md). This compile error
+occurs before the launcher's migration step; resetting the database does not
+repair the client contract.
+
 ### Run the steps separately
 
 ```bash
