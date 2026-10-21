@@ -70,6 +70,46 @@ when the shell does not already select a mode. Starting an existing build does
 not install dependencies, build, migrate or seed. Use your host's service/process
 manager for restarts; the launcher itself runs in the foreground.
 
+## Vercel backend deployment
+
+Select `backend` as the Vercel project Root Directory when importing the full
+repository. If the Git repository contains only this backend, use its root.
+The committed [vercel.json](vercel.json) selects the Express framework, installs
+build dependencies and runs `npm run prod:build` (Prisma generation and TypeScript
+build). Remove any dashboard override that still runs `npm run prod:all`.
+Keep Output Directory at the Express preset default; `dist` is not a static site.
+Vercel uses the default Express export in `src/app.ts` as its entrypoint.
+
+Set these in **Project Settings > Environment Variables** for the deployment's
+environment, then redeploy:
+
+- `NODE_ENV=production`
+- `DATABASE_URL` with the remote MySQL endpoint and `sslaccept=strict`
+- `REDIS_URL` with the Upstash `rediss://` connection URL
+- `CORS_ORIGIN` with the exact HTTPS frontend origin (no trailing slash)
+- `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET`
+- `RESEND_API_KEY` and `EMAIL_FROM`
+
+Enter raw values without Bash quote delimiters. Add any other required settings
+from [.env.example](.env.example). A custom `sslcert` path must refer to a CA file
+available inside the deployment, not a path on your computer. Environment-only
+startup does not require `.env.production`; keep private env files out of Git.
+
+`prod:all` is for a persistent Node host: it requires a local env file, prompts
+for migration approval and starts a foreground server. Run production migrations
+separately through the existing guarded Prisma commands, using the same database
+as the deployment. The Vercel build does not migrate or seed.
+
+Branding uploads currently use local filesystem storage. Vercel Functions have a
+read-only filesystem outside temporary scratch space, so durable branding uploads
+require shared storage before using that feature there. Configure trusted proxy
+hops only after verifying the deployed proxy path; the diagnostic setting is
+documented in [.env.example](.env.example).
+
+References: [Express on Vercel](https://vercel.com/docs/frameworks/backend/express),
+[environment variables](https://vercel.com/docs/environment-variables) and
+[function filesystem support](https://vercel.com/docs/functions/runtimes#file-system-support).
+
 ## Other instructions
 
 - [Environment files, development startup and Prisma commands](docs/ENVIRONMENT.md)

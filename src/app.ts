@@ -47,3 +47,5 @@ app.use("/api", router);
 app.use(notFound);
 app.use(unauthenticatedErrorLimiter);
 app.use(errorHandler);
+
+export default app;

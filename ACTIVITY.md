@@ -1,3 +1,12 @@
+## [2026-10-22 06:48] Codex
+
+- **Task:** Diagnose the backend Vercel deployment failing on missing .env.production.
+- **Summary:** Traced prod:all to its intentional local-file guard, interactive migration prompt and persistent startup. Added Express Vercel config using build-only prod:build, a default app export, and deployment/environment instructions; kept the existing server launcher intact.
+- **Files changed:** vercel.json, src/app.ts, README.md; root/backend ACTIVITY.md.
+- **Endpoints / rate limiting:** N/A; no route, limiter, frontend, schema, migration, database-record, API contract or permission changes.
+- **Status:** Completed locally; hosted deployment unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Backend prod:build, lint, 60 focused environment/logging tests and diff checks passed. Initial generation hit sandbox EPERM in Prisma's external engine cache; approved rerun passed with a placeholder database URL. No migrations, seeds, production connections or deployment performed; private env files unchanged. Set Vercel environment variables and root, remove prod:all dashboard override, commit local files and redeploy. Existing filesystem branding uploads require shared storage on Vercel.
+
 ## [2026-10-22 06:37] Codex
 
 - **Task:** Diagnose the missing production email brand image and fix delivery.
