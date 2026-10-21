@@ -10,7 +10,9 @@ The database password is the credential inside the URL.
 1. Sign in at <https://console.upstash.com/> and select Redis, then Create Database.
 2. Name it, for example `serviceflow-production`. Choose the primary region closest
    to the **backend server**. Use a separate database for development/staging:
-   current keys do not have an environment prefix, including rate-limit keys.
+   response-cache keys do not have an environment prefix. Rate-limit keys use
+   `rl:<APP_ENV or VERCEL_ENV or NODE_ENV>:<limiter>:`; set a distinct `APP_ENV`
+   for each preview that should have independent counters.
 3. Select a plan suited to your expected traffic. Review current quotas and monitor
    commands, storage and connections; each API request can use several Redis
    commands for rate limits and cache generation lookups.
@@ -31,7 +33,7 @@ The database password is the credential inside the URL.
 
 ## 2. Configure the backend
 
-For native development, replace only `REDIS_URL` in `backend/.env`; retain the
+For native development, replace only `REDIS_URL` in `backend/.env.development`; retain the
 other required variables. Restart `npm run dev` from `backend/`.
 
 For the VPS Compose deployment, set `REDIS_URL` in `deploy/.env`. The base
@@ -92,9 +94,20 @@ a self-hosted stack intentionally, set `REDIS_PASSWORD` and a matching
 `-f deploy/compose.redis-local.yml` to **every** Compose command after the base file.
 Native local Redis still supports `redis://localhost:6379`.
 
-Read caches fall back to MySQL during Redis failures. Redis-backed rate limiters
-remain required and can reject requests during an outage; there is no permissive
-in-memory fallback. Cache TTLs and tenant/user/permission boundaries are unchanged.
+Read caches fall back to MySQL during Redis failures. Authenticated browsing's
+`apiLimiter` fails open and logs store failures; login, signup, refresh, password
+reset, writes and other sensitive limiters fail closed. There is no in-memory
+fallback that would lose the shared security budget. The shared ioredis TCP
+client has configurable connect/command timeouts (both 2 seconds by default),
+one retry per request and no offline queue. Warm serverless invocations reuse the
+connection; script initialization retries after Redis recovers. Cache TTLs and
+tenant/user/permission boundaries are unchanged.
+
+For standalone local Redis, `docker compose up -d --wait redis` from the backend
+starts the loopback-only service in `docker-compose.yml`, with an AOF named volume
+and healthcheck. Set `REDIS_PORT` if 6379 is occupied, and update local `REDIS_URL`
+to the same port. `docker compose stop redis` preserves data. This file is for
+local development; production still uses the verified `rediss://` TCP URL.
 
 Official references: [Getting started](https://upstash.com/docs/redis/overall/getstarted),
 [Connect your client](https://upstash.com/docs/redis/howto/connect-client),

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const resourceId = z.string().trim().min(1).max(64);
 export const resourceParams = z.object({ params: z.object({ id: resourceId }) });
+export const jobCountsInput = z.object({ query: z.object({}).strict() });
 export const listQuery = z.object({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(10),

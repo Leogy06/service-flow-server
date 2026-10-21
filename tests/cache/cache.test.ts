@@ -27,7 +27,7 @@ const redis = {
   del: jest.fn(async (...keys: string[]) => keys.reduce((count, key) => count + Number(entries.delete(key)), 0)),
 };
 const logger = { error: jest.fn() };
-jest.unstable_mockModule("@/lib/redis.js", () => ({ redis }));
+jest.unstable_mockModule("@/lib/redis.js", () => ({ redis, redisReady: async () => {} }));
 jest.unstable_mockModule("@/lib/logger.js", () => ({ logger }));
 const { Prisma } = await import("@/generated/prisma/client.js");
 const { getOrSetCache, invalidateCache } = await import("@/utils/cache.js");

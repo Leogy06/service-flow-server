@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "@/middleware/auth";
+import { apiLimiter } from "@/middleware/rateLimiter";
 import { requireSystemAdmin } from "@/middleware/require-platform-admin";
 import foundationRoutes from "./foundation.routes";
 import billingRoutes from "./billing.routes";
@@ -12,7 +13,7 @@ routes.use((_req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
   next();
 });
-routes.use(authenticate, requireSystemAdmin);
+routes.use(authenticate, apiLimiter, requireSystemAdmin);
 routes.use(signupRoutes);
 routes.use(foundationRoutes);
 routes.use(billingRoutes);

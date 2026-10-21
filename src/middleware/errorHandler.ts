@@ -7,6 +7,7 @@ export const errorHandler: ErrorRequestHandler = (err, _, res, _next) => {
     return res.status(err.statusCode).json({
       error: err.message,
       ...(err.code && { code: err.code }),
+      ...(err.retryAfterSeconds !== undefined && { retryAfterSeconds: err.retryAfterSeconds }),
     });
   }
 

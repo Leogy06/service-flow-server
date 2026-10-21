@@ -23,6 +23,9 @@ See `tests/workflow/staff-conflicts.test.ts` for API, tenant, permission and aud
 failure coverage; actual database concurrency still needs MySQL verification.
 
 List/detail, filter metadata and staff-choice reads use shared Redis caching.
+`GET /api/jobs/counts` requires `job:read` and returns organization-wide assigned
+and in-progress counts with one aggregate query. It accepts no query parameters
+and shares job cache invalidation, independently of table or staff filters.
 Keys include the viewer so `mine` results cannot cross staff accounts. Job changes
 invalidate jobs, parent request projections and dashboard after commit. Customer,
 service-type, user/role, request and invoice mutations refresh dependent job views,

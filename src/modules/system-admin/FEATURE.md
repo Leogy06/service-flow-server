@@ -29,7 +29,7 @@ keeps its existing health-probe cache and live traffic. See `backend/docs/CACHIN
 Public signup requests are platform-owned applications, separate from tenant
 users. `signup.*` validates, lists/counts and reviews applications. Only persisted
 system administrators may inspect them. Signup uses configurable Redis
-`signupLimiter` plus `authLimiter` and global API limits; review uses the shared
+`signupLimiter`, independently of login/refresh; review uses the shared
 write limiter. Deploy `20261017090000_public_signup_requests` and generate Prisma.
 
 Approval locks the request and atomically creates a new organization, the shared

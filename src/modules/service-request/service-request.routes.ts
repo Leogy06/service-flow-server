@@ -8,6 +8,7 @@ import {
   createRequestInput,
   updateRequestInput,
   requestListInput,
+  requestCountsInput,
   requestParamsInput,
   statusInput,
   customerOptionsInput,
@@ -17,6 +18,12 @@ import {
 } from "./service-request.schema";
 
 const routes = Router();
+routes.get(
+  "/counts",
+  requirePermission(P.SERVICE_REQUEST_READ),
+  validate(requestCountsInput),
+  c.counts,
+);
 routes.get(
   "/",
   requirePermission(P.SERVICE_REQUEST_READ),

@@ -1,11 +1,13 @@
 import { z } from "zod";
 import { databaseEnvironmentSchema } from "./database";
 import { redisUrlSchema } from "./redis-url";
+import { rateLimitEnvironmentSchema } from "./rate-limit";
 
 export const envSchema = databaseEnvironmentSchema.safeExtend({
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
-  // Enable only behind the single private Caddy proxy; never publish the API port.
-  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(1).default(0),
+  // Match the verified proxy path; every reachable path must have the same hop count.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
+  TRUST_PROXY_DIAGNOSTICS: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   CORS_ORIGIN: z.string().refine((value) => {
     try {
       const url = new URL(value);
@@ -21,21 +23,14 @@ export const envSchema = databaseEnvironmentSchema.safeExtend({
   SALT_ROUNDS: z.coerce.number().int().min(4).max(15).default(10),
 
   //redis
-  REDIS_URL: redisUrlSchema,
-  REFUND_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60 * 60 * 1000),
-  REFUND_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
-  SIGNUP_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(10 * 60 * 1000),
-  SIGNUP_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
-  FEEDBACK_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(10 * 60 * 1000),
-  FEEDBACK_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  // Native development works without a remote provider; production still requires TLS below.
+  REDIS_URL: redisUrlSchema.default("redis://localhost:6379"),
+  REDIS_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(2000),
+  REDIS_COMMAND_TIMEOUT_MS: z.coerce.number().int().positive().default(2000),
+  REDIS_MAX_RETRIES_PER_REQUEST: z.coerce.number().int().min(0).max(3).default(1),
+  ...rateLimitEnvironmentSchema.shape,
   FEEDBACK_INVITATION_DAYS: z.coerce.number().int().min(1).max(90).default(30),
   BRANDING_UPLOAD_DIR: z.string().trim().min(1).default("storage/branding"),
-  BRANDING_UPLOAD_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60 * 1000),
-  BRANDING_UPLOAD_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
-  BRANDING_ASSET_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60 * 1000),
-  BRANDING_ASSET_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
-  PUBLIC_PAGE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60 * 1000),
-  PUBLIC_PAGE_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
 
   //resend
   RESEND_API_KEY: z.string().min(1),
@@ -60,5 +55,6 @@ export const envSchema = databaseEnvironmentSchema.safeExtend({
   }
 }).transform((value) => ({
   ...value,
+  APP_ENV: value.APP_ENV ?? value.VERCEL_ENV ?? value.NODE_ENV,
   LOG_LEVEL: value.LOG_LEVEL ?? (value.NODE_ENV === "production" ? "info" : "debug"),
 }));

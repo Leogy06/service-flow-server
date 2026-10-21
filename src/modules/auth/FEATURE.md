@@ -16,8 +16,8 @@ It accepts a business name and desired slug along with credentials, explicit
 `privacyVersion` strings (`2026-10-17`). Privacy acknowledgment records receipt of
 the notice, not blanket consent to all processing. Unknown authorization fields
 and client acceptance timestamps are rejected. Both the route and service enforce
-current document versions before database work. Configurable Redis signup limits, the existing
-authentication limiter and the global API limiter cover it. No user or token is
+current document versions before database work. The dedicated strict, fail-closed
+Redis signup limiter covers it independently of login and refresh. No user or token is
 created until a system administrator approves. Duplicate email submissions receive
 the same response without replacing data. An original applicant may resubmit their
 original signup email/password with the current acknowledgments to complete a
@@ -38,3 +38,18 @@ before deploying the updated registration contract. Existing tenant login is unc
 Refresh-cookie `secure` is derived from the central validated `env.NODE_ENV`.
 Backend mode files and production CORS/TLS requirements are documented in
 `../../../docs/ENVIRONMENT.md`.
+
+Login uses `authLimiter` (10 failed attempts/15 minutes by IP); successful 2xx
+responses are decremented. No 2FA route exists in this checkout. Refresh uses a
+separate `refreshLimiter` (60/minute), keyed by a signature-verified access-token
+subject when supplied, otherwise IP. An expired access token may identify that
+budget only; the refresh service still validates/rotates the HTTP-only cookie.
+Signup, refresh, password actions and all write policies fail closed with a safe
+503 if Redis is unavailable. General `apiLimiter` runs after `authenticate` on
+private profile/session routes and fails open. Limits and deployment checks are
+in `../../../docs/RATE_LIMITING.md`; server authorization remains live.
+
+Logout clears both current and legacy browser refresh-cookie paths before its
+public limiter, so a blocked revocation request cannot silently restore this
+browser's session. Server-side token revocation still runs behind the guard;
+failures remain errors rather than claiming revocation succeeded.

@@ -8,6 +8,13 @@ import type {
 } from "./invoice.schema";
 
 export const invoiceController: Record<string, RequestHandler> = {
+  counts: async (_req, res, next) => {
+    try {
+      sendResponse(res, 200, "Invoice counts fetched", await invoiceService.counts());
+    } catch (error) {
+      next(error);
+    }
+  },
   list: async (req, res, next) => {
     try {
       sendResponse(

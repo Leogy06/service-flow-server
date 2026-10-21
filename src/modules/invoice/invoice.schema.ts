@@ -49,6 +49,7 @@ export const invoiceListInput = z.object({
     serviceRequestId: resourceId.optional(),
   }),
 });
+export const invoiceCountsInput = z.object({ query: z.object({}).strict() });
 export const voidInvoiceInput = resourceParams.extend({
   body: z.object({
     reason: z.string().trim().min(1, "Void reason is required").max(191),

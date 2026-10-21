@@ -4,6 +4,13 @@ import { jobService } from "./job.service";
 import type { CreateJob, UpdateJob, JobList, JobFilters } from "./job.schema";
 
 export const jobController: Record<string, RequestHandler> = {
+  counts: async (_req, res, next) => {
+    try {
+      sendResponse(res, 200, "Job counts fetched", await jobService.counts());
+    } catch (error) {
+      next(error);
+    }
+  },
   filters: async (req, res, next) => {
     try {
       sendResponse(

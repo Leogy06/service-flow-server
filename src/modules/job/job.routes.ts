@@ -6,6 +6,7 @@ import { validate } from "@/middleware/validate";
 import { jobController as c } from "./job.controller";
 import {
   jobListInput,
+  jobCountsInput,
   jobFiltersInput,
   staffListInput,
   resourceParams,
@@ -16,6 +17,7 @@ import {
 } from "./job.schema";
 
 const routes = Router();
+routes.get("/counts", requirePermission(P.JOB_READ), validate(jobCountsInput), c.counts);
 routes.get("/", requirePermission(P.JOB_READ), validate(jobListInput), c.list);
 routes.get(
   "/filters",

@@ -1,3 +1,39 @@
+## [2026-10-21 13:26] Codex
+
+- **Task:** Diagnose and fix navigation 429s, request volume and deployment configuration across both apps.
+- **Summary:** Recorded production-build sample and real Redis baselines before source edits; moved API budgets after auth, separated login/refresh/signup, preserved sensitive/public guards, centralized env defaults, added recoverable bounded Redis readiness and count endpoints, reduced polling and hardened cross-session refresh/logout. Final independent review findings were fixed and tested.
+- **Files changed:** Complete one-line inventory in docs/RATE_LIMIT_FILE_INVENTORY.md; diagnosis, mount map, caveats and DO checklist in docs/RATE_LIMITING.md; deferred provider checklist in docs/UPSTASH_RATE_LIMIT_SETUP.md. Existing activity history preserved.
+- **Endpoints / rate limiting:** API 300/min per persisted user; WRITE 30/min per user; DELETE 5/15min per user; AUTH 10 failed/15min IP; REFRESH 60/min verified bearer subject/IP; signup/reset/refund budgets preserved; public writes retain 30/hour IP. New GET /api/{service-requests,jobs,invoices}/counts use existing READ permissions and authenticated API middleware. Logout cookie clearing is idempotent before guard and in direct controller use.
+- **Status:** Completed implementation and local verification; Upstash deferred by user. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Final backend build, full source/test TypeScript and ESLint passed; full Jest 1,035 passed/2 unrelated failures (existing migration-table casing and absent installed pino-roll). Targeted logout/controller cases 69 passed; readiness/store/policy 24 passed; real Docker Redis 7 normal/shared-instance plus 3 outage/recovery tests and Compose health/AOF persistence passed. Frontend final build/TypeScript, changed-file lint, 10 transport/retry tests and four existing browser suites passed; final 15 tenant/12 platform sample transitions measured 44→33 / 16→16 calls, 429 retry 2,031ms, hidden/fresh focus zero. No live database/production writes, secrets, migrations, permission or dependency-version changes. Real Upstash/proxy/login/latency and browser cookie-jar race checks remain deployment validation; owned test containers stopped, named volume retained.
+
+## [2026-10-21 13:11] Codex/rate-limit-runtime
+
+- **Task:** Diagnose shared limiter counters and verify Redis/runtime infrastructure.
+- **Summary:** Captured unchanged-source Redis headers and proxy evidence before edits; centralized budget configuration, local Redis defaults, fail-fast warm-client reuse, local Compose Redis and Vercel stdout logging. Added real app/routing policy tests and two-process real Redis/outage fixtures.
+- **Files changed:** src/config/{rate-limit.ts,env-schema.ts}, src/lib/{redis.ts,logger.ts}, .env.example, docker-compose.yml, docs/{UPSTASH,ENVIRONMENT,LOGGING}.md, tests/{cache/redis-client,config/environment,logging/logger}.test.ts, tests/rate-limit/* and sibling runtime verification artifacts.
+- **Endpoints / rate limiting:** Verified existing auth/protected routes and 429 headers/body/CORS; budget defaults and namespaces centralized for root-agent limiter changes. No schema, migration, permission, real account or application-data changes.
+- **Status:** Completed local verification. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Focused 6 suites/74 tests passed; one pre-existing rotation test excluded because declared pino-roll is absent from installed modules. Full source/test TypeScript and targeted ESLint passed. Real isolated Redis: 6 shared-process/identity/login tests plus 3 outage/recovery/decrement tests passed; Compose health/AOF persistence passed. Only owned test containers stopped; named volume retained. Upstash deferred by user; production Vercel storage/runtime acceptance remains external.
+
+## [2026-10-21 12:59] Codex/sidebar-counts
+
+- **Task:** Replace shell list-total requests with tenant-scoped aggregate counts.
+- **Summary:** Added one cached status aggregate per request/job/invoice module, compatible response shapes, strict empty query schemas, existing read permissions and feature documentation. Added real-auth/cache isolation, zero-count, permission-revocation, invalidation and failure tests with isolated adapters.
+- **Files changed:** src/modules/{service-request,job,invoice}/{schema,controller,routes,service,FEATURE.md}, tests/workflow/sidebar-counts.test.ts, ACTIVITY.md.
+- **Endpoints / rate limiting:** GET /api/{service-requests,jobs,invoices}/counts; authenticated module mounts use the shared API limiter coordinated in routes/index.ts.
+- **Status:** Completed count implementation and focused checks. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** 64 focused tests (33 new counts cases), targeted ESLint, full source/test TypeScript check and diff check passed. No schema/migration, dependency, database writes or production access; full-app and limiter verification coordinated by root agent.
+
+## [2026-10-21 11:50] Codex
+
+- **Task:** Audit backend contributions to delayed frontend navigation feedback.
+- **Summary:** Read dashboard/platform operations, request logging and cache documentation. Confirmed existing Promise.all query groups, scoped 30-second dashboard caches and intentional authorization/snapshot/dependent-query ordering. No server implementation edits.
+- **Files changed:** ACTIVITY.md only; sibling frontend implementation and complete inventory are documented in ../service-flow/docs/navigation-loading.md.
+- **Endpoints / rate limiting:** N/A; no endpoints, API contracts, schema, migrations, permissions or limits changed.
+- **Status:** Completed read-only audit. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** No backend tests or live tenant/production queries were run for this source-only audit. Existing responseTime logs/query plans are needed to measure real endpoint p50/p95 before optimizing transaction-bound aggregates. Frontend sample tests/build and appearance-waterfall fix are recorded in its activity log.
+
 ## [2026-10-21 05:29] Codex
 
 - **Task:** Restrict production seed to system administrator and global permissions.

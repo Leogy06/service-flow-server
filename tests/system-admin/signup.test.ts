@@ -1,7 +1,9 @@
 import { jest } from "@jest/globals";
 import express from "express";
+import { MemoryStore } from "express-rate-limit";
 import request from "supertest";
 import bcrypt from "bcryptjs";
+import { rateLimitEnvironmentSchema } from "../../src/config/rate-limit.js";
 import type { Prisma, SignupRequest } from "../../src/generated/prisma/client.js";
 import { TENANT_ADMIN_PERMISSIONS } from "../../src/constants/default-roles.js";
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from "../../src/constants/legal.js";
@@ -71,11 +73,10 @@ const db = {
   }),
 };
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma: db }));
-jest.unstable_mockModule("@/lib/redis.js", () => ({ redis: {} }));
+jest.unstable_mockModule("@/lib/redis.js", () => ({ redis: {}, redisReady: async () => {} }));
 jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn() }));
-jest.unstable_mockModule("@/config/env.js", () => ({ env: { SALT_ROUNDS: 4, SIGNUP_RATE_LIMIT_WINDOW_MS: 60000, SIGNUP_RATE_LIMIT_MAX: 2, REFUND_RATE_LIMIT_WINDOW_MS: 60000, REFUND_RATE_LIMIT_MAX: 10 } }));
-jest.unstable_mockModule("rate-limit-redis", async () => {
-  const { MemoryStore } = await import("express-rate-limit");
+jest.unstable_mockModule("@/config/env.js", () => ({ env: { ...rateLimitEnvironmentSchema.parse({}), APP_ENV: "test", SALT_ROUNDS: 4, SIGNUP_RATE_LIMIT_WINDOW_MS: 60000, SIGNUP_RATE_LIMIT_MAX: 2, REFUND_RATE_LIMIT_WINDOW_MS: 60000, REFUND_RATE_LIMIT_MAX: 10 } }));
+jest.unstable_mockModule("rate-limit-redis", () => {
   return { RedisStore: class extends MemoryStore { constructor() { super(); } } };
 });
 jest.unstable_mockModule("@/utils/tokens.js", () => ({ verifyAccessToken: (token: string) => ({ sub: token }) }));

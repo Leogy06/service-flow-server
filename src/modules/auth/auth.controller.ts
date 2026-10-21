@@ -5,6 +5,7 @@ import { REFRESH_TOKEN_DAYS } from "@/utils/tokens";
 import { sendResponse } from "@/utils/sendResponse";
 import { profileService } from "./profile.service";
 import { env } from "@/config/env";
+import { clearRefreshCookies } from "@/middleware/clear-refresh-cookies";
 
 const refreshCookieOptions = {
   httpOnly: true,
@@ -64,10 +65,9 @@ export const authController = {
 
   async logout(req: Request, res: Response, next: NextFunction) {
     try {
+      clearRefreshCookies(res);
       const token = req.cookies.refreshToken;
       if (token) await authService.logout(token);
-      res.clearCookie("refreshToken", { path: "/api/auth" });
-      res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
       res.json({ message: "Logged out" });
     } catch (err) {
       next(err);

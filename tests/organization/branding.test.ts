@@ -1,10 +1,12 @@
 import { jest } from "@jest/globals";
 import express from "express";
+import { MemoryStore } from "express-rate-limit";
 import request from "supertest";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { OrganizationSettings } from "../../src/generated/prisma/client.js";
+import { rateLimitEnvironmentSchema } from "../../src/config/rate-limit.js";
 
 const directory = await mkdtemp(join(tmpdir(), "service-flow-branding-"));
 let rows = new Map<string, OrganizationSettings>();
@@ -44,11 +46,12 @@ const prisma = {
 };
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma }));
 jest.unstable_mockModule("@/lib/logger.js", () => ({ logger: { warn: jest.fn(), error: jest.fn() } }));
-jest.unstable_mockModule("@/lib/redis.js", () => ({ redis: {} }));
+jest.unstable_mockModule("@/lib/redis.js", () => ({ redis: {}, redisReady: async () => {} }));
 jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn() }));
 jest.unstable_mockModule("@/utils/tokens.js", () => ({ verifyAccessToken: (token: string) => ({ sub: token, sessionVersion: 0 }) }));
-jest.unstable_mockModule("rate-limit-redis", async () => { const { MemoryStore } = await import("express-rate-limit"); return { RedisStore: class extends MemoryStore { constructor() { super(); } } }; });
+jest.unstable_mockModule("rate-limit-redis", () => ({ RedisStore: class extends MemoryStore { constructor() { super(); } } }));
 jest.unstable_mockModule("@/config/env.js", () => ({ env: {
+  ...rateLimitEnvironmentSchema.parse({}), APP_ENV: "test",
   BRANDING_UPLOAD_DIR: directory,
   BRANDING_UPLOAD_RATE_LIMIT_WINDOW_MS: 60000, BRANDING_UPLOAD_RATE_LIMIT_MAX: 2,
   BRANDING_ASSET_RATE_LIMIT_WINDOW_MS: 60000, BRANDING_ASSET_RATE_LIMIT_MAX: 2,
@@ -65,7 +68,7 @@ const { withRequestContext } = await import("@/middleware/requestContext.middlew
 const { apiLimiter, writeLimmiter, brandingUploadLimiter, brandingAssetLimiter } = await import("@/middleware/rateLimiter.js");
 const { ipKeyGenerator } = await import("express-rate-limit");
 const app = express();
-app.use(express.json(), withRequestContext, apiLimiter);
+app.use(express.json(), withRequestContext);
 app.use("/api/organization", brandingRoutes);
 app.use(((error, _req, res, _next) => res.status(error.statusCode ?? 500).json({ error: error.message })) as express.ErrorRequestHandler);
 const path = "/api/organization/settings";
@@ -75,7 +78,7 @@ beforeEach(async () => {
   jest.clearAllMocks(); rows = new Map(); audits = []; failAudit = false; organizations.set("org-a", "ACTIVE");
   for (const filename of await readdir(directory)) await rm(join(directory, filename));
   for (const ip of ["::ffff:127.0.0.1", "127.0.0.1", "::1"]) for (const limiter of [apiLimiter, writeLimmiter, brandingAssetLimiter]) await limiter.resetKey(ipKeyGenerator(ip));
-  for (const id of ["admin", "admin-b", "staff"]) await brandingUploadLimiter.resetKey(id);
+  for (const id of ["admin", "admin-b", "staff"]) for (const limiter of [apiLimiter, writeLimmiter, brandingUploadLimiter]) await limiter.resetKey(`u:${id}`);
 });
 afterAll(async () => { await rm(directory, { recursive: true, force: true }); });
 

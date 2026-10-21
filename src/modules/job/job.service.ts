@@ -93,6 +93,18 @@ function jobScopeWhere(
 }
 
 export const jobService = {
+  async counts() {
+    const organizationId = tenantOrganization();
+    return cachedRead("jobs", "counts", {}, () => tenantTransaction(async (db) => {
+      const groups = await db.job.groupBy({
+        by: ["status"], where: { organizationId }, _count: { _all: true },
+      });
+      return {
+        assigned: groups.find((group) => group.status === "ASSIGNED")?._count._all ?? 0,
+        inProgress: groups.find((group) => group.status === "IN_PROGRESS")?._count._all ?? 0,
+      };
+    }));
+  },
   async filters(query: JobFilters) {
     const organizationId = tenantOrganization();
     const where = jobScopeWhere(query, organizationId);

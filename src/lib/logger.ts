@@ -3,6 +3,8 @@ import { env } from "@/config/env";
 
 const isTest = env.NODE_ENV === "test";
 const isProduction = env.NODE_ENV === "production";
+// Vercel's deployed filesystem is read-only; its platform captures stdout.
+const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
 const sensitiveRedaction = {
   paths: ["req.headers.authorization", "req.headers.cookie", "res.headers[\"set-cookie\"]", "req.body.password",
     "req.body.currentPassword", "req.body.newPassword", "req.body.confirmPassword", "req.body.token",
@@ -23,7 +25,7 @@ export const logger = pino(
 
           redact: sensitiveRedaction,
 
-          transport: {
+          ...(!isVercel && { transport: {
             targets: [
               { target: "pino/file", options: { destination: 1 } },
               {
@@ -43,7 +45,7 @@ export const logger = pino(
                 },
               },
             ],
-          },
+          } }),
         }
       : {
           level: env.LOG_LEVEL || "debug",

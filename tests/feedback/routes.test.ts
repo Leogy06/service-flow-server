@@ -1,14 +1,16 @@
 import { jest } from "@jest/globals";
 import express from "express";
+import { MemoryStore } from "express-rate-limit";
 import request from "supertest";
+import { rateLimitEnvironmentSchema } from "../../src/config/rate-limit.js";
 
-jest.unstable_mockModule("rate-limit-redis", async () => {
-  const { MemoryStore } = await import("express-rate-limit");
+jest.unstable_mockModule("rate-limit-redis", () => {
   return { RedisStore: class extends MemoryStore { constructor() { super(); } } };
 });
-jest.unstable_mockModule("@/lib/redis.js", () => ({ redis: {} }));
+jest.unstable_mockModule("@/lib/redis.js", () => ({ redis: {}, redisReady: async () => {} }));
 jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn() }));
 jest.unstable_mockModule("@/config/env.js", () => ({ env: {
+  ...rateLimitEnvironmentSchema.parse({}), APP_ENV: "test",
   FEEDBACK_RATE_LIMIT_WINDOW_MS: 60000, FEEDBACK_RATE_LIMIT_MAX: 2,
   REFUND_RATE_LIMIT_WINDOW_MS: 60000, REFUND_RATE_LIMIT_MAX: 2,
   SIGNUP_RATE_LIMIT_WINDOW_MS: 60000, SIGNUP_RATE_LIMIT_MAX: 2,
@@ -38,7 +40,7 @@ const service = {
 jest.unstable_mockModule("@/modules/feedback/feedback.service.js", () => ({ feedbackService: service }));
 const { tenantFeedbackRoutes, platformFeedbackRoutes, publicFeedbackRoutes } = await import("@/modules/feedback/feedback.routes.js");
 const { withRequestContext } = await import("@/middleware/requestContext.middleware.js");
-const { feedbackLimiter, writeLimmiter } = await import("@/middleware/rateLimiter.js");
+const { feedbackLimiter, publicWriteLimiter, writeLimmiter } = await import("@/middleware/rateLimiter.js");
 const { ipKeyGenerator } = await import("express-rate-limit");
 const app = express();
 app.use(express.json(), withRequestContext);
@@ -49,8 +51,9 @@ const input = { rating: 4, comment: "Useful product", submissionKey: "12345678-1
 beforeEach(async () => {
   jest.clearAllMocks();
   for (const ip of ["::ffff:127.0.0.1", "127.0.0.1", "::1"]) {
-    await feedbackLimiter.resetKey(ipKeyGenerator(ip)); await writeLimmiter.resetKey(ipKeyGenerator(ip));
+    await feedbackLimiter.resetKey(ipKeyGenerator(ip)); await publicWriteLimiter.resetKey(ipKeyGenerator(ip)); await writeLimmiter.resetKey(ipKeyGenerator(ip));
   }
+  for (const id of ["staff", "tenant", "operator", "denied"]) await writeLimmiter.resetKey(`u:${id}`);
 });
 test.each([
   ["get", "/tenant/product/mine", {}], ["post", "/tenant/product", input],
@@ -89,7 +92,7 @@ test.each(["context", "submit", "withdraw-consent"])("public %s has a real confi
   expect(blocked.status).toBe(429); expect(Number(blocked.headers["retry-after"])).toBeGreaterThan(0);
 });
 test("authenticated writes use the existing write limiter", async () => {
-  // A prior request consumes the remaining write budget; do not weaken production limits.
+  // Reset the authenticated user's bucket between cases; exercise the actual limit.
   for (let index = 0; index < 30; index++) expect((await request(app).post("/tenant/product/a/withdraw-consent").auth("staff", { type: "bearer" })).status).toBe(200);
   const blocked = await request(app).post("/tenant/product/a/withdraw-consent").auth("staff", { type: "bearer" });
   expect(blocked.status).toBe(429); expect(Number(blocked.headers["retry-after"])).toBeGreaterThan(0);

@@ -10,6 +10,11 @@ Request lists support optional status, priority and service-type filters combine
 with search before counting and pagination. Priority accepts only LOW, NORMAL,
 HIGH or URGENT; all reads retain the trusted organization scope.
 
+`GET /api/service-requests/counts` requires `service_request:read` and returns
+tenant-wide pending/in-progress badges, all status buckets and the total from one
+aggregate query. It accepts no query parameters and uses the same tenant-scoped
+cache and invalidation as lists, independently of table filters.
+
 Lists/details, customer choices and service types use shared Redis caching.
 Request writes invalidate requests, related job projections and dashboard;
 service-type writes also refresh service-type choices and embedded names/prices.

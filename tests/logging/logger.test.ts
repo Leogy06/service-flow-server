@@ -8,6 +8,8 @@ import type { Writable } from "node:stream";
 import pino, { type LoggerOptions } from "pino";
 
 const settings = { NODE_ENV: "production", LOG_LEVEL: "info", LOG_MAX_FILES: 2 };
+const originalVercel = process.env.VERCEL;
+const originalVercelEnv = process.env.VERCEL_ENV;
 const createLogger = jest.fn((_options: LoggerOptions) => pino({ level: "silent" }));
 Object.assign(createLogger, { stdTimeFunctions: pino.stdTimeFunctions });
 jest.unstable_mockModule("pino", () => ({ default: createLogger }));
@@ -17,6 +19,15 @@ beforeEach(() => {
   jest.resetModules();
   createLogger.mockClear();
   settings.NODE_ENV = "production";
+  delete process.env.VERCEL;
+  delete process.env.VERCEL_ENV;
+});
+
+afterEach(() => {
+  if (originalVercel === undefined) delete process.env.VERCEL;
+  else process.env.VERCEL = originalVercel;
+  if (originalVercelEnv === undefined) delete process.env.VERCEL_ENV;
+  else process.env.VERCEL_ENV = originalVercelEnv;
 });
 
 async function configuredOptions() {
@@ -76,6 +87,14 @@ test("bounds matching files across rotations and removes logs from previous runs
 test("development uses only the pretty console transport", async () => {
   settings.NODE_ENV = "development";
   expect((await configuredOptions()).transport).toMatchObject({ target: "pino-pretty" });
+});
+
+test.each(["VERCEL", "VERCEL_ENV"])("production %s deployments use stdout without filesystem transports", async (key) => {
+  process.env[key] = key === "VERCEL" ? "1" : "preview";
+  const options = await configuredOptions();
+  expect(options.transport).toBeUndefined();
+  expect(options.level).toBe("info");
+  expect(options.redact).toBeDefined();
 });
 
 test("tests are silent and do not open file transports", async () => {

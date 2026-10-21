@@ -5,7 +5,7 @@ import { requirePermission } from "@/middleware/require-permission";
 import { requirePlatformAdmin } from "@/middleware/require-platform-admin";
 import { PERMISSIONS } from "@/constants/permission.constants";
 import { validate } from "@/middleware/validate";
-import { writeLimmiter } from "@/middleware/rateLimiter";
+import { apiLimiter, writeLimmiter } from "@/middleware/rateLimiter";
 import {
   updateUserPermissionSchema,
   userPermissionParamsSchema,
@@ -13,7 +13,7 @@ import {
 } from "./user.permission.schema";
 
 const userPermissionRoutes = Router();
-userPermissionRoutes.use(authenticate);
+userPermissionRoutes.use(authenticate, apiLimiter);
 userPermissionRoutes.patch(
   "/system-admin/:userId",
   requirePlatformAdmin,

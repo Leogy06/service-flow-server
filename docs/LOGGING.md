@@ -17,7 +17,10 @@ Successful responses use `info`, 4xx responses use `warn` and 5xx/errors use
 `error`. Keep `LOG_LEVEL=info` to retain every request summary; higher levels
 filter out lower-severity requests. Tests are silent. Development uses the
 pretty console output only. Production writes JSON to stdout and rolling files
-under `logs/`, relative to the backend process's working directory.
+under `logs/`, relative to the backend process's working directory. On Vercel
+(`VERCEL` or `VERCEL_ENV` is present), production writes directly to stdout without
+a file transport or transport worker; configure retention in the hosting platform.
+The following file-retention policy applies to VPS and other persistent runtimes.
 
 Files rotate daily or at approximately 10 MiB, whichever happens first.
 `LOG_MAX_FILES` is a validated positive integer, defaulting to 14. At rotation,

@@ -1,15 +1,16 @@
 import { jest } from "@jest/globals";
 import express from "express";
+import { MemoryStore } from "express-rate-limit";
 import request from "supertest";
+import { rateLimitEnvironmentSchema } from "../../src/config/rate-limit.js";
 
 // Keep the real limiter, headers, key generator and route wiring; replace only Redis storage.
-jest.unstable_mockModule("rate-limit-redis", async () => {
-  const { MemoryStore } = await import("express-rate-limit");
+jest.unstable_mockModule("rate-limit-redis", () => {
   return { RedisStore: class extends MemoryStore { constructor() { super(); } } };
 });
-jest.unstable_mockModule("@/lib/redis.js", () => ({ redis: {} }));
+jest.unstable_mockModule("@/lib/redis.js", () => ({ redis: {}, redisReady: async () => {} }));
 jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn() }));
-jest.unstable_mockModule("@/config/env.js", () => ({ env: { REFUND_RATE_LIMIT_WINDOW_MS: 60000, REFUND_RATE_LIMIT_MAX: 2, SIGNUP_RATE_LIMIT_WINDOW_MS: 60000, SIGNUP_RATE_LIMIT_MAX: 2 } }));
+jest.unstable_mockModule("@/config/env.js", () => ({ env: { ...rateLimitEnvironmentSchema.parse({}), APP_ENV: "test", REFUND_RATE_LIMIT_WINDOW_MS: 60000, REFUND_RATE_LIMIT_MAX: 2, SIGNUP_RATE_LIMIT_WINDOW_MS: 60000, SIGNUP_RATE_LIMIT_MAX: 2 } }));
 jest.unstable_mockModule("@/utils/tokens.js", () => ({ verifyAccessToken: (token: string) => ({ sub: token, sessionVersion: 0 }) }));
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma: {
   user: { findUnique: jest.fn(async ({ where }: { where: { id: string } }) => ({

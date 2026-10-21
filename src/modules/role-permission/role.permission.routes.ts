@@ -9,13 +9,14 @@ import { validate } from "@/middleware/validate";
 import { authenticate } from "@/middleware/auth";
 import { requirePermission } from "@/middleware/require-permission";
 import { PERMISSIONS } from "@/constants/permission.constants";
-import { writeLimmiter } from "@/middleware/rateLimiter";
+import { apiLimiter, writeLimmiter } from "@/middleware/rateLimiter";
 
 const rolePermissionRoutes = Router();
 
 rolePermissionRoutes.get(
   "/:roleId",
   authenticate,
+  apiLimiter,
   requirePermission(PERMISSIONS.ROLE_READ),
   validate(rolePermissionParamsSchema),
   rolePermissionController.list,
@@ -23,6 +24,7 @@ rolePermissionRoutes.get(
 rolePermissionRoutes.post(
   "/",
   authenticate,
+  apiLimiter,
   requirePermission(PERMISSIONS.ROLE_UPDATE),
   writeLimmiter,
   validate(createRolePermissionSchema),
@@ -32,6 +34,7 @@ rolePermissionRoutes.post(
 rolePermissionRoutes.patch(
   "/:roleId",
   authenticate,
+  apiLimiter,
   requirePermission(PERMISSIONS.ROLE_UPDATE),
   writeLimmiter,
   validate(updateRolePermission),

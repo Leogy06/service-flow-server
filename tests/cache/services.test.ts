@@ -43,7 +43,7 @@ const db = {
   $transaction: jest.fn(async (work: (tx: unknown) => Promise<unknown>) => work(db)),
 };
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma: db }));
-jest.unstable_mockModule("@/lib/redis.js", () => ({ redis }));
+jest.unstable_mockModule("@/lib/redis.js", () => ({ redis, redisReady: async () => {} }));
 jest.unstable_mockModule("@/lib/logger.js", () => ({ logger: { error: jest.fn() } }));
 jest.unstable_mockModule("@/modules/audit/audit.service.js", () => ({ auditService: { record: jest.fn(async () => {}), recordInTransaction: jest.fn(async () => {}) } }));
 jest.unstable_mockModule("@/modules/role/tenant-access-policy.js", () => ({ isTenantAdminName: (role: string) => role === "Admin" }));

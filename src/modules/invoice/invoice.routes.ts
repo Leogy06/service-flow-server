@@ -9,12 +9,19 @@ import { recordPayment } from "@/modules/payment/payment.controller";
 import { invoiceController as c } from "./invoice.controller";
 import {
   invoiceListInput,
+  invoiceCountsInput,
   createInvoiceInput,
   updateInvoiceInput,
   voidInvoiceInput,
 } from "./invoice.schema";
 
 const routes = Router();
+routes.get(
+  "/counts",
+  requirePermission(P.INVOICE_READ),
+  validate(invoiceCountsInput),
+  c.counts,
+);
 routes.get(
   "/",
   requirePermission(P.INVOICE_READ),

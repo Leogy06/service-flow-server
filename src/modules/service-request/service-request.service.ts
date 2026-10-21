@@ -68,6 +68,24 @@ async function existing(
   return row;
 }
 export const serviceRequestService = {
+  async counts() {
+    const organizationId = organization();
+    return cachedRead("serviceRequests", "counts", {}, () => transaction(async (db) => {
+      const groups = await db.serviceRequest.groupBy({
+        by: ["status"], where: { organizationId }, _count: { _all: true },
+      });
+      const byStatus: Record<ServiceRequestStatus, number> = {
+        PENDING: 0, IN_PROGRESS: 0, COMPLETED: 0, CANCELLED: 0,
+      };
+      for (const group of groups) byStatus[group.status] = group._count._all;
+      return {
+        pending: byStatus.PENDING,
+        inProgress: byStatus.IN_PROGRESS,
+        byStatus,
+        total: groups.reduce((total, group) => total + group._count._all, 0),
+      };
+    }));
+  },
   async list(query: RequestList) {
     const organizationId = organization();
     const where: Prisma.ServiceRequestWhereInput = {

@@ -103,7 +103,7 @@ const db: any = {
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma: db }));
 jest.unstable_mockModule("@/config/env.js", () => ({ env: { SALT_ROUNDS: 4, ACCESS_TOKEN_EXPIRY: 900, NODE_ENV: "test" } }));
 jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn(async () => {}) }));
-jest.unstable_mockModule("@/middleware/rateLimiter.js", () => { const pass = (_req: unknown, _res: unknown, next: () => void) => next(); return { writeLimmiter: pass, brandingAssetLimiter: pass, brandingUploadLimiter: pass, publicPageLimiter: pass }; });
+jest.unstable_mockModule("@/middleware/rateLimiter.js", () => { const pass = (_req: unknown, _res: unknown, next: () => void) => next(); return { apiLimiter: pass, publicApiLimiter: pass, writeLimmiter: pass, brandingAssetLimiter: pass, brandingUploadLimiter: pass, publicPageLimiter: pass }; });
 jest.unstable_mockModule("@/utils/tokens.js", () => ({
   verifyAccessToken: (token: string) => ({ sub: token.split("#")[0], sessionVersion: Number(token.split("#")[1] ?? 0), role: "SYSTEM_ADMIN", platformRole: "SYSTEM_ADMIN", organizationId: "org-b", permissions: ["system_admin:update"] }),
   generateAccessToken: (user: Row) => user.id + "#" + user.sessionVersion,

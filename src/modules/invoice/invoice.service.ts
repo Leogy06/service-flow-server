@@ -49,6 +49,18 @@ export function withBalance<
 }
 
 export const invoiceService = {
+  async counts() {
+    const organizationId = tenantOrganization();
+    return cachedRead("invoices", "counts", {}, () => tenantTransaction(async (db) => {
+      const groups = await db.invoice.groupBy({
+        by: ["status"], where: { organizationId }, _count: { _all: true },
+      });
+      return {
+        unpaid: groups.find((group) => group.status === "UNPAID")?._count._all ?? 0,
+        partiallyPaid: groups.find((group) => group.status === "PARTIALLY_PAID")?._count._all ?? 0,
+      };
+    }));
+  },
   async list(query: InvoiceList) {
     const organizationId = tenantOrganization();
     const where: Prisma.InvoiceWhereInput = {

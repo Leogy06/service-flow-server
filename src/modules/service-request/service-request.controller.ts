@@ -26,6 +26,7 @@ function handler(
 }
 const id = (req: Request) => (req.validated.params as { id: string }).id;
 export const serviceRequestController = {
+  counts: handler(() => service.counts(), "Service request counts fetched"),
   list: handler(
     (req) => service.list(req.validated.query as RequestList),
     "Service requests fetched",

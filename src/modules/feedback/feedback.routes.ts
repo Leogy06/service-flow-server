@@ -2,7 +2,7 @@ import { Router } from "express";
 import { authenticate } from "@/middleware/auth";
 import { requireSystemAdmin } from "@/middleware/require-platform-admin";
 import { requirePermission } from "@/middleware/require-permission";
-import { feedbackLimiter, writeLimmiter } from "@/middleware/rateLimiter";
+import { apiLimiter, feedbackLimiter, publicWriteLimiter, writeLimmiter } from "@/middleware/rateLimiter";
 import { validate } from "@/middleware/validate";
 import { tenantOrganization } from "@/utils/tenant-transaction";
 import { PERMISSIONS as P } from "@/constants/permission.constants";
@@ -15,7 +15,7 @@ function privateRouter() {
   return routes;
 }
 export const tenantFeedbackRoutes = privateRouter();
-tenantFeedbackRoutes.use(authenticate, (_req, _res, next) => {
+tenantFeedbackRoutes.use(authenticate, apiLimiter, (_req, _res, next) => {
   try { tenantOrganization(); next(); } catch (error) { next(error); }
 });
 tenantFeedbackRoutes.post("/product", writeLimmiter, validate(productInput), c.submitProduct);
@@ -26,7 +26,7 @@ tenantFeedbackRoutes.patch("/customers/:id", writeLimmiter, requirePermission(P.
 tenantFeedbackRoutes.post("/invitations", writeLimmiter, requirePermission(P.FEEDBACK_CREATE), requirePermission(P.SERVICE_REQUEST_READ), validate(invitationInput), c.createInvitation);
 
 export const platformFeedbackRoutes = privateRouter();
-platformFeedbackRoutes.use(authenticate, requireSystemAdmin);
+platformFeedbackRoutes.use(authenticate, apiLimiter, requireSystemAdmin);
 platformFeedbackRoutes.get("/", validate(listInput), c.listProduct);
 platformFeedbackRoutes.patch("/:id", writeLimmiter, validate(reviewInput), c.reviewProduct);
 
@@ -34,5 +34,5 @@ export const publicFeedbackRoutes = privateRouter();
 publicFeedbackRoutes.use(feedbackLimiter);
 // Tokens stay in POST bodies so request URLs and referer headers cannot disclose them.
 publicFeedbackRoutes.post("/context", validate(publicTokenInput), c.publicContext);
-publicFeedbackRoutes.post("/submit", writeLimmiter, validate(publicSubmitInput), c.submitCustomer);
-publicFeedbackRoutes.post("/withdraw-consent", writeLimmiter, validate(publicTokenInput), c.withdrawCustomer);
+publicFeedbackRoutes.post("/submit", publicWriteLimiter, validate(publicSubmitInput), c.submitCustomer);
+publicFeedbackRoutes.post("/withdraw-consent", publicWriteLimiter, validate(publicTokenInput), c.withdrawCustomer);

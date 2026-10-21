@@ -7,6 +7,9 @@ edited or voided. Tenant ownership, unique job invoicing and audits are enforced
 inside transactions.
 
 Lists/details use shared Redis caching, preserving Prisma Decimal values on hits.
+`GET /api/invoices/counts` requires `invoice:read` and returns tenant-wide unpaid
+and partially-paid counts from one aggregate query. It accepts no query parameters
+and shares invoice cache invalidation, independently of table filters.
 Invoice and payment writes invalidate invoice projections, billable-job views and
 dashboard after commit. Customer edits refresh embedded customer names. Invoice
 mutation checks and payment balance validation always query the database. See

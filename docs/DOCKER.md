@@ -8,7 +8,10 @@ below needs adaptation before reuse with these restrictions.
 The complete single-VPS setup is now `../../deploy/compose.yml` with instructions
 in `../../deploy/README.md`. From this backend directory, run
 `npm run test:predeploy:vps` to build and exercise it in a fresh isolated test
-project. The empty legacy `docker-compose.yml` in this directory is not used.
+project. The `docker-compose.yml` in this directory now supplies local Redis only:
+run `docker compose up -d --wait redis`, with `REDIS_PORT` set if 6379 is occupied.
+It binds loopback, has a healthcheck and persists AOF data in `redis_data`.
+Do not use that development-only service as an internet-facing production Redis.
 The VPS file supplies production origins, private MySQL networking and external
 Upstash Redis via a backend-only TLS `REDIS_URL` (see [setup](UPSTASH.md)),
 persistent volumes and a Caddy HTTPS proxy. Keep development env files unchanged.

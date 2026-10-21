@@ -3,8 +3,10 @@
 Use Node 24 and Bash (Git Bash/WSL on Windows). Configure private
 `backend/.env.development` and `backend/.env.production` using `.env.example`.
 All required blank values must be filled. Existing files/values are not replaced.
-`DATABASE_URL`, `REDIS_URL`, `CORS_ORIGIN`, both JWT secrets, `RESEND_API_KEY` and
+`DATABASE_URL`, `CORS_ORIGIN`, both JWT secrets, `RESEND_API_KEY` and
 `EMAIL_FROM` are required; the example lists all supported settings and defaults.
+`REDIS_URL` defaults to `redis://localhost:6379` for local development. Production
+requires an explicit verified `rediss://` connection URL and rejects the local default.
 
 From `backend`:
 

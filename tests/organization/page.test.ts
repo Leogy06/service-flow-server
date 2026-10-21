@@ -1,7 +1,9 @@
 import { jest } from "@jest/globals";
 import express from "express";
+import { MemoryStore } from "express-rate-limit";
 import request from "supertest";
 import type { OrganizationPage } from "../../src/generated/prisma/client.js";
+import { rateLimitEnvironmentSchema } from "../../src/config/rate-limit.js";
 
 let rows = new Map<string, OrganizationPage>();
 let audits: unknown[] = [];
@@ -39,11 +41,11 @@ const prisma = {
 };
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma }));
 jest.unstable_mockModule("@/lib/logger.js", () => ({ logger: { warn: jest.fn(), error: jest.fn() } }));
-jest.unstable_mockModule("@/lib/redis.js", () => ({ redis: {} }));
+jest.unstable_mockModule("@/lib/redis.js", () => ({ redis: {}, redisReady: async () => {} }));
 jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn() }));
 jest.unstable_mockModule("@/utils/tokens.js", () => ({ verifyAccessToken: (token: string) => ({ sub: token, sessionVersion: 0 }) }));
-jest.unstable_mockModule("rate-limit-redis", async () => { const { MemoryStore } = await import("express-rate-limit"); return { RedisStore: class extends MemoryStore { constructor() { super(); } } }; });
-jest.unstable_mockModule("@/config/env.js", () => ({ env: { PUBLIC_PAGE_RATE_LIMIT_WINDOW_MS: 60000, PUBLIC_PAGE_RATE_LIMIT_MAX: 2 } }));
+jest.unstable_mockModule("rate-limit-redis", () => ({ RedisStore: class extends MemoryStore { constructor() { super(); } } }));
+jest.unstable_mockModule("@/config/env.js", () => ({ env: { ...rateLimitEnvironmentSchema.parse({}), APP_ENV: "test", PUBLIC_PAGE_RATE_LIMIT_WINDOW_MS: 60000, PUBLIC_PAGE_RATE_LIMIT_MAX: 2 } }));
 const { requestContext } = await import("@/lib/requestContext.js");
 const { organizationPageService: service } = await import("@/modules/organization/page.service.js");
 const { organizationPageRoutes } = await import("@/modules/organization/page.routes.js");
@@ -54,7 +56,7 @@ const { withRequestContext } = await import("@/middleware/requestContext.middlew
 const { apiLimiter, writeLimmiter, publicPageLimiter } = await import("@/middleware/rateLimiter.js");
 const { ipKeyGenerator } = await import("express-rate-limit");
 const app = express();
-app.use(express.json(), withRequestContext, apiLimiter);
+app.use(express.json(), withRequestContext);
 app.use("/api/organization", organizationPageRoutes);
 app.use(((error, _req, res, _next) => res.status(error.statusCode ?? 500).json({ error: error.message })) as express.ErrorRequestHandler);
 const path = "/api/organization/page";
@@ -67,6 +69,7 @@ beforeEach(async () => {
   hasSettings = true;
   jest.clearAllMocks(); rows = new Map(); audits = []; failAudit = false; organizations.set("org-a", "ACTIVE");
   for (const ip of ["::ffff:127.0.0.1", "127.0.0.1", "::1"]) for (const limiter of [apiLimiter, writeLimmiter, publicPageLimiter]) await limiter.resetKey(ipKeyGenerator(ip));
+  for (const id of ["admin", "admin-b", "staff", "operator"]) for (const limiter of [apiLimiter, writeLimmiter]) await limiter.resetKey(`u:${id}`);
 });
 
 test("new tenant has an empty private draft without writes", async () => {

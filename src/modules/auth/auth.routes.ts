@@ -1,10 +1,14 @@
 import { Router } from "express";
 import { authenticate } from "@/middleware/auth";
+import { clearLogoutCookies } from "@/middleware/clear-refresh-cookies";
 import { validate } from "@/middleware/validate";
 import { registerSchema, loginSchema } from "@/modules/auth/auth.schema";
 import { authController } from "@/modules/auth/auth.controller";
 import {
   authLimiter,
+  apiLimiter,
+  publicApiLimiter,
+  refreshLimiter,
   signupLimiter,
   strictLimiter,
   writeLimmiter,
@@ -19,7 +23,6 @@ const router = Router();
 router.post(
   "/register",
   signupLimiter,
-  authLimiter,
   validate(registerSchema),
   authController.register,
 );
@@ -30,19 +33,21 @@ router.post(
   validate(setPasswordSchema),
   userController.setPassword,
 );
-router.post("/refresh", authLimiter, authController.refresh);
-router.post("/logout", authController.logout);
+router.post("/refresh", refreshLimiter, authController.refresh);
+router.post("/logout", clearLogoutCookies, publicApiLimiter, authController.logout);
 router.post(
   "/logout-all",
   authenticate,
+  apiLimiter,
   strictLimiter,
   authController.logoutAll,
 );
-router.get("/me", authenticate, authController.me);
-router.get("/profile", authenticate, profileController.get);
+router.get("/me", authenticate, apiLimiter, authController.me);
+router.get("/profile", authenticate, apiLimiter, profileController.get);
 router.patch(
   "/profile",
   authenticate,
+  apiLimiter,
   writeLimmiter,
   validate(updateProfileSchema),
   profileController.update,
@@ -50,6 +55,7 @@ router.patch(
 router.post(
   "/change-password",
   authenticate,
+  apiLimiter,
   strictLimiter,
   validate(changePasswordSchema),
   profileController.changePassword,

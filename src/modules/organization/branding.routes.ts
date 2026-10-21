@@ -1,7 +1,7 @@
 import { Router, raw, type RequestHandler } from "express";
 import { authenticate } from "@/middleware/auth";
 import { validate } from "@/middleware/validate";
-import { brandingAssetLimiter, brandingUploadLimiter, writeLimmiter } from "@/middleware/rateLimiter";
+import { apiLimiter, brandingAssetLimiter, brandingUploadLimiter, writeLimmiter } from "@/middleware/rateLimiter";
 import { AppError } from "@/utils/AppError";
 import { brandingController } from "./branding.controller";
 import { requireBrandingTenant } from "./branding.service";
@@ -21,9 +21,9 @@ const imageBody: RequestHandler = (req, res, next) => {
 };
 export const brandingRoutes = Router();
 brandingRoutes.get("/branding-assets/:filename", brandingAssetLimiter, validate(brandingAssetSchema), brandingController.asset);
-brandingRoutes.get("/settings", authenticate, tenant, validate(brandingReadSchema), brandingController.get);
-brandingRoutes.patch("/settings", authenticate, tenantAdmin, writeLimmiter, validate(brandingUpdateSchema), brandingController.update);
+brandingRoutes.get("/settings", authenticate, apiLimiter, tenant, validate(brandingReadSchema), brandingController.get);
+brandingRoutes.patch("/settings", authenticate, apiLimiter, tenantAdmin, writeLimmiter, validate(brandingUpdateSchema), brandingController.update);
 for (const kind of ["logo", "favicon"] as const) {
-  brandingRoutes.post(`/settings/${kind}`, authenticate, tenantAdmin, writeLimmiter, brandingUploadLimiter, validate(brandingReadSchema), imageBody, brandingController.upload(kind));
-  brandingRoutes.delete(`/settings/${kind}`, authenticate, tenantAdmin, writeLimmiter, validate(brandingReadSchema), brandingController.remove(kind));
+  brandingRoutes.post(`/settings/${kind}`, authenticate, apiLimiter, tenantAdmin, writeLimmiter, brandingUploadLimiter, validate(brandingReadSchema), imageBody, brandingController.upload(kind));
+  brandingRoutes.delete(`/settings/${kind}`, authenticate, apiLimiter, tenantAdmin, writeLimmiter, validate(brandingReadSchema), brandingController.remove(kind));
 }

@@ -36,9 +36,10 @@ permissions and schema remain unchanged for this addition.
   manual selection. Removing externally published copies requires manual follow-up.
 - Mutations and audits commit together. Product submission keys and invitation
   uniqueness prevent duplicate responses. Audits omit comments and tokens.
-- All routes inherit the global API limiter. Authenticated writes use the shared
-  write limiter. Public context/submit/withdraw also use configurable Redis
-  `feedbackLimiter`; public writes additionally use the shared write limiter.
+- Private routes use the per-user API limiter after authentication, and writes
+  use the shared per-user write limiter. Public context/submit/withdraw use the
+  strict IP `feedbackLimiter`; public writes additionally retain their separate
+  30/hour IP `publicWriteLimiter`. Both public budgets fail closed on Redis errors.
 - Deploy the additive feedback migration and regenerate Prisma before use.
   Existing tenant Admin roles receive the new grants; Managers/Staff/custom
   roles retain their assignments. New Admin/Manager defaults include feedback;

@@ -68,7 +68,7 @@ jest.unstable_mockModule("@/utils/tokens.js", () => ({
 }));
 jest.unstable_mockModule("@/middleware/rateLimiter.js", () => {
   const pass = (_req: unknown, _res: unknown, next: () => void) => next();
-  return { authLimiter: pass, signupLimiter: pass, strictLimiter: pass, writeLimmiter: pass };
+  return { authLimiter: pass, refreshLimiter: pass, apiLimiter: pass, publicApiLimiter: pass, signupLimiter: pass, strictLimiter: pass, writeLimmiter: pass };
 });
 const { requestContext } = await import("@/lib/requestContext.js");
 jest.unstable_mockModule("@/modules/audit/audit.service.js", () => ({ auditService: {

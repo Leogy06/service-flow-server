@@ -20,6 +20,7 @@ export const updateRequestInput = z.object({ params, body: requestBody.partial()
   (value) => Object.keys(value).length > 0, "At least one field is required",
 ) });
 export const requestParamsInput = z.object({ params });
+export const requestCountsInput = z.object({ query: z.object({}).strict() });
 export const statusInput = z.object({ params, body: z.object({ status: z.enum(statuses) }) });
 export const requestListInput = z.object({ query: z.object({
   ...paging,
