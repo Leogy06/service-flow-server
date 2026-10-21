@@ -12,6 +12,15 @@ The standalone `npm run test:predeploy` additionally replays the history into a
 fresh isolated Linux MySQL 8.4 container with `lower_case_table_names=0`.
 Static checks do not validate MySQL syntax or data-dependent constraints.
 
+Primary-key replacements must drop and add the key in one `ALTER TABLE`, so the
+history replays on hosts enforcing `sql_require_primary_key=ON`. The regression
+suite also checks this requirement. For the explicitly authorized October 22
+rebuild of disposable Aiven `defaultdb`, the UserPermission key swap was combined
+and the final init_dev migration's SubscriptionRefund table casing was corrected.
+Those historical edits change checksums: use them for the fresh rebuild, and
+review migration-history reconciliation separately on any database where those
+migrations already succeeded. This is not authorization to reset other databases.
+
 ## Recovering the reported failed deployment
 
 Inspect the affected database before changing migration history:

@@ -54,6 +54,12 @@ test("read commands/generation need no production confirmation; write commands a
     assert.equal(commandPlan(["prod", ...args]).confirmation, false);
   }
   assert.equal(commandPlan(["prod", "migrate", "deploy"]).confirmation, true);
+  for (const flag of ["--applied", "--rolled-back"]) {
+    const plan = commandPlan(["prod", "migrate", "resolve", flag, "20260908120316_fix_userpermission_pk"]);
+    assert.equal(plan.confirmation, true);
+    assert.deepEqual(plan.childArgs.slice(1), ["migrate", "resolve", flag, "20260908120316_fix_userpermission_pk"]);
+  }
+  assert.equal(commandPlan(["prod", "migrate", "resolve", "--help"]).confirmation, false);
   assert.equal(commandPlan(["prod", "seed", "production", "--apply"]).confirmation, true);
   assert.equal(commandPlan(["prod", "studio", "--port", "5555"]).confirmation, true);
   assert.equal(commandPlan(["prod", "studio", "--help"]).confirmation, false);
@@ -73,7 +79,7 @@ test("seed shortcuts use the exact existing seed file and preserve flags", () =>
 });
 
 test("cancelled production confirmation never launches Prisma, Studio or a seed", async () => {
-  for (const args of [["migrate", "deploy"], ["studio"], ["seed", "production", "--apply"]]) {
+  for (const args of [["migrate", "deploy"], ["migrate", "resolve", "--applied", "20260908120316_fix_userpermission_pk"], ["migrate", "resolve", "--rolled-back", "20260908120316_fix_userpermission_pk"], ["studio"], ["seed", "production", "--apply"]]) {
     let executed = false;
     await assert.rejects(executePlan(commandPlan(["prod", ...args]), {}, {
       confirm: async () => false,

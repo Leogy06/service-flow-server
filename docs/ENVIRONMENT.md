@@ -131,7 +131,7 @@ commands cannot silently change that target. No manual sourcing is needed for
 these wrappers. Direct npx prisma commands still inherit the shell environment;
 use the wrappers for manual database work.
 
-Production migrate deploy, seed:prod --apply and Studio require typing production.
+Production migrate deploy/resolve, seed:prod --apply and Studio require typing production.
 Reset, migrate dev, db push/execute and tenant/sample seeds are blocked in prod.
 The default db seed updates tenant role permissions, so production uses the
 separate seed:prod command for global permissions and the system administrator
@@ -143,6 +143,54 @@ and plan seeds are restricted to development. Dry runs and read-only commands
 need no confirmation. An explicit dev
 reset still asks Prisma's normal destructive-operation confirmation and erases
 all data in the chosen development database; seeds run separately.
+
+### Recovering a failed production migration
+
+`P3009` means the selected database still contains an unresolved failed migration.
+Retrying `migrate deploy` does not clear that record. First inspect the actual
+table and migration state in the same production database:
+
+```sql
+SELECT DATABASE();
+SHOW CREATE TABLE `UserPermission`;
+SELECT migration_name, started_at, finished_at, rolled_back_at
+FROM `_prisma_migrations`
+WHERE migration_name = '20260908120316_fix_userpermission_pk';
+```
+
+For this specific migration, verify `id` and `isActive` exist and the unique
+index on `(userId, permissionId)` exists. If the primary key already uses `id`,
+do not run the key replacement again. If the original composite primary key
+remains, complete the replacement only after checking all `id` values are
+nonempty and unique (an empty table also satisfies that requirement):
+
+```sql
+SELECT COUNT(*) AS totalRows, COUNT(DISTINCT id) AS distinctIds,
+       COALESCE(SUM(id IS NULL OR id = ''), 0) AS invalidIds
+FROM `UserPermission`;
+
+-- Run only when totalRows = distinctIds and invalidIds = 0,
+-- with the old composite primary key still present.
+ALTER TABLE `UserPermission` DROP PRIMARY KEY, ADD PRIMARY KEY (`id`);
+SHOW CREATE TABLE `UserPermission`;
+```
+
+Only after verifying the full intended table state, record its completion:
+
+```sh
+npm run prisma:prod -- migrate resolve --applied 20260908120316_fix_userpermission_pk
+npm run prisma:prod -- migrate status
+# After reviewing remaining migrations:
+npm run prisma:prod -- migrate deploy
+```
+
+Check that the wrapper's host, port and database match the SQL console, and that
+`resolve` reports success before deploying. It requires typing `production`.
+`resolve --applied` records completed work; it does not run migration SQL.
+`resolve --rolled-back` records permission to retry; it does not undo partial DDL.
+Do not use rolled-back here while the added columns/index remain, because retrying
+the original migration will attempt to create them again. Do not edit already
+applied migration files, delete history records or reset the production database.
 
 ### Prisma Studio for production
 

@@ -53,9 +53,9 @@ export function commandPlan(argv) {
   const help = args.includes("--help") || args.includes("-h");
   const command = args.slice(0, 2).join(" ");
   if (mode === "prod" && !help) {
-    const allowed = ["migrate deploy", "migrate status", "migrate diff", "db pull", "seed production"];
+    const allowed = ["migrate deploy", "migrate status", "migrate diff", "migrate resolve", "db pull", "seed production"];
     if (!["generate", "validate", "format", "version", "--version", "-v", "studio"].includes(args[0]) && !allowed.includes(command)) {
-      throw new Error("Production permits generate/validate/format/version, studio, migrate deploy/status/diff, db pull, and seed production. Catalog plans, reset, migrate dev, db push/execute and tenant/sample seeds are blocked. Use seed:prod for system-admin and permissions only.");
+      throw new Error("Production permits generate/validate/format/version, studio, migrate deploy/status/diff/resolve, db pull, and seed production. Catalog plans, reset, migrate dev, db push/execute and tenant/sample seeds are blocked. Use seed:prod for system-admin and permissions only.");
     }
   }
   let childArgs = [resolve(backend, "node_modules/prisma/build/index.js"), ...args];
@@ -68,7 +68,7 @@ export function commandPlan(argv) {
     mode, childArgs,
     seed: args[0] === "seed" || command === "db seed",
     studio: args[0] === "studio" && !help,
-    confirmation: mode === "prod" && !help && (args[0] === "studio" || command === "migrate deploy" || (command === "seed production" && args.includes("--apply"))),
+    confirmation: mode === "prod" && !help && (args[0] === "studio" || command === "migrate deploy" || command === "migrate resolve" || (command === "seed production" && args.includes("--apply"))),
   };
 }
 

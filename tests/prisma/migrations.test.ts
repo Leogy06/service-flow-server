@@ -30,3 +30,12 @@ const results = migrations.map(([name, sql]) => {
 test.each(results)("%s uses previously declared table names with exact casing", (_name, errors) => {
   expect(errors).toEqual([]);
 });
+
+test.each(migrations)("%s preserves a primary key when replacing it", (_name, sql) => {
+  const statements = sql.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--[^\r\n]*/g, "").split(";");
+  for (const statement of statements) {
+    if (/\bDROP\s+PRIMARY\s+KEY\b/i.test(statement)) {
+      expect(statement).toMatch(/\bADD\s+PRIMARY\s+KEY\b/i);
+    }
+  }
+});

@@ -1,3 +1,21 @@
+## [2026-10-22 01:04] Codex
+
+- **Task:** Reset disposable production Aiven defaultdb after explicit user confirmation to delete all tables/data and rebuild.
+- **Summary:** Fixed fresh-replay blockers by combining UserPermission PK replacement and correcting final SubscriptionRefund operand casing. Verified exact host/port/database, TLS, dependencies and privileges; removed 29 FKs and 17 tables only from the authorized defaultdb, then successfully replayed all 36 migrations with strict TLS retained. No seeds or Studio launch.
+- **Files changed:** backend/prisma/migrations/{20260908120316_fix_userpermission_pk,20261020132836_init_dev}/migration.sql, backend/prisma/migrations/FEATURE.md, backend/tests/prisma/migrations.test.ts; root/backend activity logs. Other existing wrapper/docs changes preserved; private env files unchanged.
+- **Endpoints / rate limiting:** N/A; production database schema/data reset explicitly authorized; no frontend/API/permission-rule changes. Replayed feedback migration supplies its existing three permission definitions.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Initial regression run failed on PK gap and existing final casing error; all 72 migration tests, lint and diff checks pass after corrections. Docker daemon unavailable, so isolated replay was not run. Live deploy exited 0 and separate Prisma status exited 0 with schema up to date: 36 finished, zero failed, 32 tables, two audit triggers, PK(id) and two UserPermission FKs, zero users/organizations. Initial postcheck incorrectly expected zero permissions; read-only inspection confirmed three feedback permissions intentionally inserted by migration SQL. Historical SQL checksums changed: other already-initialized databases need separate reconciliation, not reset. Seed/bootstrap and application build/start not run; earlier schema/client alignment issue remains outside this reset.
+
+## [2026-10-22 00:52] Codex
+
+- **Task:** Diagnose persistent P3009 after manual UserPermission recovery guidance.
+- **Summary:** Supplied deploy output proves an unresolved failed migration remains in selected defaultdb. Found earlier guidance used migrate resolve although wrapper blocked it; corrected production allowlist and required existing production confirmation for resolve. Documented table/history inspection, guarded manual completion and applied-history recovery in ENVIRONMENT.md.
+- **Files changed:** backend/scripts/prisma.mjs, backend/tests/config/prisma-cli.mjs, backend/docs/ENVIRONMENT.md; root/backend activity logs.
+- **Endpoints / rate limiting:** N/A; no frontend, schema, migration SQL, API, permission or database-record changes.
+- **Status:** Local wrapper fix completed; live recovery unverified/user-operated. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Two resolve guard/cancellation regressions failed before fix; all 12 wrapper tests, lint and diff checks passed after. No private env reads, database connections, Studio startup, resolve, migrations or seeds run. User must verify primary key(id), columns and unique index on the same target before resolve --applied; original partial DDL means rolled-back/retry is not appropriate without reconciliation. Build omitted for wrapper/docs-only change. Prior CLI-success inference was incorrect; do not assume table/history state from conversational acknowledgments.
+
 ## [2026-10-22 00:41] Codex
 
 - **Task:** Fix production Studio metadata loading failure with self-signed certificate in certificate chain.
