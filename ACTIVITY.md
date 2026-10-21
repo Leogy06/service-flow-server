@@ -1,3 +1,12 @@
+## [2026-10-21 23:13] Codex
+
+- **Task:** Restore mandatory production MySQL SSL/TLS.
+- **Summary:** Restored production sslaccept=strict URL validation and verified runtime TLS. Replaced opt-out tests with rejection/adapter regression checks; restored mandatory TLS guidance and public example. Development/test local MySQL behavior and Redis TLS remain unchanged.
+- **Files changed:** backend/src/config/database.ts, backend/tests/config/environment.test.ts, backend/.env.example (public template), backend/README.md, backend/docs/{ENVIRONMENT.md,DOCKER.md}; activity logs. No private env files read or edited.
+- **Endpoints / rate limiting:** N/A; no frontend, schema, migration, API, permission or database-record changes.
+- **Status:** Completed TLS restoration; existing schema/client build blocker remains. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Both new TLS restriction cases failed before restoration; all 64 targeted Jest tests, ten Prisma CLI guard tests, lint and diff checks passed afterward. Build still fails with 356 diagnostics from existing generated Prisma model casing/default mismatches (auditLog vs auditlog, etc.); schema/client left untouched. No database connections, migrations, seeds or production startup attempted. The selected production URL must include sslaccept=strict and the database endpoint must support TLS.
+
 ## [2026-10-21 19:55] Codex
 
 - **Task:** Remove mandatory MySQL sslaccept=strict blockers and allow connection_limit-only production URLs.
