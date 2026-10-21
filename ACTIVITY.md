@@ -1,3 +1,21 @@
+## [2026-10-22 00:17] Codex
+
+- **Task:** Diagnose production migration 20260908120316_fix_userpermission_pk failing with MySQL 3750.
+- **Summary:** Inspected migration and official MySQL primary-key policy; verified production metadata over TLS with read-only queries. sql_require_primary_key=1 rejects standalone DROP PRIMARY KEY. Columns and unique index from statements 1-2 already exist; old composite primary key remains; table has zero rows.
+- **Files changed:** Root/backend ACTIVITY.md only.
+- **Endpoints / rate limiting:** N/A; no schema, migration files, API, permission or database records changed.
+- **Status:** Diagnosis completed; user requested read-only guidance. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Proposed one ALTER TABLE dropping old PK and adding PK(id), verify full migration postconditions, then resolve only this failed migration as applied. Do not blindly retry or mark rolled back: earlier DDL persists despite applied_steps_count=0. No remaining migrations deployed. Root AGENTS section 14 requires approval for production integrity changes; user chose commands only, so no production writes authorized or executed. No tests needed for activity-only edits.
+
+## [2026-10-22 00:03] Codex
+
+- **Task:** Test production database connectivity and diagnose connection failure.
+- **Summary:** Read-only probes confirmed DNS/TCP, authenticated MySQL SELECT 1 and verified TLS. Isolated Prisma native CLI failure to relative CA-path resolution; shared config now forwards an absolute CA path while retaining strict verification. Added regression coverage and CA-path documentation.
+- **Files changed:** backend/src/config/database.ts, backend/prisma.config.ts, backend/tests/config/environment.test.ts, backend/docs/ENVIRONMENT.md; root/backend activity logs. Private env files unchanged; existing package-lock edit preserved.
+- **Endpoints / rate limiting:** N/A; no frontend, schema, migration SQL, API, permission or database-record changes.
+- **Status:** Completed connection diagnosis/fix. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Live production Prisma migrate status now connects and reports 36 pending migrations (expected exit 1); none applied. All 66 focused Jest tests, ten Prisma CLI guard tests, lint and diff checks passed. Build still fails with 356 existing generated Prisma model casing/default diagnostics. Review migration state and schema/client alignment separately before deployment. Credentials used locally only for the authorized read-only checks and never printed; an initial probe-only unsupported timeout option was removed before successful verification.
+
 ## [2026-10-21 23:13] Codex
 
 - **Task:** Restore mandatory production MySQL SSL/TLS.

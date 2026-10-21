@@ -50,6 +50,20 @@ export const databaseEnvironmentSchema = z.object({
   }
 });
 
+function certificatePath(cert: string): string {
+  return resolve(fileURLToPath(new URL("../../prisma/", import.meta.url)), cert);
+}
+
+/** Give Prisma's native CLI the same CA location used by the runtime adapter. */
+export function prismaDatasourceUrl(databaseUrl: string): string {
+  const url = new URL(databaseUrl);
+  const cert = url.searchParams.get("sslcert");
+  if (!cert) return databaseUrl;
+  // Native engine relative-path resolution differs; forward slashes also work on Windows.
+  url.searchParams.set("sslcert", certificatePath(cert).replaceAll("\\", "/"));
+  return url.toString();
+}
+
 // Prisma 7 uses the MariaDB driver's options, not Prisma URL pool/SSL options.
 export function databaseOptions(env: { DATABASE_URL: string; NODE_ENV: string }): PoolConfig {
   const url = new URL(env.DATABASE_URL);
@@ -59,7 +73,7 @@ export function databaseOptions(env: { DATABASE_URL: string; NODE_ENV: string })
   if (cert) {
     try {
       // Match Prisma CLI's certificate paths relative to the schema directory.
-      ca = readFileSync(resolve(fileURLToPath(new URL("../../prisma/", import.meta.url)), cert));
+      ca = readFileSync(certificatePath(cert));
     } catch {
       throw new Error("DATABASE_URL sslcert file could not be read (paths are relative to backend/prisma)");
     }

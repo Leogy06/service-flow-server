@@ -1,6 +1,6 @@
 import { defineConfig } from "prisma/config";
 import { loadEnvironment } from "./src/config/env-file";
-import { databaseEnvironmentSchema } from "./src/config/database";
+import { databaseEnvironmentSchema, prismaDatasourceUrl } from "./src/config/database";
 
 loadEnvironment();
 // Generation/migrations need database config, not unrelated email/JWT credentials.
@@ -18,6 +18,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: env.DATABASE_URL,
+    url: prismaDatasourceUrl(env.DATABASE_URL),
   },
 });

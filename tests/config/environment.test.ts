@@ -1,7 +1,8 @@
 import { jest } from "@jest/globals";
 import { envSchema } from "../../src/config/env-schema";
-import { databaseEnvironmentSchema, databaseOptions } from "../../src/config/database";
+import { databaseEnvironmentSchema, databaseOptions, prismaDatasourceUrl } from "../../src/config/database";
 import { rateLimitEnvironmentSchema } from "../../src/config/rate-limit";
+import { resolve } from "node:path";
 
 const config = jest.fn();
 jest.unstable_mockModule("dotenv", () => ({ config }));
@@ -107,6 +108,35 @@ test("reports all missing keys without including credential values", () => {
 
 test("Prisma CLI validates database configuration without unrelated application secrets", () => {
   expect(databaseEnvironmentSchema.parse({ DATABASE_URL: development.DATABASE_URL })).toMatchObject({ NODE_ENV: "development" });
+});
+
+test("Prisma CLI receives an absolute CA path while preserving connection and TLS settings", async () => {
+  const originalMode = process.env.NODE_ENV;
+  const originalUrl = process.env.DATABASE_URL;
+  try {
+    process.env.NODE_ENV = "production";
+    process.env.DATABASE_URL = production.DATABASE_URL + "&sslcert=../certs/sample-ca.pem";
+    const { default: configuration } = await import("../../prisma.config");
+    if (!configuration.datasource?.url) throw new Error("Missing Prisma datasource URL");
+    const url = new URL(configuration.datasource.url);
+    expect(url.searchParams.get("sslcert")).toBe(resolve("prisma", "../certs/sample-ca.pem").replaceAll("\\", "/"));
+    expect(url.searchParams.get("sslaccept")).toBe("strict");
+    expect(url.searchParams.get("connection_limit")).toBe("5");
+    expect(url.username).toBe("user");
+    expect(url.password).toBe("sample");
+  } finally {
+    if (originalMode === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalMode;
+    if (originalUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = originalUrl;
+  }
+});
+
+test("CA normalization preserves URLs without a CA and handles encoded paths idempotently", () => {
+  expect(prismaDatasourceUrl(production.DATABASE_URL)).toBe(production.DATABASE_URL);
+  const normalized = prismaDatasourceUrl(production.DATABASE_URL + "&sslcert=..%2Fcerts%2Fsample%20ca.pem");
+  expect(new URL(normalized).searchParams.get("sslcert")).toBe(resolve("prisma", "../certs/sample ca.pem").replaceAll("\\", "/"));
+  expect(prismaDatasourceUrl(normalized)).toBe(normalized);
 });
 
 test("production requires explicit strict TLS for CLI and app configuration", () => {

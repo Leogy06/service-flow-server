@@ -83,8 +83,10 @@ only for the deployment's actual proxy topology.
 The existing Prisma 7 MariaDB adapter is retained. `database.ts` maps URL pool
 and SSL options to its driver options, including verified TLS in production.
 If the provider requires a custom root CA, append `&sslcert=../certs/server-ca.pem`;
-the API and Prisma resolve this relative to `backend/prisma`. Supported URL
-options are `connection_limit`, `sslaccept=strict`, `sslcert` and development
+paths are relative to `backend/prisma`. Prisma config converts the CA path to an
+absolute path before passing it to the native engine, matching the runtime adapter
+and avoiding working-directory differences on Windows. Private env files stay
+unchanged. Supported URL options are `connection_limit`, `sslaccept=strict`, `sslcert` and development
 `socket`. Never disable certificate verification. See the official
 [Prisma MySQL connector](https://docs.prisma.io/docs/orm/v7/core-concepts/supported-databases/mysql)
 and [Prisma 7 pool settings](https://docs.prisma.io/docs/orm/v7/prisma-client/setup-and-configuration/databases-connections/connection-pool).
