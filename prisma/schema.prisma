@@ -1,47 +1,698 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider            = "prisma-client"
   output              = "../src/generated/prisma"
-  moduleFormat        = "esm"
   importFileExtension = "js"
+  moduleFormat        = "esm"
 }
 
 datasource db {
   provider = "mysql"
 }
 
-enum OrganizationStatus {
+model auditlog {
+  id             String         @id
+  actorId        String?
+  action         String
+  entity         String
+  entityId       String
+  metadata       Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime       @default(now())
+  organizationId String?
+  requestId      String?
+  actorType      String         @default("USER")
+  scope          auditlog_scope @default(TENANT)
+  user           user?          @relation(fields: [actorId], references: [id], map: "AuditLog_actorId_fkey")
+  organization   organization?  @relation(fields: [organizationId], references: [id], map: "AuditLog_organizationId_fkey")
+
+  @@index([action], map: "AuditLog_action_idx")
+  @@index([actorId], map: "AuditLog_actorId_idx")
+  @@index([createdAt], map: "AuditLog_createdAt_idx")
+  @@index([entity, entityId], map: "AuditLog_entity_entityId_idx")
+  @@index([organizationId], map: "AuditLog_organizationId_fkey")
+  @@index([scope, createdAt, id], map: "AuditLog_scope_createdAt_id_idx")
+  @@index([scope, organizationId, createdAt], map: "AuditLog_scope_organizationId_createdAt_idx")
+}
+
+model customer {
+  id             String           @id
+  email          String           @unique(map: "Customer_email_key")
+  phoneNumber    String           @unique(map: "Customer_phoneNumber_key")
+  address        String?
+  createdAt      DateTime         @default(now())
+  notes          String?
+  updatedAt      DateTime
+  organizationId String
+  deletedAt      DateTime?
+  name           String           @unique(map: "Customer_name_key")
+  organization   organization     @relation(fields: [organizationId], references: [id], map: "Customer_organizationId_fkey")
+  invoice        invoice[]
+  job            job[]
+  servicerequest servicerequest[]
+
+  @@index([email], map: "Customer_email_idx")
+  @@index([organizationId], map: "Customer_organizationId_fkey")
+  @@index([phoneNumber], map: "Customer_phoneNumber_idx")
+}
+
+model customerfeedback {
+  id                    String                  @id
+  organizationId        String
+  invitationId          String                  @unique(map: "CustomerFeedback_invitationId_key")
+  rating                Int
+  comment               String                  @db.VarChar(2000)
+  displayName           String?                 @db.VarChar(100)
+  consentGrantedAt      DateTime?
+  consentVersion        String?                 @db.VarChar(32)
+  consentWithdrawnAt    DateTime?
+  testimonialApprovedAt DateTime?
+  status                customerfeedback_status @default(NEW)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime
+  feedbackinvitation    feedbackinvitation      @relation(fields: [invitationId, organizationId], references: [id, organizationId], map: "CustomerFeedback_invitationId_organizationId_fkey")
+  organization          organization            @relation(fields: [organizationId], references: [id], map: "CustomerFeedback_organizationId_fkey")
+
+  @@unique([invitationId, organizationId], map: "CustomerFeedback_invitationId_organizationId_key")
+  @@index([organizationId, status, createdAt, id], map: "CustomerFeedback_organizationId_status_createdAt_id_idx")
+}
+
+model feedbackinvitation {
+  id               String            @id
+  organizationId   String
+  serviceRequestId String            @unique(map: "FeedbackInvitation_serviceRequestId_key")
+  tokenHash        String            @unique(map: "FeedbackInvitation_tokenHash_key") @db.VarChar(64)
+  expiresAt        DateTime
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime
+  customerfeedback customerfeedback?
+  organization     organization      @relation(fields: [organizationId], references: [id], map: "FeedbackInvitation_organizationId_fkey")
+  servicerequest   servicerequest    @relation(fields: [serviceRequestId, organizationId], references: [id, organizationId], map: "FeedbackInvitation_serviceRequestId_organizationId_fkey")
+
+  @@unique([id, organizationId], map: "FeedbackInvitation_id_organizationId_key")
+  @@unique([serviceRequestId, organizationId], map: "FeedbackInvitation_serviceRequestId_organizationId_key")
+  @@index([organizationId, createdAt], map: "FeedbackInvitation_organizationId_createdAt_idx")
+}
+
+model invoice {
+  id             String         @id
+  invoiceNumber  String         @unique(map: "Invoice_invoiceNumber_key")
+  customerId     String
+  jobId          String?        @unique(map: "Invoice_jobId_key")
+  status         invoice_status @default(UNPAID)
+  subtotal       Decimal        @db.Decimal(10, 2)
+  total          Decimal        @db.Decimal(10, 2)
+  amountPaid     Decimal        @default(0.00) @db.Decimal(10, 2)
+  issuedAt       DateTime       @default(now())
+  dueAt          DateTime?
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime
+  organizationId String
+  customer       customer       @relation(fields: [customerId], references: [id], map: "Invoice_customerId_fkey")
+  job            job?           @relation(fields: [jobId], references: [id], map: "Invoice_jobId_fkey")
+  organization   organization   @relation(fields: [organizationId], references: [id], map: "Invoice_organizationId_fkey")
+  invoiceitem    invoiceitem[]
+  payment        payment[]
+
+  @@index([customerId], map: "Invoice_customerId_idx")
+  @@index([issuedAt], map: "Invoice_issuedAt_idx")
+  @@index([organizationId], map: "Invoice_organizationId_fkey")
+  @@index([status], map: "Invoice_status_idx")
+}
+
+model invoiceitem {
+  id          String   @id
+  invoiceId   String
+  description String
+  quantity    Decimal  @db.Decimal(10, 2)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  amount      Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+  invoice     invoice  @relation(fields: [invoiceId], references: [id], map: "InvoiceItem_invoiceId_fkey")
+
+  @@index([invoiceId], map: "InvoiceItem_invoiceId_idx")
+}
+
+model job {
+  id               String             @id
+  serviceRequestId String?
+  assignedStaffId  String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  status           job_status         @default(ASSIGNED)
+  createdAt        DateTime           @default(now())
+  customerId       String
+  description      String?
+  internalNotes    String?
+  location         String?
+  referenceNumber  String             @unique(map: "Job_referenceNumber_key")
+  scheduledEnd     DateTime?
+  scheduledStart   DateTime?
+  serviceTypeId    String
+  updatedAt        DateTime
+  organizationId   String
+  invoice          invoice?
+  user             user?              @relation(fields: [assignedStaffId], references: [id], map: "Job_assignedStaffId_fkey")
+  customer         customer           @relation(fields: [customerId], references: [id], map: "Job_customerId_fkey")
+  organization     organization       @relation(fields: [organizationId], references: [id], map: "Job_organizationId_fkey")
+  servicerequest   servicerequest?    @relation(fields: [serviceRequestId], references: [id], map: "Job_serviceRequestId_fkey")
+  servicetype      servicetype        @relation(fields: [serviceTypeId], references: [id], map: "Job_serviceTypeId_fkey")
+  jobstatushistory jobstatushistory[]
+
+  @@index([assignedStaffId], map: "Job_assignedStaffId_idx")
+  @@index([customerId], map: "Job_customerId_idx")
+  @@index([organizationId], map: "Job_organizationId_fkey")
+  @@index([serviceRequestId], map: "Job_serviceRequestId_idx")
+  @@index([serviceTypeId], map: "Job_serviceTypeId_idx")
+  @@index([status], map: "Job_status_idx")
+}
+
+model jobstatushistory {
+  id          String                       @id
+  jobId       String
+  fromStatus  jobstatushistory_fromStatus?
+  toStatus    jobstatushistory_toStatus
+  note        String?
+  changedById String?
+  createdAt   DateTime                     @default(now())
+  user        user?                        @relation(fields: [changedById], references: [id], map: "JobStatusHistory_changedById_fkey")
+  job         job                          @relation(fields: [jobId], references: [id], map: "JobStatusHistory_jobId_fkey")
+
+  @@index([changedById], map: "JobStatusHistory_changedById_idx")
+  @@index([jobId], map: "JobStatusHistory_jobId_idx")
+  @@index([toStatus], map: "JobStatusHistory_toStatus_idx")
+}
+
+model organization {
+  id                         String                       @id
+  name                       String
+  slug                       String                       @unique(map: "Organization_slug_key")
+  status                     organization_status          @default(ACTIVE)
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime
+  billingEnabled             Boolean                      @default(false)
+  statusChangedAt            DateTime?
+  statusChangedBy            String?
+  statusReason               String?                      @db.VarChar(1000)
+  auditlog                   auditlog[]
+  customer                   customer[]
+  customerfeedback           customerfeedback[]
+  feedbackinvitation         feedbackinvitation[]
+  invoice                    invoice[]
+  job                        job[]
+  organizationpage           organizationpage?
+  organizationsettings       organizationsettings?
+  permission                 permission[]
+  platformalert              platformalert[]
+  productfeedback            productfeedback[]
+  refreshtoken               refreshtoken[]
+  role                       role[]
+  servicerequest             servicerequest[]
+  servicetype                servicetype[]
+  signuprequest              signuprequest?
+  subscription               subscription?
+  subscriptionpayment        subscriptionpayment[]
+  subscriptionupgraderequest subscriptionupgraderequest[]
+  user                       user[]
+
+  @@index([status, createdAt], map: "Organization_status_createdAt_idx")
+}
+
+model organizationpage {
+  organizationId String       @id
+  draft          Json
+  published      Json?
+  publishedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime
+  organization   organization @relation(fields: [organizationId], references: [id], onDelete: Cascade, map: "OrganizationPage_organizationId_fkey")
+}
+
+model organizationsettings {
+  organizationId String       @id
+  primaryColor   String       @default("#0d887d") @db.VarChar(7)
+  displayName    String?      @db.VarChar(100)
+  logoUrl        String?
+  faviconUrl     String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime
+  organization   organization @relation(fields: [organizationId], references: [id], onDelete: Cascade, map: "OrganizationSettings_organizationId_fkey")
+
+  @@index([faviconUrl], map: "OrganizationSettings_faviconUrl_idx")
+  @@index([logoUrl], map: "OrganizationSettings_logoUrl_idx")
+}
+
+model payment {
+  id              String         @id
+  invoiceId       String
+  amount          Decimal        @db.Decimal(10, 2)
+  method          payment_method
+  referenceNumber String?
+  notes           String?
+  receivedAt      DateTime       @default(now())
+  createdAt       DateTime       @default(now())
+  invoice         invoice        @relation(fields: [invoiceId], references: [id], map: "Payment_invoiceId_fkey")
+
+  @@index([invoiceId], map: "Payment_invoiceId_idx")
+  @@index([receivedAt], map: "Payment_receivedAt_idx")
+}
+
+model permission {
+  id             String           @id
+  name           String           @unique(map: "Permission_name_key")
+  description    String?
+  organizationId String?
+  organization   organization?    @relation(fields: [organizationId], references: [id], map: "Permission_organizationId_fkey")
+  rolepermission rolepermission[]
+  userpermission userpermission[]
+
+  @@index([organizationId], map: "Permission_organizationId_fkey")
+}
+
+model plan {
+  id                         String                       @id
+  name                       String                       @unique(map: "Plan_name_key") @db.VarChar(100)
+  description                String?                      @db.VarChar(1000)
+  annualPrice                Decimal                      @db.Decimal(12, 2)
+  currency                   String                       @default("PHP") @db.Char(3)
+  maxActiveUsers             Int
+  isActive                   Boolean                      @default(true)
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime
+  billingInterval            plan_billingInterval         @default(YEARLY)
+  platformsettings           platformsettings[]
+  subscription               subscription[]
+  subscriptionupgraderequest subscriptionupgraderequest[]
+}
+
+model platformalert {
+  id               String        @id
+  deduplicationKey String        @unique(map: "PlatformAlert_deduplicationKey_key")
+  organizationId   String?
+  kind             String        @db.VarChar(80)
+  severity         String        @db.VarChar(20)
+  message          String        @db.VarChar(1000)
+  targetType       String        @db.VarChar(80)
+  targetId         String
+  readAt           DateTime?
+  resolvedAt       DateTime?
+  createdAt        DateTime      @default(now())
+  organization     organization? @relation(fields: [organizationId], references: [id], map: "PlatformAlert_organizationId_fkey")
+
+  @@index([organizationId], map: "PlatformAlert_organizationId_idx")
+  @@index([resolvedAt, createdAt], map: "PlatformAlert_resolvedAt_createdAt_idx")
+}
+
+model platformsettings {
+  id                  String   @id @default("singleton")
+  reminderIntervals   Json
+  gracePeriodDays     Int      @default(0)
+  paymentInstructions String   @db.Text
+  supportEmail        String?  @db.VarChar(254)
+  supportPhone        String?  @db.VarChar(50)
+  maintenanceMessage  String   @db.Text
+  defaultPlanId       String?
+  updatedAt           DateTime
+  plan                plan?    @relation(fields: [defaultPlanId], references: [id], map: "PlatformSettings_defaultPlanId_fkey")
+
+  @@index([defaultPlanId], map: "PlatformSettings_defaultPlanId_fkey")
+}
+
+model productfeedback {
+  id                    String                 @id
+  organizationId        String
+  authorId              String
+  submissionKey         String                 @db.VarChar(36)
+  rating                Int
+  comment               String                 @db.VarChar(2000)
+  displayName           String?                @db.VarChar(100)
+  consentGrantedAt      DateTime?
+  consentVersion        String?                @db.VarChar(32)
+  consentWithdrawnAt    DateTime?
+  testimonialApprovedAt DateTime?
+  status                productfeedback_status @default(NEW)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime
+  user                  user                   @relation(fields: [authorId], references: [id], map: "ProductFeedback_authorId_fkey")
+  organization          organization           @relation(fields: [organizationId], references: [id], map: "ProductFeedback_organizationId_fkey")
+
+  @@unique([authorId, submissionKey], map: "ProductFeedback_authorId_submissionKey_key")
+  @@index([organizationId, authorId, createdAt], map: "ProductFeedback_organizationId_authorId_createdAt_idx")
+  @@index([status, createdAt, id], map: "ProductFeedback_status_createdAt_id_idx")
+}
+
+model refreshtoken {
+  id             String        @id
+  token          String        @unique(map: "RefreshToken_token_key")
+  userId         String
+  expiresAt      DateTime
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime
+  organizationId String?
+  organization   organization? @relation(fields: [organizationId], references: [id], map: "RefreshToken_organizationId_fkey")
+  user           user          @relation(fields: [userId], references: [id], map: "RefreshToken_userId_fkey")
+
+  @@index([expiresAt], map: "RefreshToken_expiresAt_idx")
+  @@index([organizationId], map: "RefreshToken_organizationId_fkey")
+  @@index([userId], map: "RefreshToken_userId_idx")
+}
+
+model role {
+  id             String           @id
+  name           String
+  organizationId String?
+  deletedAt      DateTime?
+  organization   organization?    @relation(fields: [organizationId], references: [id], map: "Role_organizationId_fkey")
+  rolepermission rolepermission[]
+  user           user[]
+
+  @@unique([name, organizationId], map: "Role_name_organizationId_key")
+  @@index([organizationId, deletedAt, name], map: "Role_organizationId_deletedAt_name_idx")
+}
+
+model rolepermission {
+  roleId       String
+  permissionId String
+  isActive     Boolean    @default(true)
+  id           String     @id
+  permission   permission @relation(fields: [permissionId], references: [id], map: "RolePermission_permissionId_fkey")
+  role         role       @relation(fields: [roleId], references: [id], map: "RolePermission_roleId_fkey")
+
+  @@unique([roleId, permissionId], map: "RolePermission_roleId_permissionId_key")
+  @@index([permissionId], map: "RolePermission_permissionId_idx")
+  @@index([roleId], map: "RolePermission_roleId_idx")
+}
+
+model servicerequest {
+  id                 String                  @id
+  customerId         String
+  serviceTypeId      String
+  status             servicerequest_status   @default(PENDING)
+  createdAt          DateTime                @default(now())
+  description        String?                 @db.Text
+  location           String?
+  preferredDate      DateTime?
+  referenceNumber    String                  @unique(map: "ServiceRequest_referenceNumber_key")
+  trackingToken      String?                 @unique(map: "ServiceRequest_trackingToken_key")
+  updatedAt          DateTime
+  organizationId     String
+  title              String                  @default("") @db.VarChar(200)
+  priority           servicerequest_priority @default(NORMAL)
+  feedbackinvitation feedbackinvitation?
+  job                job[]
+  customer           customer                @relation(fields: [customerId], references: [id], map: "ServiceRequest_customerId_fkey")
+  organization       organization            @relation(fields: [organizationId], references: [id], map: "ServiceRequest_organizationId_fkey")
+  servicetype        servicetype             @relation(fields: [serviceTypeId], references: [id], map: "ServiceRequest_serviceTypeId_fkey")
+
+  @@unique([id, organizationId], map: "ServiceRequest_id_organizationId_key")
+  @@index([customerId], map: "ServiceRequest_customerId_idx")
+  @@index([organizationId, createdAt, id], map: "ServiceRequest_organizationId_createdAt_id_idx")
+  @@index([organizationId, serviceTypeId, createdAt], map: "ServiceRequest_organizationId_serviceTypeId_createdAt_idx")
+  @@index([organizationId, status, createdAt], map: "ServiceRequest_organizationId_status_createdAt_idx")
+  @@index([referenceNumber], map: "ServiceRequest_referenceNumber_idx")
+  @@index([serviceTypeId], map: "ServiceRequest_serviceTypeId_idx")
+  @@index([status], map: "ServiceRequest_status_idx")
+}
+
+model servicetype {
+  id             String           @id
+  name           String
+  description    String?          @db.Text
+  basePrice      Decimal          @db.Decimal(10, 2)
+  createdAt      DateTime         @default(now())
+  isActive       Boolean          @default(true)
+  updatedAt      DateTime
+  organizationId String
+  job            job[]
+  servicerequest servicerequest[]
+  organization   organization     @relation(fields: [organizationId], references: [id], map: "ServiceType_organizationId_fkey")
+
+  @@unique([organizationId, name], map: "ServiceType_organizationId_name_key")
+  @@index([isActive], map: "ServiceType_isActive_idx")
+  @@index([organizationId], map: "ServiceType_organizationId_idx")
+}
+
+model signuprequest {
+  id               String               @id
+  email            String               @unique(map: "SignupRequest_email_key")
+  passwordHash     String?
+  firstName        String               @db.VarChar(100)
+  lastName         String               @db.VarChar(100)
+  middleName       String?              @db.VarChar(100)
+  suffix           String?              @db.VarChar(20)
+  phone            String?              @db.VarChar(16)
+  organizationName String               @db.VarChar(100)
+  slug             String               @db.VarChar(50)
+  status           signuprequest_status @default(PENDING)
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  reviewReason     String?              @db.VarChar(1000)
+  organizationId   String?              @unique(map: "SignupRequest_organizationId_key")
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime
+  termsAcceptedAt  DateTime?
+  termsVersion     String?              @db.VarChar(32)
+  privacyVersion   String?              @db.VarChar(32)
+  organization     organization?        @relation(fields: [organizationId], references: [id], map: "SignupRequest_organizationId_fkey")
+
+  @@index([status, createdAt, id], map: "SignupRequest_status_createdAt_id_idx")
+}
+
+model subscription {
+  id                         String                       @id
+  organizationId             String                       @unique(map: "Subscription_organizationId_key")
+  planId                     String
+  status                     subscription_status          @default(PENDING)
+  startsAt                   DateTime?
+  expiresAt                  DateTime?
+  renewalType                String                       @default("MANUAL") @db.VarChar(20)
+  annualPrice                Decimal                      @db.Decimal(12, 2)
+  currency                   String                       @db.Char(3)
+  version                    Int                          @default(0)
+  currentPeriodPaymentId     String?
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime
+  billingInterval            subscription_billingInterval @default(YEARLY)
+  trialStartedAt             DateTime?
+  trialExpiresAt             DateTime?
+  organization               organization                 @relation(fields: [organizationId], references: [id], map: "Subscription_organizationId_fkey")
+  plan                       plan                         @relation(fields: [planId], references: [id], map: "Subscription_planId_fkey")
+  subscriptionhistory        subscriptionhistory[]
+  subscriptionpayment        subscriptionpayment[]
+  subscriptionupgraderequest subscriptionupgraderequest[]
+
+  @@index([planId], map: "Subscription_planId_idx")
+  @@index([status, expiresAt], map: "Subscription_status_expiresAt_idx")
+}
+
+model subscriptionhistory {
+  id                  String               @id
+  subscriptionId      String
+  kind                String               @db.VarChar(80)
+  before              Json?
+  after               Json?
+  paymentId           String?              @unique(map: "SubscriptionHistory_paymentId_key")
+  actorId             String?
+  reason              String               @db.VarChar(1000)
+  createdAt           DateTime             @default(now())
+  subscriptionpayment subscriptionpayment? @relation(fields: [paymentId], references: [id], map: "SubscriptionHistory_paymentId_fkey")
+  subscription        subscription         @relation(fields: [subscriptionId], references: [id], map: "SubscriptionHistory_subscriptionId_fkey")
+
+  @@index([subscriptionId, createdAt], map: "SubscriptionHistory_subscriptionId_createdAt_idx")
+}
+
+model subscriptionpayment {
+  id                        String                              @id
+  organizationId            String
+  subscriptionId            String
+  amount                    Decimal                             @db.Decimal(12, 2)
+  currency                  String                              @db.Char(3)
+  paymentMethod             subscriptionpayment_paymentMethod
+  referenceNumber           String                              @unique(map: "SubscriptionPayment_referenceNumber_key") @db.VarChar(150)
+  idempotencyKey            String                              @unique(map: "SubscriptionPayment_idempotencyKey_key") @db.VarChar(100)
+  status                    subscriptionpayment_status          @default(PENDING)
+  paidAt                    DateTime
+  verifiedAt                DateTime?
+  verifiedBy                String?
+  verificationReason        String?                             @db.VarChar(1000)
+  evidence                  String?                             @db.VarChar(1000)
+  periodStartsAt            DateTime?
+  periodExpiresAt           DateTime?
+  createdAt                 DateTime                            @default(now())
+  updatedAt                 DateTime
+  billingInterval           subscriptionpayment_billingInterval @default(YEARLY)
+  subscriptionhistory       subscriptionhistory?
+  organization              organization                        @relation(fields: [organizationId], references: [id], map: "SubscriptionPayment_organizationId_fkey")
+  subscription              subscription                        @relation(fields: [subscriptionId], references: [id], map: "SubscriptionPayment_subscriptionId_fkey")
+  subscriptionrefund        subscriptionrefund?
+  subscriptionrefundrequest subscriptionrefundrequest[]
+
+  @@index([organizationId, createdAt], map: "SubscriptionPayment_organizationId_createdAt_idx")
+  @@index([status, createdAt], map: "SubscriptionPayment_status_createdAt_idx")
+  @@index([subscriptionId], map: "SubscriptionPayment_subscriptionId_idx")
+  @@index([verifiedAt], map: "SubscriptionPayment_verifiedAt_idx")
+}
+
+model subscriptionrefund {
+  id                        String                     @id
+  paymentId                 String                     @unique(map: "SubscriptionRefund_paymentId_key")
+  amount                    Decimal                    @db.Decimal(12, 2)
+  currency                  String                     @db.Char(3)
+  idempotencyKey            String                     @unique(map: "SubscriptionRefund_idempotencyKey_key") @db.VarChar(100)
+  reason                    String                     @db.VarChar(1000)
+  evidence                  String                     @db.VarChar(1000)
+  actorId                   String
+  createdAt                 DateTime                   @default(now())
+  requestId                 String?                    @unique(map: "SubscriptionRefund_requestId_key")
+  subscriptionpayment       subscriptionpayment        @relation(fields: [paymentId], references: [id], map: "SubscriptionRefund_paymentId_fkey")
+  subscriptionrefundrequest subscriptionrefundrequest? @relation(fields: [requestId], references: [id], map: "SubscriptionRefund_requestId_fkey")
+
+  @@index([createdAt], map: "SubscriptionRefund_createdAt_idx")
+}
+
+model subscriptionrefundrequest {
+  id                  String                           @id
+  paymentId           String
+  activePaymentId     String?                          @unique(map: "SubscriptionRefundRequest_activePaymentId_key")
+  idempotencyKey      String                           @unique(map: "SubscriptionRefundRequest_idempotencyKey_key") @db.VarChar(100)
+  status              subscriptionrefundrequest_status @default(REQUESTED)
+  reason              String                           @db.VarChar(1000)
+  evidence            String                           @db.VarChar(1000)
+  actorId             String
+  reviewReason        String?                          @db.VarChar(1000)
+  reviewedBy          String?
+  reviewedAt          DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime                         @default(now())
+  updatedAt           DateTime
+  subscriptionrefund  subscriptionrefund?
+  subscriptionpayment subscriptionpayment              @relation(fields: [paymentId], references: [id], map: "SubscriptionRefundRequest_paymentId_fkey")
+
+  @@index([paymentId, createdAt], map: "SubscriptionRefundRequest_paymentId_createdAt_idx")
+  @@index([status, createdAt], map: "SubscriptionRefundRequest_status_createdAt_idx")
+}
+
+model subscriptionupgraderequest {
+  id                   String                                     @id
+  organizationId       String
+  subscriptionId       String
+  activeSubscriptionId String?                                    @unique(map: "SubscriptionUpgradeRequest_activeSubscriptionId_key")
+  planId               String
+  sourcePlanId         String
+  subscriptionVersion  Int
+  planName             String                                     @db.VarChar(100)
+  price                Decimal                                    @db.Decimal(12, 2)
+  currency             String                                     @db.Char(3)
+  billingInterval      subscriptionupgraderequest_billingInterval
+  maxActiveUsers       Int
+  status               subscriptionupgraderequest_status          @default(REQUESTED)
+  reason               String                                     @db.VarChar(1000)
+  actorId              String
+  idempotencyKey       String                                     @db.VarChar(100)
+  reviewReason         String?                                    @db.VarChar(1000)
+  reviewedBy           String?
+  reviewedAt           DateTime?
+  createdAt            DateTime                                   @default(now())
+  updatedAt            DateTime
+  organization         organization                               @relation(fields: [organizationId], references: [id], map: "SubscriptionUpgradeRequest_organizationId_fkey")
+  plan                 plan                                       @relation(fields: [planId], references: [id], map: "SubscriptionUpgradeRequest_planId_fkey")
+  subscription         subscription                               @relation(fields: [subscriptionId], references: [id], map: "SubscriptionUpgradeRequest_subscriptionId_fkey")
+
+  @@unique([organizationId, idempotencyKey], map: "SubscriptionUpgradeRequest_organizationId_idempotencyKey_key")
+  @@index([planId], map: "SubscriptionUpgradeRequest_planId_fkey")
+  @@index([status, createdAt], map: "SubscriptionUpgradeRequest_status_createdAt_idx")
+  @@index([subscriptionId, createdAt], map: "SubscriptionUpgradeRequest_subscriptionId_createdAt_idx")
+}
+
+model user {
+  id                String              @id
+  email             String              @unique(map: "User_email_key")
+  password          String?
+  firstName         String
+  lastName          String
+  middleName        String?
+  suffix            String?
+  createdAt         DateTime            @default(now())
+  phone             String?             @unique(map: "User_phone_key")
+  status            user_status         @default(PENDING)
+  updatedAt         DateTime
+  deletedAt         DateTime?
+  organizationId    String?
+  roleId            String
+  inviteToken       String?             @unique(map: "User_inviteToken_key")
+  inviteTokenExpiry DateTime?
+  platformRole      user_platformRole   @default(NONE)
+  securityChangedAt DateTime?
+  securityChangedBy String?
+  securityReason    String?             @db.VarChar(1000)
+  securityStatus    user_securityStatus @default(ACTIVE)
+  sessionVersion    Int                 @default(0)
+  auditlog          auditlog[]
+  job               job[]
+  jobstatushistory  jobstatushistory[]
+  productfeedback   productfeedback[]
+  refreshtoken      refreshtoken[]
+  organization      organization?       @relation(fields: [organizationId], references: [id], map: "User_organizationId_fkey")
+  role              role                @relation(fields: [roleId], references: [id], map: "User_roleId_fkey")
+  userpermission    userpermission[]
+
+  @@index([organizationId], map: "User_organizationId_idx")
+  @@index([organizationId, status, deletedAt], map: "User_organizationId_status_deletedAt_idx")
+  @@index([platformRole, securityStatus], map: "User_platformRole_securityStatus_idx")
+  @@index([roleId], map: "User_roleId_idx")
+  @@index([status], map: "User_status_idx")
+}
+
+model userpermission {
+  userId       String
+  permissionId String
+  id           String     @id
+  isActive     Boolean    @default(true)
+  permission   permission @relation(fields: [permissionId], references: [id], map: "UserPermission_permissionId_fkey")
+  user         user       @relation(fields: [userId], references: [id], map: "UserPermission_userId_fkey")
+
+  @@unique([userId, permissionId], map: "UserPermission_userId_permissionId_key")
+  @@index([permissionId], map: "UserPermission_permissionId_fkey")
+}
+
+enum jobstatushistory_fromStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum jobstatushistory_toStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum organization_status {
   ACTIVE
   INACTIVE
   SUSPENDED
   ARCHIVED
 }
 
-enum PlatformRole {
-  NONE
-  SYSTEM_ADMIN
+enum payment_method {
+  CASH
+  BANK_TRANSFER
+  GCASH
+  CARD
+  OTHER
 }
 
-enum AccountSecurityStatus {
-  ACTIVE
-  BLOCKED
+enum servicerequest_status {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }
 
-enum AuditScope {
-  TENANT
-  PLATFORM
-}
-
-enum BillingInterval {
-  MONTHLY
-  YEARLY
-}
-
-enum SubscriptionStatus {
+enum subscription_status {
   PENDING
   TRIALING
   ACTIVE
@@ -50,95 +701,28 @@ enum SubscriptionStatus {
   CANCELED
 }
 
-enum SubscriptionPaymentStatus {
-  PENDING
-  UNDER_REVIEW
-  PAID
-  REJECTED
-  REFUNDED
-}
-
-enum SubscriptionRefundRequestStatus {
-  REQUESTED
-  APPROVED
-  REJECTED
-  COMPLETED
-}
-
-enum SubscriptionUpgradeRequestStatus {
-  REQUESTED
-  APPROVED
-  REJECTED
-}
-
-enum UserStatus {
-  ACTIVE
-  PENDING
-}
-
-enum SignupRequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
-// Public applications have no tenant or permissions until a platform operator approves.
-model SignupRequest {
-  id String @id @default(cuid())
-  email String @unique @db.VarChar(191)
-  passwordHash String? @db.VarChar(191)
-  firstName String @db.VarChar(100)
-  lastName String @db.VarChar(100)
-  middleName String? @db.VarChar(100)
-  suffix String? @db.VarChar(20)
-  phone String? @db.VarChar(16)
-  organizationName String @db.VarChar(100)
-  slug String @db.VarChar(50)
-  // Nullable only for applications submitted before versioned acceptance existed.
-  termsAcceptedAt DateTime?
-  termsVersion String? @db.VarChar(32)
-  privacyVersion String? @db.VarChar(32)
-  status SignupRequestStatus @default(PENDING)
-  reviewedBy String? @db.VarChar(191)
-  reviewedAt DateTime?
-  reviewReason String? @db.VarChar(1000)
-  organizationId String? @unique
-  organization Organization? @relation(fields: [organizationId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([status, createdAt, id])
-}
-
-enum ServiceRequestStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-}
-
-enum JobStatus {
-  ASSIGNED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-}
-
-enum ServiceRequestPriority {
-  LOW
-  NORMAL
-  HIGH
-  URGENT
-}
-
-enum InvoiceStatus {
+enum invoice_status {
   UNPAID
   PARTIALLY_PAID
   PAID
   VOID
 }
 
-enum PaymentMethod {
+enum subscriptionrefundrequest_status {
+  REQUESTED
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum job_status {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum subscriptionpayment_paymentMethod {
   CASH
   BANK_TRANSFER
   GCASH
@@ -146,769 +730,81 @@ enum PaymentMethod {
   OTHER
 }
 
-enum AuditAction {
-  CREATE
-  UPDATE
-  DELETE
-  LOGIN
-  LOGOUT
-  ASSIGN
-  STATUS_CHANGE
-  PAYMENT
+enum subscriptionpayment_status {
+  PENDING
+  UNDER_REVIEW
+  PAID
+  REJECTED
+  REFUNDED
 }
 
-//ORGANIZATION
-model Organization {
-  id     String             @id @default(cuid())
-  name   String
-  slug   String             @unique
-  status OrganizationStatus @default(ACTIVE)
-  billingEnabled Boolean @default(false)
-  statusReason String? @db.VarChar(1000)
-  statusChangedAt DateTime?
-  statusChangedBy String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  users           User[]
-  customers       Customer[]
-  serviceTypes    ServiceType[]
-  serviceRequests ServiceRequest[]
-  jobs            Job[]
-  invoices        Invoice[]
-  auditLogs       AuditLog[]
-  refreshTokens   RefreshToken[]
-
-  roles       Role[]
-  permissions Permission[]
-  subscription Subscription?
-  subscriptionUpgradeRequests SubscriptionUpgradeRequest[]
-  subscriptionPayments SubscriptionPayment[]
-  platformAlerts PlatformAlert[]
-  signupRequest SignupRequest?
-  productFeedback ProductFeedback[]
-  feedbackInvitations FeedbackInvitation[]
-  customerFeedback CustomerFeedback[]
-  settings OrganizationSettings?
-  page OrganizationPage?
-
-  @@index([status, createdAt])
+enum plan_billingInterval {
+  MONTHLY
+  YEARLY
 }
 
-model OrganizationPage {
-  organizationId String @id
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  draft Json
-  published Json?
-  publishedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum user_status {
+  ACTIVE
+  PENDING
 }
 
-model OrganizationSettings {
-  organizationId String @id
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  primaryColor String @default("#0d887d") @db.VarChar(7)
-  displayName String? @db.VarChar(100)
-  logoUrl String? @db.VarChar(191)
-  faviconUrl String? @db.VarChar(191)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([logoUrl])
-  @@index([faviconUrl])
-}
-
-// ─────────────────────────────────────────────
-// USER
-// ─────────────────────────────────────────────
-
-model User {
-  id String @id @default(cuid())
-
-  email      String  @unique
-  password   String?
-  firstName  String
-  lastName   String
-  middleName String?
-  suffix     String?
-  phone      String? @unique
-
-  organizationId String?
-
-  organization Organization? @relation(fields: [organizationId], references: [id])
-
-  roleId String
-  status UserStatus @default(PENDING)
-  platformRole PlatformRole @default(NONE)
-  securityStatus AccountSecurityStatus @default(ACTIVE)
-  securityReason String? @db.VarChar(1000)
-  securityChangedAt DateTime?
-  securityChangedBy String?
-  sessionVersion Int @default(0)
-
-  updatedAt         DateTime  @updatedAt
-  deletedAt         DateTime?
-  inviteToken       String?   @unique
-  inviteTokenExpiry DateTime?
-  createdAt         DateTime  @default(now())
-
-  auditLogs          AuditLog[]
-  jobs               Job[]
-  jobStatusHistories JobStatusHistory[]
-  productFeedback ProductFeedback[]
-  refreshTokens      RefreshToken[]
-  role               Role               @relation(fields: [roleId], references: [id])
-  userPermissions    UserPermission[]
-
-  @@index([roleId])
-  @@index([status])
-  @@index([organizationId])
-  @@index([organizationId, status, deletedAt])
-  @@index([platformRole, securityStatus])
-}
-
-//role
-
-model Role {
-  id             String  @id @default(cuid())
-  name           String
-  organizationId String?
-  deletedAt      DateTime?
-
-  organization Organization?    @relation(fields: [organizationId], references: [id])
-  users        User[]
-  permissions  RolePermission[]
-
-  @@unique([name, organizationId])
-  @@index([organizationId, deletedAt, name])
-}
-
-//permission
-model Permission {
-  id             String  @id @default(cuid())
-  name           String  @unique
-  description    String?
-  organizationId String?
-
-  organization Organization?    @relation(fields: [organizationId], references: [id])
-  roles        RolePermission[]
-  users        UserPermission[]
-}
-
-//join table
-model RolePermission {
-  id           String @id @default(cuid())
-  roleId       String
-  permissionId String
-
-  isActive Boolean @default(true)
-
-  role       Role       @relation(fields: [roleId], references: [id])
-  permission Permission @relation(fields: [permissionId], references: [id])
-
-  @@unique([roleId, permissionId])
-}
-
-//user permission
-model UserPermission {
-  id           String @id @default(cuid())
-  userId       String
-  permissionId String
-
-  isActive Boolean @default(true)
-
-  user       User       @relation(fields: [userId], references: [id])
-  permission Permission @relation(fields: [permissionId], references: [id])
-
-  @@unique([userId, permissionId])
-}
-
-// ─────────────────────────────────────────────
-// CUSTOMER
-// ─────────────────────────────────────────────
-
-model Customer {
-  id String @id @default(cuid())
-
-  name String @unique
-
-  email       String  @unique
-  phoneNumber String  @unique
-
-  address String?
-  notes   String?
-
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  serviceRequests ServiceRequest[]
-  jobs            Job[]
-  invoices        Invoice[]
-
-  @@index([email])
-  @@index([phoneNumber])
-}
-
-// ─────────────────────────────────────────────
-// SERVICE TYPE
-// ─────────────────────────────────────────────
-
-model ServiceType {
-  id String @id @default(cuid())
-
-  name        String
-  description String? @db.Text
-
-  basePrice Decimal @db.Decimal(10, 2) // in php
-  isActive  Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  serviceRequests ServiceRequest[]
-  jobs            Job[]
-  organization    Organization     @relation(fields: [organizationId], references: [id])
-  organizationId  String
-
-  @@unique([organizationId, name])
-  @@index([isActive])
-  @@index([organizationId])
-}
-
-// ─────────────────────────────────────────────
-// SERVICE REQUEST
-// ─────────────────────────────────────────────
-
-model ServiceRequest {
-  id String @id @default(cuid())
-
-  //human-readable unique identifier for the service request
-  referenceNumber String @unique
-  customerId      String
-  serviceTypeId   String
-
-  title    String @default("") @db.VarChar(200)
-  priority ServiceRequestPriority @default(NORMAL)
-
-  description String? @db.Text
-  location    String?
-
-  preferredDate DateTime?
-
-  status ServiceRequestStatus @default(PENDING)
-
-  //public customer tracking
-  trackingToken String? @unique
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  customer    Customer    @relation(fields: [customerId], references: [id])
-  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
-
-  jobs           Job[]
-  feedbackInvitation FeedbackInvitation?
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-
-  @@index([customerId])
-  @@index([serviceTypeId])
-  @@index([status])
-  @@index([referenceNumber])
-  @@index([organizationId, createdAt, id])
-  @@index([organizationId, status, createdAt])
-  @@index([organizationId, serviceTypeId, createdAt])
-  @@unique([id, organizationId])
-}
-
-enum FeedbackStatus {
+enum customerfeedback_status {
   NEW
   IN_REVIEW
   RESOLVED
 }
 
-// Feedback about Service Flow is visible only to its author and platform operators.
-model ProductFeedback {
-  id String @id @default(cuid())
-  organizationId String
-  authorId String
-  submissionKey String @db.VarChar(36)
-  rating Int
-  comment String @db.VarChar(2000)
-  displayName String? @db.VarChar(100)
-  consentGrantedAt DateTime?
-  consentVersion String? @db.VarChar(32)
-  consentWithdrawnAt DateTime?
-  testimonialApprovedAt DateTime?
-  status FeedbackStatus @default(NEW)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  organization Organization @relation(fields: [organizationId], references: [id])
-  author User @relation(fields: [authorId], references: [id])
-  @@unique([authorId, submissionKey])
-  @@index([status, createdAt, id])
-  @@index([organizationId, authorId, createdAt])
+enum signuprequest_status {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
-// Tokens are returned once and stored only as SHA-256 hashes.
-model FeedbackInvitation {
-  id String @id @default(cuid())
-  organizationId String
-  serviceRequestId String @unique
-  tokenHash String @unique @db.VarChar(64)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  organization Organization @relation(fields: [organizationId], references: [id])
-  serviceRequest ServiceRequest @relation(fields: [serviceRequestId, organizationId], references: [id, organizationId])
-  feedback CustomerFeedback?
-  @@unique([id, organizationId])
-  @@index([organizationId, createdAt])
-  @@unique([serviceRequestId, organizationId])
+enum subscriptionupgraderequest_billingInterval {
+  MONTHLY
+  YEARLY
 }
 
-model CustomerFeedback {
-  id String @id @default(cuid())
-  organizationId String
-  invitationId String @unique
-  rating Int
-  comment String @db.VarChar(2000)
-  displayName String? @db.VarChar(100)
-  consentGrantedAt DateTime?
-  consentVersion String? @db.VarChar(32)
-  consentWithdrawnAt DateTime?
-  testimonialApprovedAt DateTime?
-  status FeedbackStatus @default(NEW)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  organization Organization @relation(fields: [organizationId], references: [id])
-  invitation FeedbackInvitation @relation(fields: [invitationId, organizationId], references: [id, organizationId])
-  @@unique([invitationId, organizationId])
-  @@index([organizationId, status, createdAt, id])
+enum productfeedback_status {
+  NEW
+  IN_REVIEW
+  RESOLVED
 }
 
-// ─────────────────────────────────────────────
-// JOB / WORK ORDER
-// ─────────────────────────────────────────────
-
-model Job {
-  id String @id @default(cuid())
-
-  referenceNumber String @unique
-
-  customerId    String
-  serviceTypeId String
-
-  // Service request that generated this job
-  serviceRequestId String?
-
-  //assigned staff member for this job  
-  assignedStaffId String?
-
-  description String?
-  location    String?
-
-  scheduledStart DateTime?
-  scheduledEnd   DateTime?
-
-  status JobStatus @default(ASSIGNED)
-
-  startedAt   DateTime?
-  completedAt DateTime?
-
-  internalNotes String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  customer    Customer    @relation(fields: [customerId], references: [id])
-  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
-
-  serviceRequest ServiceRequest? @relation(fields: [serviceRequestId], references: [id])
-
-  assignedStaff User? @relation(fields: [assignedStaffId], references: [id])
-
-  statusHistory JobStatusHistory[]
-
-  invoice        Invoice?
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-
-  @@index([customerId])
-  @@index([serviceTypeId])
-  @@index([serviceRequestId])
-  @@index([assignedStaffId])
-  @@index([status])
+enum auditlog_scope {
+  TENANT
+  PLATFORM
 }
 
-// ─────────────────────────────────────────────
-// JOB STATUS HISTORY
-// ─────────────────────────────────────────────
-
-model JobStatusHistory {
-  id    String @id @default(cuid())
-  jobId String
-
-  fromStatus JobStatus?
-  toStatus   JobStatus
-
-  note String?
-
-  changedById String?
-
-  createdAt DateTime @default(now())
-
-  job Job @relation(fields: [jobId], references: [id])
-
-  changedBy User? @relation(fields: [changedById], references: [id])
-
-  @@index([jobId])
-  @@index([changedById])
-  @@index([toStatus])
+enum subscriptionupgraderequest_status {
+  REQUESTED
+  APPROVED
+  REJECTED
 }
 
-// ─────────────────────────────────────────────
-// INVOICE
-// ─────────────────────────────────────────────
-
-model Invoice {
-  id String @id @default(cuid())
-
-  //human-readable unique identifier for the invoice
-  invoiceNumber String @unique
-
-  customerId String
-
-  //a job should normally have one invoice
-  jobId String? @unique
-
-  status InvoiceStatus @default(UNPAID)
-
-  subtotal   Decimal @db.Decimal(10, 2) //before tax, discounts, vouchers, etc.
-  total      Decimal @db.Decimal(10, 2) //after tax, discounts, vouchers, etc.
-  amountPaid Decimal @default(0) @db.Decimal(10, 2) //total amount paid so far
-
-  issuedAt DateTime  @default(now())
-  dueAt    DateTime?
-
-  notes String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  customer Customer @relation(fields: [customerId], references: [id])
-  job      Job?     @relation(fields: [jobId], references: [id])
-
-  items          InvoiceItem[]
-  payments       Payment[]
-  organization   Organization  @relation(fields: [organizationId], references: [id])
-  organizationId String
-
-  @@index([customerId])
-  @@index([status])
-  @@index([issuedAt])
+enum servicerequest_priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }
 
-// ─────────────────────────────────────────────
-// INVOICE ITEM
-// ─────────────────────────────────────────────
-
-model InvoiceItem {
-  id String @id @default(cuid())
-
-  invoiceId String
-
-  description String
-
-  quantity  Decimal @db.Decimal(10, 2)
-  unitPrice Decimal @db.Decimal(10, 2)
-  amount    Decimal @db.Decimal(10, 2)
-
-  createdAt DateTime @default(now())
-
-  invoice Invoice @relation(fields: [invoiceId], references: [id])
-
-  @@index([invoiceId])
+enum subscription_billingInterval {
+  MONTHLY
+  YEARLY
 }
 
-// ─────────────────────────────────────────────
-// PAYMENT
-// ─────────────────────────────────────────────
-
-model Payment {
-  id String @id @default(cuid())
-
-  invoiceId String // The invoice that this payment is for, could be the same as the job's invoice or a different one if the customer is paying for multiple jobs at once.
-
-  amount Decimal       @db.Decimal(10, 2)
-  method PaymentMethod
-
-  referenceNumber String?
-
-  notes String?
-
-  receivedAt DateTime @default(now())
-
-  createdAt DateTime @default(now())
-
-  invoice Invoice @relation(fields: [invoiceId], references: [id])
-
-  @@index([invoiceId])
-  @@index([receivedAt])
+enum user_platformRole {
+  NONE
+  SYSTEM_ADMIN
 }
 
-// ─────────────────────────────────────────────
-// AUDIT LOG
-// ─────────────────────────────────────────────
-model AuditLog {
-  id String @id @default(cuid())
-  scope AuditScope @default(TENANT)
-  actorType String @default("USER")
-
-  actorId String? //	Who did it — a User (staff/admin). Nullable because some actions are automated (system cron job, webhook, no human involved).
-
-  action String
-
-  entity   String //model 
-  entityId String //model instance id
-
-  //addtional contextual information 
-  //json
-  // e.g {
-  //   "oldStatus": "UNPAID",
-  //   "newStatus": "PAID",
-  //   "amount": 155.00
-  // }
-  //still flexible enough to store any other details about the action, e.g. which fields were changed, what the old and new values were, etc.
-  metadata Json? //	Extra details as flexible JSON — e.g. { "oldStatus": "UNPAID", "newStatus": "PAID" } or { "changedFields": ["email", "phone"] }
-
-  ipAddress String? //Where/how it happened — useful for security investigations ("was this really the staff member, or someone else logged in?")
-  userAgent String?
-  requestId String?
-
-  createdAt DateTime @default(now())
-
-  actor          User?         @relation(fields: [actorId], references: [id])
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  organizationId String?
-
-  @@index([actorId])
-  @@index([entity, entityId])
-  @@index([action])
-  @@index([createdAt])
-  @@index([scope, createdAt, id])
-  @@index([scope, organizationId, createdAt])
+enum subscriptionpayment_billingInterval {
+  MONTHLY
+  YEARLY
 }
 
-// Platform billing is intentionally separate from tenant customer invoices/payments.
-model Plan {
-  id String @id @default(cuid())
-  name String @unique @db.VarChar(100)
-  description String? @db.VarChar(1000)
-  price Decimal @map("annualPrice") @db.Decimal(12, 2)
-  billingInterval BillingInterval @default(YEARLY)
-  currency String @default("PHP") @db.Char(3)
-  maxActiveUsers Int
-  isActive Boolean @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  subscriptions Subscription[]
-  settings PlatformSettings[]
-  upgradeRequests SubscriptionUpgradeRequest[]
-}
-
-model Subscription {
-  id String @id @default(cuid())
-  organizationId String @unique
-  planId String
-  status SubscriptionStatus @default(PENDING)
-  startsAt DateTime?
-  expiresAt DateTime?
-  trialStartedAt DateTime?
-  trialExpiresAt DateTime?
-  renewalType String @default("MANUAL") @db.VarChar(20)
-  price Decimal @map("annualPrice") @db.Decimal(12, 2)
-  billingInterval BillingInterval @default(YEARLY)
-  currency String @db.Char(3)
-  version Int @default(0)
-  currentPeriodPaymentId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  organization Organization @relation(fields: [organizationId], references: [id])
-  plan Plan @relation(fields: [planId], references: [id])
-  payments SubscriptionPayment[]
-  history SubscriptionHistory[]
-  upgradeRequests SubscriptionUpgradeRequest[]
-  @@index([status, expiresAt])
-  @@index([planId])
-}
-
-model SubscriptionUpgradeRequest {
-  id String @id @default(cuid())
-  organizationId String
-  subscriptionId String
-  activeSubscriptionId String? @unique
-  planId String
-  sourcePlanId String
-  subscriptionVersion Int
-  planName String @db.VarChar(100)
-  price Decimal @db.Decimal(12, 2)
-  currency String @db.Char(3)
-  billingInterval BillingInterval
-  maxActiveUsers Int
-  status SubscriptionUpgradeRequestStatus @default(REQUESTED)
-  reason String @db.VarChar(1000)
-  actorId String
-  idempotencyKey String @db.VarChar(100)
-  reviewReason String? @db.VarChar(1000)
-  reviewedBy String?
-  reviewedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  organization Organization @relation(fields: [organizationId], references: [id])
-  subscription Subscription @relation(fields: [subscriptionId], references: [id])
-  plan Plan @relation(fields: [planId], references: [id])
-  @@unique([organizationId, idempotencyKey])
-  @@index([subscriptionId, createdAt])
-  @@index([status, createdAt])
-}
-
-model SubscriptionHistory {
-  id String @id @default(cuid())
-  subscriptionId String
-  kind String @db.VarChar(80)
-  before Json?
-  after Json?
-  paymentId String? @unique
-  actorId String?
-  reason String @db.VarChar(1000)
-  createdAt DateTime @default(now())
-  subscription Subscription @relation(fields: [subscriptionId], references: [id])
-  payment SubscriptionPayment? @relation(fields: [paymentId], references: [id])
-  @@index([subscriptionId, createdAt])
-}
-
-model SubscriptionPayment {
-  id String @id @default(cuid())
-  organizationId String
-  subscriptionId String
-  amount Decimal @db.Decimal(12, 2)
-  currency String @db.Char(3)
-  paymentMethod PaymentMethod
-  referenceNumber String @unique @db.VarChar(150)
-  idempotencyKey String @unique @db.VarChar(100)
-  status SubscriptionPaymentStatus @default(PENDING)
-  paidAt DateTime
-  verifiedAt DateTime?
-  verifiedBy String?
-  verificationReason String? @db.VarChar(1000)
-  evidence String? @db.VarChar(1000)
-  billingInterval BillingInterval @default(YEARLY)
-  periodStartsAt DateTime?
-  periodExpiresAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  organization Organization @relation(fields: [organizationId], references: [id])
-  subscription Subscription @relation(fields: [subscriptionId], references: [id])
-  history SubscriptionHistory[]
-  refund SubscriptionRefund?
-  refundRequests SubscriptionRefundRequest[]
-  @@index([status, createdAt])
-  @@index([organizationId, createdAt])
-  @@index([subscriptionId])
-  @@index([verifiedAt])
-}
-
-model SubscriptionRefund {
-  id String @id @default(cuid())
-  paymentId String @unique
-  amount Decimal @db.Decimal(12, 2)
-  currency String @db.Char(3)
-  idempotencyKey String @unique @db.VarChar(100)
-  reason String @db.VarChar(1000)
-  evidence String @db.VarChar(1000)
-  actorId String
-  requestId String? @unique
-  createdAt DateTime @default(now())
-  payment SubscriptionPayment @relation(fields: [paymentId], references: [id])
-  request SubscriptionRefundRequest? @relation(fields: [requestId], references: [id])
-  @@index([createdAt])
-}
-
-model SubscriptionRefundRequest {
-  id String @id @default(cuid())
-  paymentId String
-  // Only open requests hold this key; rejected/completed requests retain history.
-  activePaymentId String? @unique
-  idempotencyKey String @unique @db.VarChar(100)
-  status SubscriptionRefundRequestStatus @default(REQUESTED)
-  reason String @db.VarChar(1000)
-  evidence String @db.VarChar(1000)
-  actorId String
-  reviewReason String? @db.VarChar(1000)
-  reviewedBy String?
-  reviewedAt DateTime?
-  completedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  payment SubscriptionPayment @relation(fields: [paymentId], references: [id])
-  refund SubscriptionRefund?
-  @@index([paymentId, createdAt])
-  @@index([status, createdAt])
-}
-
-model PlatformAlert {
-  id String @id @default(cuid())
-  deduplicationKey String @unique @db.VarChar(191)
-  organizationId String?
-  kind String @db.VarChar(80)
-  severity String @db.VarChar(20)
-  message String @db.VarChar(1000)
-  targetType String @db.VarChar(80)
-  targetId String
-  readAt DateTime?
-  resolvedAt DateTime?
-  createdAt DateTime @default(now())
-  organization Organization? @relation(fields: [organizationId], references: [id])
-  @@index([resolvedAt, createdAt])
-  @@index([organizationId])
-}
-
-model PlatformSettings {
-  id String @id @default("singleton")
-  reminderIntervals Json
-  gracePeriodDays Int @default(0)
-  paymentInstructions String @db.Text
-  supportEmail String? @db.VarChar(254)
-  supportPhone String? @db.VarChar(50)
-  maintenanceMessage String @db.Text
-  defaultPlanId String?
-  defaultPlan Plan? @relation(fields: [defaultPlanId], references: [id])
-  updatedAt DateTime @updatedAt
-}
-
-model RefreshToken {
-  id String @id @default(cuid())
-
-  token String @unique
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-
-  expiresAt DateTime
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
-  @@index([expiresAt])
+enum user_securityStatus {
+  ACTIVE
+  BLOCKED
 }

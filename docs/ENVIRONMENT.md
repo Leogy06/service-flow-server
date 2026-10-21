@@ -1,5 +1,8 @@
 # Backend environments and launcher
 
+For the short production build/start checklist, see the
+[backend README](../README.md#production).
+
 Use Node 24 and Bash (Git Bash/WSL on Windows). Configure private
 `backend/.env.development` and `backend/.env.production` using `.env.example`.
 All required blank values must be filled. Existing files/values are not replaced.
@@ -86,8 +89,8 @@ options are `connection_limit`, `sslaccept=strict`, `sslcert` and development
 [Prisma MySQL connector](https://docs.prisma.io/docs/orm/v7/core-concepts/supported-databases/mysql)
 and [Prisma 7 pool settings](https://docs.prisma.io/docs/orm/v7/prisma-client/setup-and-configuration/databases-connections/connection-pool).
 
-Confirm Freehostia allows connections from the backend host, supports verified
-TLS, and grants the DDL/trigger privileges required by existing migrations. Those
+Confirm the database provider allows connections from the backend host, supports
+verified TLS, and grants the DDL/trigger privileges required by existing migrations. Those
 hosting capabilities have not been verified. This runner uses no Docker in prod.
 It installs locked build dependencies, generates Prisma, builds, requires typing
 `production`, runs **only migrate deploy**, prunes build dependencies, and starts
@@ -161,7 +164,7 @@ already sources/validates its mode, then invokes the local Prisma binary directl
 with its existing production confirmation.
 
 The older `deploy/compose.yml` assumes private non-TLS MySQL and socket migrations;
-the new production restrictions require adapting that deployment before reuse.
+the production restrictions require adapting that deployment before reuse.
 Older predeploy probes intentionally simulate production against local services
-and will now fail the remote/TLS checks; they are not certification for this
+and fail the remote/TLS checks; they are not certification for this
 remote Freehostia deployment.

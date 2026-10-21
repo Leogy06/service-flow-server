@@ -1,3 +1,48 @@
+## [2026-10-21 19:55] Codex
+
+- **Task:** Remove mandatory MySQL sslaccept=strict blockers and allow connection_limit-only production URLs.
+- **Summary:** Removed mandatory production TLS validation and runtime forced TLS; both Prisma CLI and adapter now accept URLs with only connection_limit. Explicit sslaccept=strict/sslcert still enables verified runtime TLS. Updated public example and deployment docs; kept remote-host/socket checks, Redis TLS and production migration confirmations.
+- **Files changed:** backend/src/config/database.ts, backend/tests/config/environment.test.ts, backend/.env.example (public template), backend/README.md, backend/docs/{ENVIRONMENT.md,DOCKER.md}; activity logs. No private env files read or edited.
+- **Endpoints / rate limiting:** N/A; no frontend, database records, migration SQL, API or permission changes. Non-TLS production MySQL is now allowed as explicitly requested; its network traffic is unencrypted.
+- **Status:** Completed TLS change; separate existing build failure remains. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Two regression cases failed before implementation; all 64 focused Jest checks and ten Prisma CLI guards then passed, along with lint/diff checks. Build failed on generated Prisma model casing/default mismatches (auditLog vs auditlog, User vs user, etc.). An in-memory compile with original HEAD database config reproduced 356 errors, proving independence from TLS edits; existing schema/client changes left untouched. No private env loading, database connections, migrations, seeds or production startup attempted. Manually remove sslaccept/sslcert from the selected DATABASE_URL for a non-TLS host. Resolve schema/client alignment separately before a successful app build.
+
+## [2026-10-21 19:14] Codex
+
+- **Task:** Explain Prisma migration failure reporting MySQL server lacks SSL capability.
+- **Summary:** Traced the supplied log to the database TLS handshake, separate from successful code generation/build and npm warnings. Confirmed both production URL validation and runtime MariaDB adapter require TLS; checked official MySQL/Prisma encryption guidance. Recommended verifying a TLS-capable provider endpoint before changing connection policy.
+- **Files changed:** Root/backend ACTIVITY.md only.
+- **Endpoints / rate limiting:** N/A; no application, database, migration, API, permission or security-policy changes.
+- **Status:** Completed diagnosis guidance. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** No .env files read, credentials accessed, hosted connections attempted, migrations run or tests executed. The supplied endpoint reports no SSL capability; provider-wide/plan-specific TLS support remains unverified. Removing sslaccept alone would not disable the runtime production SSL setting. Confirm provider TLS endpoint/CA availability or use an encrypted database connection path.
+
+## [2026-10-21 19:08] Codex
+
+- **Task:** Diagnose and fix run.sh failing to source .env.production.
+- **Summary:** Used redacted structure checks and non-executing Bash validation to identify an extra trailing double quote on DATABASE_URL line 14. Removed exactly that redundant character while asserting the URL content was unchanged. The EOF error referred to the last line, not an invalid LOG_LEVEL value.
+- **Files changed:** Private backend/.env.production quote delimiter only; root/backend ACTIVITY.md. No application or launcher code changed.
+- **Endpoints / rate limiting:** N/A; no frontend, database, migration, API or permission changes.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Bash syntax failed with exit 2 before correction and passed with exit 0 afterward; dotenv parsing and MySQL URL/sslaccept format checks passed. No credentials printed, URL content changed, env file staged, database connection, install, migration or production launch attempted. Build/lint/unit tests omitted because only a private config delimiter changed. Retry npm run prod:all.
+
+## [2026-10-21 18:57] Codex
+
+- **Task:** Explain production MySQL URL validation for Freehostia.
+- **Summary:** Traced database.ts production sslaccept=strict check and environment-variable precedence; checked official Prisma MySQL URL guidance. Prepared a placeholder DATABASE_URL and field/encoding explanation, distinguishing local validation from provider TLS/remote-access capability.
+- **Files changed:** Root/backend ACTIVITY.md only.
+- **Endpoints / rate limiting:** N/A; no application, frontend, schema, migration, API or permission changes.
+- **Status:** Completed explanation. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** No credential files read, database connections attempted, tests run or configuration changed. Effective production URL must include sslaccept=strict; exported DATABASE_URL overrides the file. Freehostia account-specific host, remote access and verified TLS support remain unverified.
+
+## [2026-10-21 18:46] Codex
+
+- **Task:** Make backend production startup/build instructions easy to find.
+- **Summary:** Confirmed the existing docs/ENVIRONMENT.md guide and added backend/README.md with production prerequisites, the prod:all launcher, separate generate/build/migration/prune/start steps, existing-build startup and links to configuration/seed guides. Added a backlink from the detailed guide.
+- **Files changed:** backend/README.md, backend/docs/ENVIRONMENT.md, root/backend ACTIVITY.md.
+- **Endpoints / rate limiting:** N/A; documentation only. No frontend, runtime, database, migration, API or permission changes.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Verified two docs, ten local links/anchors, documented npm mappings, launcher steps and diff whitespace. Application lint/build/tests and production commands were not run because this change only documents existing behavior. Configure private .env.production before running prod:all; existing-build start must explicitly select NODE_ENV=production.
+
 ## [2026-10-21 13:26] Codex
 
 - **Task:** Diagnose and fix navigation 429s, request volume and deployment configuration across both apps.

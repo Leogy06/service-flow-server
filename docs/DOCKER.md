@@ -1,7 +1,7 @@
 # Application container images
 
 For the environment-based local/remote launcher, see [ENVIRONMENT.md](ENVIRONMENT.md).
-Its production configuration now requires remote MySQL with verified TLS and
+Its production configuration requires remote MySQL with verified TLS and
 rejects local/socket connections. The legacy VPS Compose/socket migration flow
 below needs adaptation before reuse with these restrictions.
 

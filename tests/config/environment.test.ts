@@ -83,7 +83,6 @@ test.each(["localhost", "LOCALHOST.", "127.0.0.1", "127.2.3.4", "[::1]", "0.0.0.
 test.each([
   { DATABASE_URL: "postgresql://user:sample@remote.example.com/db" },
   { DATABASE_URL: "mysql://user:sample@remote.example.com/" },
-  { DATABASE_URL: "mysql://user:sample@remote.example.com/db" },
   { DATABASE_URL: "mysql://user:sample@remote.example.com/db?connection_limit=0" },
   { DATABASE_URL: "mysql://user:sample@remote.example.com/db?sslaccept=accept_invalid_certs" },
   { DATABASE_URL: "mysql://user:sample@remote.example.com/db?socket=/run/mysqld.sock" },
@@ -108,6 +107,32 @@ test("reports all missing keys without including credential values", () => {
 
 test("Prisma CLI validates database configuration without unrelated application secrets", () => {
   expect(databaseEnvironmentSchema.parse({ DATABASE_URL: development.DATABASE_URL })).toMatchObject({ NODE_ENV: "development" });
+});
+
+test("production requires explicit strict TLS for CLI and app configuration", () => {
+  const settings = {
+    ...production,
+    DATABASE_URL: "mysql://user:sample@database.example.com:3306/service_flow?connection_limit=5",
+  };
+  expect(databaseEnvironmentSchema.safeParse(settings).success).toBe(false);
+  expect(envSchema.safeParse(settings).success).toBe(false);
+});
+
+test.each(["development", "test"])("adapter uses plain MySQL unless TLS is requested in %s", (mode) => {
+  const options = databaseOptions({
+    NODE_ENV: mode,
+    DATABASE_URL: "mysql://user:sample@database.example.com:3306/service_flow?connection_limit=5",
+  });
+  expect(options.connectionLimit).toBe(5);
+  expect(options.ssl).toBeUndefined();
+});
+
+test("production adapter requires verified TLS even if called without a URL TLS flag", () => {
+  const options = databaseOptions({
+    NODE_ENV: "production",
+    DATABASE_URL: "mysql://user:sample@database.example.com:3306/service_flow?connection_limit=5",
+  });
+  expect(options.ssl).toEqual({ rejectUnauthorized: true });
 });
 
 test("adapter decodes URL credentials and uses the URL pool limit and verified production TLS", () => {
