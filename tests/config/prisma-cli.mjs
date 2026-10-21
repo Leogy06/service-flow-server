@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { PassThrough } from "node:stream";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, relative, resolve } from "node:path";
+import { URL } from "node:url";
 import { commandPlan, selectEnvironment, targetSummary, executePlan, confirmProduction } from "../../scripts/prisma.mjs";
 
 const local = "mysql://local:private-sample@127.0.0.1:3306/development_db";
@@ -37,7 +41,7 @@ test("a missing dev Redis setting cannot inherit a production cache URL", () => 
 });
 
 test("production rejects destructive commands, tenant seeds and connection overrides", () => {
-  for (const args of [["migrate", "reset"], ["migrate", "dev"], ["db", "push"], ["db", "execute"], ["db", "seed"], ["studio"], ["seed", "roles"], ["seed", "bright-star"], ["seed", "development"], ["seed", "catalog"], ["seed", "plans"]]) {
+  for (const args of [["migrate", "reset"], ["migrate", "dev"], ["db", "push"], ["db", "execute"], ["db", "seed"], ["seed", "roles"], ["seed", "bright-star"], ["seed", "development"], ["seed", "catalog"], ["seed", "plans"]]) {
     assert.throws(() => commandPlan(["prod", ...args]), /Production permits/);
   }
   for (const args of [["--url", remote], ["--url=" + remote], ["--config=other.ts"], ["--schema", "other.prisma"], ["-sother.prisma"], ["--from-url", remote]]) {
@@ -51,6 +55,8 @@ test("read commands/generation need no production confirmation; write commands a
   }
   assert.equal(commandPlan(["prod", "migrate", "deploy"]).confirmation, true);
   assert.equal(commandPlan(["prod", "seed", "production", "--apply"]).confirmation, true);
+  assert.equal(commandPlan(["prod", "studio", "--port", "5555"]).confirmation, true);
+  assert.equal(commandPlan(["prod", "studio", "--help"]).confirmation, false);
   assert.equal(commandPlan(["dev", "migrate", "reset"]).confirmation, false);
 });
 
@@ -66,8 +72,8 @@ test("seed shortcuts use the exact existing seed file and preserve flags", () =>
   assert.throws(() => commandPlan(["dev", "seed", "unknown"]), /Unknown seed/);
 });
 
-test("cancelled production confirmation never launches Prisma or a seed", async () => {
-  for (const args of [["migrate", "deploy"], ["seed", "production", "--apply"]]) {
+test("cancelled production confirmation never launches Prisma, Studio or a seed", async () => {
+  for (const args of [["migrate", "deploy"], ["studio"], ["seed", "production", "--apply"]]) {
     let executed = false;
     await assert.rejects(executePlan(commandPlan(["prod", ...args]), {}, {
       confirm: async () => false,
@@ -101,5 +107,51 @@ test("the real production prompt accepts only production and cancels safely on E
     const confirmation = confirmProduction({ input, output });
     input.end(answer);
     assert.equal(await confirmation, expected);
+  }
+});
+
+test("Studio trusts the selected CA at child startup without changing the URL or parent environment", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "studio-ca-"));
+  const certificate = join(directory, "provider ca.pem");
+  writeFileSync(certificate, "sample test CA");
+  try {
+    const url = new URL(remote);
+    url.searchParams.set("sslcert", relative(resolve("prisma"), certificate));
+    const environment = { NODE_ENV: "production", DATABASE_URL: url.toString(), NODE_EXTRA_CA_CERTS: "other-ca.pem" };
+    let calls = 0;
+    await executePlan(commandPlan(["prod", "studio"]), environment, {
+      confirm: async () => true,
+      execute: (_node, _args, options) => {
+        calls++;
+        assert.equal(resolve(options.env.NODE_EXTRA_CA_CERTS), certificate);
+        assert.equal(options.env.DATABASE_URL, environment.DATABASE_URL);
+        return { status: 0 };
+      },
+    });
+    assert.equal(calls, 1);
+    assert.equal(environment.NODE_EXTRA_CA_CERTS, "other-ca.pem");
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("Studio refuses an unreadable CA before launching, while other commands and system-trust Studio keep their environment", async () => {
+  let executed = false;
+  await assert.rejects(executePlan(commandPlan(["prod", "studio"]), {
+    DATABASE_URL: remote + "&sslcert=missing-ca-directory/no-ca.pem",
+  }, {
+    confirm: async () => true,
+    execute: () => { executed = true; return { status: 0 }; },
+  }), /sslcert file could not be read/);
+  assert.equal(executed, false);
+  for (const args of [["studio"], ["studio", "--help"], ["migrate", "status"]]) {
+    const environment = { DATABASE_URL: remote, NODE_EXTRA_CA_CERTS: "existing-ca.pem" };
+    await executePlan(commandPlan(["prod", ...args]), environment, {
+      confirm: async () => true,
+      execute: (_node, _args, options) => {
+        assert.equal(options.env, environment);
+        return { status: 0 };
+      },
+    });
   }
 });

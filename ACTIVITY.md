@@ -1,3 +1,30 @@
+## [2026-10-22 00:41] Codex
+
+- **Task:** Fix production Studio metadata loading failure with self-signed certificate in certificate chain.
+- **Summary:** Traced installed Prisma Studio to mysql2: strict verification is mapped, but sslcert is ignored. Wrapper now resolves the selected CA with the shared database URL helper, checks readability and supplies NODE_EXTRA_CA_CERTS at Studio child startup. Updated certificate troubleshooting docs; parent environment and private env files unchanged.
+- **Files changed:** backend/scripts/prisma.mjs, backend/tests/config/prisma-cli.mjs, backend/docs/ENVIRONMENT.md; root/backend activity logs. Existing Studio shortcut changes preserved.
+- **Endpoints / rate limiting:** N/A; no frontend, schema, migration, API, permission or database-record changes.
+- **Status:** Completed local fix; live Studio browsing unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Two CA-forwarding/readability tests failed before implementation; all 12 wrapper tests, 44 config tests, lint and diff checks passed afterward. Local ephemeral TLS probe proved wrapper CA trust succeeds while untrusted certs and wrong hostnames fail. No Studio started, production contacted or private env files read. User must restart npm run studio:prod to load the CA at Node startup. Build omitted for wrapper/docs-only change.
+
+## [2026-10-22 00:34] Codex
+
+- **Task:** Stop Studio and provide a documented production Studio script instead of launching it.
+- **Summary:** Stopped session 11016 and confirmed localhost:5555 no longer responds. Added studio:prod npm shortcut through the existing environment wrapper; production Studio now requires explicit production confirmation. Documented command, target selection, shutdown, dependency requirements and known custom-CA limitation.
+- **Files changed:** backend/package.json, backend/scripts/prisma.mjs, backend/tests/config/prisma-cli.mjs, backend/docs/ENVIRONMENT.md; root/backend activity logs.
+- **Endpoints / rate limiting:** N/A; no frontend, schema, migration, API, permission or database-record changes.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Two updated guard tests failed before implementation; all ten Prisma wrapper tests, lint and diff checks passed afterward. Studio not restarted; no hosted database queries or private env reads during this change. Actual Studio database/CA compatibility remains unverified; documented mysql2 sslcert warning. Build omitted for npm/wrapper/docs-only change. User will run npm run studio:prod manually.
+
+## [2026-10-22 00:31] Codex
+
+- **Task:** Start Prisma Studio against production.
+- **Summary:** Verified installed CLI options and existing wrapper Studio block; started explicit one-off NODE_ENV=production Studio session on port 5555 as requested, leaving wrapper policy unchanged. Local HTTP returned 200.
+- **Files changed:** Root/backend ACTIVITY.md only; no private env edits.
+- **Endpoints / rate limiting:** Local Studio http://localhost:5555; no application API changes.
+- **Status:** Studio running (exec session 11016). **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Studio reports mysql2 ignores sslcert URL option; UI startup does not prove database browsing or CA handling works. No record edits or migrations executed. Listener inspection denied by sandbox; HTTP check passed. Existing strict runtime/Prisma config unchanged. Production Studio allows user edits; no test/build needed for launcher-only task.
+
 ## [2026-10-22 00:17] Codex
 
 - **Task:** Diagnose production migration 20260908120316_fix_userpermission_pk failing with MySQL 3750.

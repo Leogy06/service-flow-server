@@ -117,6 +117,7 @@ npm run prisma:dev -- studio
 
 npm run prisma:prod -- migrate status
 npm run prisma:prod -- migrate deploy
+npm run studio:prod
 npm run seed:prod -- --dry-run
 npm run seed:prod -- --apply
 ```
@@ -130,8 +131,8 @@ commands cannot silently change that target. No manual sourcing is needed for
 these wrappers. Direct npx prisma commands still inherit the shell environment;
 use the wrappers for manual database work.
 
-Production migrate deploy and seed:prod --apply require typing production. Reset,
-migrate dev, db push/execute, studio and tenant/sample seeds are blocked in prod.
+Production migrate deploy, seed:prod --apply and Studio require typing production.
+Reset, migrate dev, db push/execute and tenant/sample seeds are blocked in prod.
 The default db seed updates tenant role permissions, so production uses the
 separate seed:prod command for global permissions and the system administrator
 only, with the required global role and audit records. No plan or tenant data is
@@ -142,6 +143,35 @@ and plan seeds are restricted to development. Dry runs and read-only commands
 need no confirmation. An explicit dev
 reset still asks Prisma's normal destructive-operation confirmation and erases
 all data in the chosen development database; seeds run separately.
+
+### Prisma Studio for production
+
+From `backend/`, run:
+
+```sh
+npm run studio:prod
+# Optional: choose the port and avoid opening a browser automatically.
+npm run studio:prod -- --port 5555 --browser none
+```
+
+Check the displayed production target, then type `production`. This uses the same
+`.env.production` selection, injected-variable precedence and database validation
+as `prisma:prod`. Open the localhost URL printed by Studio; press Ctrl+C in that
+terminal to stop it. No migrations or seeds run when starting Studio. Studio can
+edit production records; it is not a read-only database viewer.
+
+The installed Studio MySQL driver ignores the `sslcert` URL option. The wrapper
+resolves that CA file relative to `backend/prisma` and passes its absolute path
+through `NODE_EXTRA_CA_CERTS` before starting Studio. This lets Node trust the
+provider's CA while `sslaccept=strict` continues to enforce certificate verification.
+The selected database CA takes precedence over an inherited `NODE_EXTRA_CA_CERTS`
+for the Studio child only. Your shell and env files are unchanged. Studio may still
+warn that `sslcert` is ignored; the CA is supplied separately through Node.
+If you see `self-signed certificate in certificate chain`, stop Studio and restart
+with `npm run studio:prod`; confirm `sslcert` references your provider's correct CA.
+Do not disable TLS verification. UI startup alone does not verify database access.
+Studio requires the backend development dependencies (including Prisma CLI),
+which the production launcher prunes after building.
 
 Existing npm shortcuts now require the mode argument too:
 

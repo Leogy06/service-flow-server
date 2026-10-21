@@ -54,8 +54,8 @@ export function commandPlan(argv) {
   const command = args.slice(0, 2).join(" ");
   if (mode === "prod" && !help) {
     const allowed = ["migrate deploy", "migrate status", "migrate diff", "db pull", "seed production"];
-    if (!["generate", "validate", "format", "version", "--version", "-v"].includes(args[0]) && !allowed.includes(command)) {
-      throw new Error("Production permits generate/validate/format/version, migrate deploy/status/diff, db pull, and seed production. Catalog plans, reset, migrate dev, db push/execute, studio and tenant/sample seeds are blocked. Use seed:prod for system-admin and permissions only.");
+    if (!["generate", "validate", "format", "version", "--version", "-v", "studio"].includes(args[0]) && !allowed.includes(command)) {
+      throw new Error("Production permits generate/validate/format/version, studio, migrate deploy/status/diff, db pull, and seed production. Catalog plans, reset, migrate dev, db push/execute and tenant/sample seeds are blocked. Use seed:prod for system-admin and permissions only.");
     }
   }
   let childArgs = [resolve(backend, "node_modules/prisma/build/index.js"), ...args];
@@ -67,7 +67,8 @@ export function commandPlan(argv) {
   return {
     mode, childArgs,
     seed: args[0] === "seed" || command === "db seed",
-    confirmation: mode === "prod" && !help && (command === "migrate deploy" || (command === "seed production" && args.includes("--apply"))),
+    studio: args[0] === "studio" && !help,
+    confirmation: mode === "prod" && !help && (args[0] === "studio" || command === "migrate deploy" || (command === "seed production" && args.includes("--apply"))),
   };
 }
 
@@ -99,7 +100,7 @@ export async function confirmProduction({ input = process.stdin, output = proces
   const controller = new AbortController();
   reader.once("close", () => controller.abort());
   try {
-    return await reader.question("Type production to apply changes: ", { signal: controller.signal }) === "production";
+    return await reader.question("Type production to continue with production access: ", { signal: controller.signal }) === "production";
   } catch {
     return false;
   } finally {
@@ -110,7 +111,18 @@ export async function confirmProduction({ input = process.stdin, output = proces
 // Keep the production gate ahead of subprocess execution, including seeds.
 export async function executePlan(plan, environment, { confirm = confirmProduction, execute = spawnSync } = {}) {
   if (plan.confirmation && !await confirm()) throw new Error("Production changes cancelled.");
-  const childEnvironment = plan.seed ? { ...environment, LOG_LEVEL: "error" } : environment;
+  let childEnvironment = plan.seed ? { ...environment, LOG_LEVEL: "error" } : environment;
+  if (plan.studio && new URL(environment.DATABASE_URL).searchParams.has("sslcert")) {
+    const { prismaDatasourceUrl } = await tsImport("../src/config/database.ts", import.meta.url);
+    const certificate = new URL(prismaDatasourceUrl(environment.DATABASE_URL)).searchParams.get("sslcert");
+    try {
+      readFileSync(certificate);
+    } catch {
+      throw new Error("DATABASE_URL sslcert file could not be read (paths are relative to backend/prisma)");
+    }
+    // Studio ignores sslcert. Node must load the selected CA before the child starts.
+    childEnvironment = { ...childEnvironment, NODE_EXTRA_CA_CERTS: certificate };
+  }
   const result = execute(process.execPath, plan.childArgs, { cwd: backend, env: childEnvironment, stdio: "inherit" });
   if (result.error) throw new Error("Could not start Prisma/seed. Install backend development dependencies first.");
   return result.status ?? 1;

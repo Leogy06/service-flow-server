@@ -52,6 +52,7 @@
     "test:access:browser": "cross-env RUN_DB_ACCESS_TESTS=1 RUN_BROWSER_ACCESS_TESTS=1 LOG_LEVEL=error NODE_ENV=test node --import tsx tests/access-management/mysql.integration.mjs",
     "prisma:dev": "node scripts/prisma.mjs dev",
     "prisma:prod": "node scripts/prisma.mjs prod",
+    "studio:prod": "node scripts/prisma.mjs prod studio",
     "test:config:prisma": "node --test --test-isolation=none tests/config/prisma-cli.mjs"
   },
   "prisma": {
