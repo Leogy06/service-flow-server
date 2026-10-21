@@ -1,6 +1,7 @@
 // send-invite.ts
 import { env } from "@/config/env";
 import { resend } from "./client";
+import { emailLogoAttachment } from "./branding";
 import { inviteUserHtml } from "./templates/invite-user";
 
 interface SendInviteEmailProps {
@@ -21,6 +22,7 @@ export async function sendInviteEmail({
     to,
     subject: "You’re invited to join ServiceFlow",
     html: inviteUserHtml({ firstName, inviteUrl }),
+    attachments: [emailLogoAttachment],
   });
 
   if (error) {

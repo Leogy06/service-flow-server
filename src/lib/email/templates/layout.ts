@@ -1,3 +1,5 @@
+import { EMAIL_LOGO_CONTENT_ID } from "../branding";
+
 interface ActionEmailProps {
   preheader: string;
   eyebrow: string;
@@ -32,9 +34,8 @@ export function actionEmailHtml(props: ActionEmailProps): string {
   const actionUrl = escapeHtml(props.actionUrl);
   const actionLabel = escapeHtml(props.actionLabel);
   const firstName = escapeHtml(props.firstName.trim());
-  // Mail clients receive a static PNG with an opaque white background for both modes.
-  // Only reuse the trusted origin; private action parameters never enter image requests.
-  const logoUrl = new URL("/service-flow-logo/handoff/email-mark.png", url.origin);
+  // Delivery must include emailLogoAttachment; the logo needs no remote image request.
+  const logoSource = `cid:${EMAIL_LOGO_CONTENT_ID}`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -65,7 +66,7 @@ export function actionEmailHtml(props: ActionEmailProps): string {
               <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse: collapse;">
                 <tr>
                   <td width="48" valign="middle" style="width: 48px; font-size: 0; line-height: 0;">
-                    <img src="${escapeHtml(logoUrl.href)}" alt="" width="48" height="48" border="0" style="display: block; width: 48px; height: 48px; border: 0; border-radius: 6px; background-color: #ffffff;" />
+                    <img src="${logoSource}" alt="" width="48" height="48" border="0" style="display: block; width: 48px; height: 48px; border: 0; border-radius: 6px; background-color: #ffffff;" />
                   </td>
                   <td valign="middle" style="padding-left: 12px; font-size: 22px; line-height: 30px; font-weight: 700; letter-spacing: -0.7px; color: #1c1917;">ServiceFlow</td>
                 </tr>

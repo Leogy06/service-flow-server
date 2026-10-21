@@ -1,3 +1,12 @@
+## [2026-10-22 06:37] Codex
+
+- **Task:** Diagnose the missing production email brand image and fix delivery.
+- **Summary:** Confirmed the public logo URL returns HTTP 200/image/png; replaced the remote image dependency with a bundled approved PNG and matching Resend CID attachment. Updated shared template safety/delivery regression tests and email docs.
+- **Files changed:** src/lib/email/{branding.ts,send-invite.ts,templates/layout.ts,FEATURE.md}, tests/email/{templates.test.ts,send-invite.test.ts}; root/backend ACTIVITY.md.
+- **Endpoints / rate limiting:** N/A; no frontend, database, migration, API or permission changes.
+- **Status:** Completed locally. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Six regressions failed before the fix; all 47 backend suites/1083 tests, lint, build, compiled-logo smoke check and diff checks passed. Restored existing locked dev dependencies offline with lifecycle scripts disabled. No deployment or emails sent; a fresh production invitation must confirm mailbox rendering. Exact cause in the old received email remains unverified; CID removes remote-fetch reliance. Reset delivery remains an existing placeholder; future senders must attach the shared PNG. Raw HTML browser previews require substituting its data URL.
+
 ## [2026-10-22 06:26] Codex
 
 - **Task:** Diagnose and repair the TypeScript errors reported during npm run prod:all.

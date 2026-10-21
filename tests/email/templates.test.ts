@@ -37,22 +37,20 @@ describe.each(templates)("$name email safety", ({ render }) => {
       .toContain('href="http://localhost:4001/set-password?token=sample"');
   });
 
-  it("uses the shared system mark from the application origin without private action parameters", () => {
+  it("references the inline system mark without private action parameters", () => {
     const html = render("Alex", actionUrl);
     const source = html.match(/<img src="([^"]+)"/)?.[1];
     expect(source).toBeDefined();
-    const imageUrl = new URL(source!.replaceAll("&amp;", "&"));
-    expect(imageUrl.origin).toBe("https://example.com");
-    expect(imageUrl.pathname).toBe("/service-flow-logo/handoff/email-mark.png");
-    expect([...imageUrl.searchParams]).toEqual([]);
+    expect(source).toMatch(/^cid:[a-zA-Z0-9-]+$/);
     expect(source).not.toContain("token");
     expect(source).not.toContain("email=");
     expect(html).toContain('alt="" width="48" height="48"');
     expect(html).toContain(">ServiceFlow</td>");
   });
 
-  it("uses the configured local origin for logo previews", () => {
-    expect(render("Alex", "http://localhost:4001/set-password?token=sample"))
-      .toContain('src="http://localhost:4001/service-flow-logo/handoff/email-mark.png"');
+  it("does not require recipients to fetch the logo from localhost", () => {
+    const html = render("Alex", "http://localhost:4001/set-password?token=sample");
+    expect(html).toMatch(/<img src="cid:[a-zA-Z0-9-]+"/);
+    expect(html).not.toMatch(/<img src="https?:/);
   });
 });
