@@ -3,5 +3,6 @@
   "framework": "express",
   "installCommand": "npm ci --include=dev",
   "buildCommand": "npm run prod:build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "regions": ["sin1"]
 }
