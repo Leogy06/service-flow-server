@@ -1,4 +1,6 @@
-export const seedOrganization = async (prisma) => {
+import type { PrismaClient } from "../../src/generated/prisma/client.js";
+
+export const seedOrganization = async (prisma: PrismaClient) => {
   console.log("Seeding organizations...");
 
   const data = [

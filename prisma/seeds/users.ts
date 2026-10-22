@@ -1,9 +1,14 @@
 import bcrypt from "bcryptjs";
+import type { Organization, PrismaClient, Role, User } from "../../src/generated/prisma/client.js";
 
-export const seedUsers = async (prisma, organizations, roles) => {
+export const seedUsers = async (
+  prisma: PrismaClient,
+  organizations: Pick<Organization, "id" | "slug">[],
+  roles: Pick<Role, "id" | "name" | "organizationId">[],
+) => {
   console.log("Seeding users...");
 
-  const users = [];
+  const users: User[] = [];
   const passwordHash = await bcrypt.hash("Password123!", 10);
 
   for (const org of organizations) {

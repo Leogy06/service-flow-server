@@ -75,8 +75,9 @@ manager for restarts; the launcher itself runs in the foreground.
 Select `backend` as the Vercel project Root Directory when importing the full
 repository. If the Git repository contains only this backend, use its root.
 The committed [vercel.json](vercel.json) selects the Express framework, installs
-build dependencies and runs `npm run prod:build` (Prisma generation and TypeScript
-build). Remove any dashboard override that still runs `npm run prod:all`.
+build dependencies and runs `npm run prod:build` (Prisma generation, seed/config
+type-checking and the API TypeScript build). The seed check does not execute seeds
+or contact the database. Remove any dashboard override that still runs `npm run prod:all`.
 Keep Output Directory at the Express preset default; `dist` is not a static site.
 Vercel uses the default Express export in `src/app.ts` as its entrypoint.
 

@@ -1,3 +1,20 @@
+## [2026-10-22 13:55] Codex
+
+- **Task:** Fix Vercel TS7006 errors in Prisma seeds despite a successful local production build.
+- **Summary:** Reproduced all seven users.ts errors plus an untyped organization seed parameter; added generated Prisma types and a no-emit seed/config check to prod:build. Updated deployment and seed docs.
+- **Files changed:** prisma/seeds/users.ts, prisma/seeds/organization.ts, tsconfig.prisma.json, package.json, prisma/seeds/FEATURE.md, README.md, ACTIVITY.md.
+- **Endpoints / rate limiting:** N/A; no frontend, runtime seed behavior, schema, migrations, database records, API or permission changes.
+- **Status:** Completed locally. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Prisma type-check, lint, 6 Prisma suites/121 tests, full prod:build and Git whitespace check passed. Full build initially hit sandbox EPERM on existing dist files; approved rerun passed using a placeholder database URL. No migrations, seeds, production connections or deployment performed. Push changes and redeploy with existing Vercel commands; hosted result unverified.
+
+## [2026-10-22 13:41] Codex
+
+- **Task:** Explain Vercel deployment settings for service-flow-server.
+- **Summary:** Reviewed existing Express export, Vercel config, npm scripts and environment validation; checked current official Vercel documentation and supplied dashboard settings.
+- **Files changed:** ACTIVITY.md only; no application changes.
+- **Endpoints / rate limiting:** N/A; no frontend, database, migration, API or permission changes.
+- **Status:** Completed guidance. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Build/tests/deployment not run for this configuration review. Set remote services and production environment variables, ensure existing vercel.json is pushed, then deploy. Production migrations remain separate; filesystem branding uploads require shared storage.
 ## [2026-10-22 06:48] Codex
 
 - **Task:** Diagnose the backend Vercel deployment failing on missing .env.production.

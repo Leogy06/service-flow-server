@@ -1,5 +1,11 @@
 # Catalog and development seeds
 
+Run `npm run typecheck:prisma` after generating Prisma Client to check all seed
+sources and `prisma.config.ts` without executing them or connecting to a database.
+`npm run prod:build` includes this check. The API compilation in
+`tsconfig.build.json` only includes `src`, whereas Vercel's separate TypeScript
+compilation can also report seed errors.
+
 `development.ts` and `../seed-development.ts` provide the complete, local-only
 sample workspace with `npm run seed:dev` (preview) and `npm run seed:dev -- --apply`.
 They use `DEV_SEED_PASSWORD` for new accounts and combine the shared catalog and
