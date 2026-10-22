@@ -1,3 +1,12 @@
+## [2026-10-22 14:18] Codex
+
+- **Task:** Fix deployed Vercel ERR_MODULE_NOT_FOUND for src/config/env.
+- **Summary:** Traced the crash to Vercel transpiling src/app.ts without the existing dist alias/extension rewrite. Verified official Express builder output-directory selection and configured dist so it selects compiled dist/app.js; corrected earlier deployment guidance and added an isolated plain-Node startup smoke check.
+- **Files changed:** vercel.json, package.json, tests/config/vercel-runtime.mjs, README.md, ACTIVITY.md.
+- **Endpoints / rate limiting:** N/A; no route, middleware, authentication, tenant scope, frontend, database, migration or permission changes.
+- **Status:** Completed locally; hosted redeployment unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Full prod:build, isolated startup smoke, lint, 49 environment/logger tests and Git whitespace check passed. Smoke uses placeholder configuration, skips private env loading, stubs shared service clients and blocks network access. No production connections, migrations, seeds or deployment performed. Push and redeploy with Express/outputDirectory=dist; check /api/health. Prior unset-output advice bypassed the compiled artifact and was incorrect for this build pipeline.
+
 ## [2026-10-22 13:55] Codex
 
 - **Task:** Fix Vercel TS7006 errors in Prisma seeds despite a successful local production build.

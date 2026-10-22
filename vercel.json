@@ -2,5 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "express",
   "installCommand": "npm ci --include=dev",
-  "buildCommand": "npm run prod:build"
+  "buildCommand": "npm run prod:build",
+  "outputDirectory": "dist"
 }

@@ -72,14 +72,23 @@ manager for restarts; the launcher itself runs in the foreground.
 
 ## Vercel backend deployment
 
-Select `backend` as the Vercel project Root Directory when importing the full
+Select `service-flow-server` as the Vercel project Root Directory when importing the full
 repository. If the Git repository contains only this backend, use its root.
 The committed [vercel.json](vercel.json) selects the Express framework, installs
 build dependencies and runs `npm run prod:build` (Prisma generation, seed/config
 type-checking and the API TypeScript build). The seed check does not execute seeds
 or contact the database. Remove any dashboard override that still runs `npm run prod:all`.
-Keep Output Directory at the Express preset default; `dist` is not a static site.
-Vercel uses the default Express export in `src/app.ts` as its entrypoint.
+Keep `outputDirectory: "dist"` in `vercel.json` (dashboard Output Directory: `dist`).
+The Express preset searches that directory after the build and uses the default
+Express export in `dist/app.js`; it remains a serverless backend. The build's
+`tsc-alias` step resolves aliases and adds `.js` extensions for Node ESM.
+Loading `src/app.ts` directly bypasses that step and can fail at runtime with
+`ERR_MODULE_NOT_FOUND` for imports such as `./config/env`.
+
+After `npm run prod:build`, run `npm run test:vercel:runtime` to check that the
+selected compiled entrypoint loads in plain Node ESM. The smoke test isolates
+environment loading and service clients and blocks network connections; it
+does not validate live MySQL, Redis or Vercel deployment packaging.
 
 Set these in **Project Settings > Environment Variables** for the deployment's
 environment, then redeploy:
@@ -108,6 +117,7 @@ hops only after verifying the deployed proxy path; the diagnostic setting is
 documented in [.env.example](.env.example).
 
 References: [Express on Vercel](https://vercel.com/docs/frameworks/backend/express),
+[Express output-directory entrypoint selection](https://github.com/vercel/vercel/blob/main/packages/express/src/build.ts),
 [environment variables](https://vercel.com/docs/environment-variables) and
 [function filesystem support](https://vercel.com/docs/functions/runtimes#file-system-support).
 

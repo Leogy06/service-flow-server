@@ -45,6 +45,7 @@
     "lint": "eslint .",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test:config:launcher": "node --test --test-isolation=none tests/config/launcher.mjs",
+    "test:vercel:runtime": "node --test tests/config/vercel-runtime.mjs",
     "test:service-requests:mysql": "cross-env RUN_DB_SERVICE_REQUEST_TESTS=1 LOG_LEVEL=fatal NODE_ENV=test node --import tsx tests/service-request/mysql.integration.mjs",
     "test:service-requests:browser": "cross-env RUN_DB_SERVICE_REQUEST_TESTS=1 RUN_BROWSER_SERVICE_REQUEST_TESTS=1 LOG_LEVEL=fatal NODE_ENV=test node --import tsx tests/service-request/mysql.integration.mjs",
     "test:workflow:mysql": "cross-env RUN_DB_WORKFLOW_TESTS=1 LOG_LEVEL=fatal NODE_ENV=test node --import tsx tests/workflow/mysql.integration.mjs",
