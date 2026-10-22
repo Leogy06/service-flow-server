@@ -85,6 +85,8 @@ export function databaseOptions(env: { DATABASE_URL: string; NODE_ENV: string })
     password: decodeURIComponent(url.password),
     database: decodeURIComponent(url.pathname.slice(1)),
     connectionLimit: Number(url.searchParams.get("connection_limit") ?? 5),
+    // Remote DNS/TCP/TLS setup can exceed the driver's one-second default.
+    connectTimeout: 10_000,
     allowPublicKeyRetrieval: env.NODE_ENV !== "production",
     ...(url.searchParams.has("socket") ? { socketPath: url.searchParams.get("socket")! } : {}),
     ...(tls ? { ssl: { rejectUnauthorized: true, ...(ca ? { ca } : {}) } } : {}),

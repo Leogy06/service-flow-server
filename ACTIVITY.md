@@ -1,3 +1,30 @@
+## [2026-10-22 15:23] Codex
+
+- **Task:** Investigate the supplied Aiven endpoint and mitigate the live one-second database connection timeout.
+- **Summary:** DNS resolved the supplied public host; a credential-free TCP connection to port 28669 succeeded in 168ms outside the network sandbox. Set the MariaDB adapter connectTimeout to 10000ms and documented Aiven's assigned port and deployed project CA configuration. TLS verification and the five-connection pool limit are preserved.
+- **Files changed:** src/config/database.ts, README.md, ACTIVITY.md.
+- **Endpoints / rate limiting:** N/A; no frontend, route, authentication logic, limiter, schema, migration or permission changes.
+- **Status:** Completed local mitigation and verification; Vercel result unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** All 44 environment tests, full ESLint, build TypeScript no-emit check and git diff whitespace check passed. TCP test initially returned sandbox EACCES; approved retry succeeded. No credentials, database queries, deployment or live login used. Ensure Vercel DATABASE_URL explicitly contains the supplied hostname and :28669, then deploy the backend change; workspace reachability does not prove Vercel reachability or the deployed environment value.
+
+## [2026-10-22 15:07] Codex
+
+- **Task:** Refine live MySQL connection diagnosis after confirmation that the provider is Aiven.
+- **Summary:** Checked official Aiven connection, firewall, VPC and CA documentation against existing verified-TLS adapter support. Identified host/assigned-port, IP filtering/public endpoint and deployed project CA as the provider-specific checks; socket timeout alone does not identify which is failing.
+- **Files changed:** ACTIVITY.md only; no application or environment changes.
+- **Endpoints / rate limiting:** N/A; no route, limiter, schema or permission changes.
+- **Status:** Completed guidance; hosted cause unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Need non-secret Aiven host/port and IP-filter/public-access details to narrow live connectivity. Driver still uses 1000ms connectTimeout. No live connections, deployment or tests performed.
+
+## [2026-10-22 15:02] Codex
+
+- **Task:** Diagnose live login P2039 / MariaDB 45028 pool connection failure.
+- **Summary:** Traced login's first user lookup through the singleton PrismaMariaDb adapter. The supplied nested 45012 error reports socket creation timing out after 1000ms; databaseOptions leaves the installed driver's 1000ms connectTimeout default unchanged. Zero active/idle connections points to connection establishment failure, not evidence of this pool reaching its five-connection limit.
+- **Files changed:** ACTIVITY.md only; runtime settings and application code unchanged.
+- **Endpoints / rate limiting:** N/A; no endpoint, authentication, limiter, schema, migration or permission changes.
+- **Status:** Completed local diagnosis; live connectivity cause unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Requested database provider/public-vs-private endpoint details without credentials. Check backend Vercel DATABASE_URL host/port and database firewall/trusted sources; consider a longer driver connectTimeout only after connectivity review. Consulted official MariaDB/Vercel documentation. No live DB connections or tests performed.
+
 ## [2026-10-22 14:18] Codex
 
 - **Task:** Fix deployed Vercel ERR_MODULE_NOT_FOUND for src/config/env.

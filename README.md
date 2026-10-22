@@ -105,6 +105,14 @@ from [.env.example](.env.example). A custom `sslcert` path must refer to a CA fi
 available inside the deployment, not a path on your computer. Environment-only
 startup does not require `.env.production`; keep private env files out of Git.
 
+For Aiven, use the exact hostname and assigned port from the service's connection
+information; omitting the port makes the adapter use `3306`. With Aiven's project
+CA at `certs/ca.pem`, include `sslaccept=strict&sslcert=../certs/ca.pem` in the URL.
+The API allows ten seconds to establish a database connection instead of the
+MariaDB driver's one-second default. A socket timeout with zero active and idle
+pool connections still requires checking the deployed host, port and network
+access; a larger pool does not fix an unreachable endpoint.
+
 `prod:all` is for a persistent Node host: it requires a local env file, prompts
 for migration approval and starts a foreground server. Run production migrations
 separately through the existing guarded Prisma commands, using the same database
