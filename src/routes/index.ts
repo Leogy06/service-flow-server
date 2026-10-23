@@ -16,8 +16,12 @@ import systemAdminRoutes from "@/modules/system-admin/system-admin.routes";
 import auditRoutes from "@/modules/audit/audit.routes";
 import dashboardRoutes from "@/modules/dashboard/dashboard.routes";
 import { tenantFeedbackRoutes, platformFeedbackRoutes, publicFeedbackRoutes } from "@/modules/feedback/feedback.routes";
+import { accessLogRoutes, accessLogCronRoutes } from "@/modules/access-logs/access-logs.routes";
 
 export const router = Router();
+router.use("/admin/access-logs", accessLogRoutes);
+router.use("/system-admin/access-logs", accessLogRoutes);
+router.use("/cron", accessLogCronRoutes);
 
 router.use("/auth", authRoutes);
 router.use("/feedback", tenantFeedbackRoutes);

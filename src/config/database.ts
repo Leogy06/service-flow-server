@@ -37,8 +37,33 @@ export const databaseUrlSchema = z.string().url({ error: "Must be a valid mysql:
 
 export const databaseEnvironmentSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-  DATABASE_URL: databaseUrlSchema,
+  DATABASE_URL: databaseUrlSchema.optional(),
+  DB_HOST: z.string().min(1).optional(),
+  DB_PORT: z.coerce.number().int().min(1).max(65535).optional(),
+  DB_USER: z.string().min(1).optional(),
+  DB_PASSWORD: z.string().optional(),
+  DB_NAME: z.string().min(1).optional(),
+  DB_CA: z.string().min(1).optional(),
 }).superRefine((value, ctx) => {
+  const separate = [value.DB_HOST, value.DB_PORT, value.DB_USER, value.DB_PASSWORD, value.DB_NAME, value.DB_CA];
+  if (separate.some((part) => part !== undefined)) {
+    if (separate.some((part) => part === undefined)) {
+      ctx.addIssue({ code: "custom", path: ["DB_HOST"], message: "Set all DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME and DB_CA values together" });
+    }
+    if (value.DB_CA && !value.DB_CA.includes("-----BEGIN CERTIFICATE-----")) {
+      ctx.addIssue({ code: "custom", path: ["DB_CA"], message: "Must contain the full PEM CA certificate" });
+    }
+    const host = value.DB_HOST?.toLowerCase().replace(/\.$/, "");
+    if (value.NODE_ENV === "production" && host &&
+        (host === "localhost" || host.endsWith(".localhost") || /^127\./.test(host) || ["::1", "[::1]", "0.0.0.0", "::", "[::]"].includes(host))) {
+      ctx.addIssue({ code: "custom", path: ["DB_HOST"], message: "Production requires a remote MySQL host" });
+    }
+    if (!value.DATABASE_URL) return;
+  }
+  if (!value.DATABASE_URL) {
+    ctx.addIssue({ code: "custom", path: ["DATABASE_URL"], message: "Set the DB_* connection values (or the existing DATABASE_URL locally)" });
+    return;
+  }
   if (value.NODE_ENV !== "production" || !URL.canParse(value.DATABASE_URL)) return;
   const url = new URL(value.DATABASE_URL);
   if (url.searchParams.get("sslaccept") !== "strict") {
@@ -65,7 +90,18 @@ export function prismaDatasourceUrl(databaseUrl: string): string {
 }
 
 // Prisma 7 uses the MariaDB driver's options, not Prisma URL pool/SSL options.
-export function databaseOptions(env: { DATABASE_URL: string; NODE_ENV: string }): PoolConfig {
+export function databaseOptions(env: {
+  DATABASE_URL?: string; NODE_ENV: string;
+  DB_HOST?: string; DB_PORT?: number; DB_USER?: string; DB_PASSWORD?: string; DB_NAME?: string; DB_CA?: string;
+}): PoolConfig {
+  if (env.DB_HOST) {
+    return {
+      host: env.DB_HOST, port: env.DB_PORT, user: env.DB_USER, password: env.DB_PASSWORD,
+      database: env.DB_NAME, ssl: { ca: env.DB_CA, rejectUnauthorized: true },
+      connectionLimit: 1, connectTimeout: 10_000,
+    };
+  }
+  if (!env.DATABASE_URL) throw new Error("Database connection configuration is missing");
   const url = new URL(env.DATABASE_URL);
   const cert = url.searchParams.get("sslcert");
   const tls = env.NODE_ENV === "production" || url.searchParams.has("sslaccept") || Boolean(cert);

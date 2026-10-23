@@ -1,38 +1,65 @@
-## [2026-10-22 15:23] Codex
+## [2026-10-23 15:32] Codex
 
-- **Task:** Investigate the supplied Aiven endpoint and mitigate the live one-second database connection timeout.
-- **Summary:** DNS resolved the supplied public host; a credential-free TCP connection to port 28669 succeeded in 168ms outside the network sandbox. Set the MariaDB adapter connectTimeout to 10000ms and documented Aiven's assigned port and deployed project CA configuration. TLS verification and the five-connection pool limit are preserved.
-- **Files changed:** src/config/database.ts, README.md, ACTIVITY.md.
-- **Endpoints / rate limiting:** N/A; no frontend, route, authentication logic, limiter, schema, migration or permission changes.
-- **Status:** Completed local mitigation and verification; Vercel result unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
-- **Next steps / Notes:** All 44 environment tests, full ESLint, build TypeScript no-emit check and git diff whitespace check passed. TCP test initially returned sandbox EACCES; approved retry succeeded. No credentials, database queries, deployment or live login used. Ensure Vercel DATABASE_URL explicitly contains the supplied hostname and :28669, then deploy the backend change; workspace reachability does not prove Vercel reachability or the deployed environment value.
+- **Task:** Conduct an independent full-system SaaS and simulated certification-readiness audit without implementing fixes.
+- **Summary:** Reviewed both apps, schema/migrations, auth/tenant/billing/cache/deployment/UX; delivered three shared reports with 23 findings, 57.0/100 score and FAIL remediation verdict. Verified unchanged hashes for 723 source/config files.
+- **Files changed:** Shared ../docs/audits/{SERVICEFLOW_AUDIT_REPORT.md,CERTIFICATION_READINESS.md,REMEDIATION_ROADMAP.md,evidence/*}; ACTIVITY.md only within each app repository.
+- **Endpoints / rate limiting:** N/A; no source, API, permission, rate policy, environment or database changes.
+- **Status:** Completed audit; remediation not implemented. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Lint/types pass both; frontend 43/43, permission probes 4/4 and safety utilities 4/4 pass; backend 1,090 pass, 3 fail, one further suite setup failure. Isolated backend emit/alias and frontend network webpack build pass; normal backend build blocked by dist EPERM. Fresh npm audits completed. Docker stage omissions reproduced; no real DB/browser/load/production assessment. Review reports before fixes.
 
-## [2026-10-22 15:07] Codex
+## [2026-10-23 14:39] Codex
 
-- **Task:** Refine live MySQL connection diagnosis after confirmation that the provider is Aiven.
-- **Summary:** Checked official Aiven connection, firewall, VPC and CA documentation against existing verified-TLS adapter support. Identified host/assigned-port, IP filtering/public endpoint and deployed project CA as the provider-specific checks; socket timeout alone does not identify which is failing.
-- **Files changed:** ACTIVITY.md only; no application or environment changes.
-- **Endpoints / rate limiting:** N/A; no route, limiter, schema or permission changes.
-- **Status:** Completed guidance; hosted cause unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
-- **Next steps / Notes:** Need non-secret Aiven host/port and IP-filter/public-access details to narrow live connectivity. Driver still uses 1000ms connectTimeout. No live connections, deployment or tests performed.
+- **Task:** Assess the current trust-proxy and diagnostic block's risk.
+- **Summary:** Explained conditional forwarding-header spoofing risk on direct/unsanitized ingress, standard Vercel header sanitization, and that diagnostic logging does not enforce the configured hop count.
+- **Files changed:** ACTIVITY.md only.
+- **Endpoints / rate limiting:** N/A; no runtime or policy changes.
+- **Status:** Completed assessment. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Official Express/Vercel documentation rechecked. No application or environment edits, deployments or tests; live deployment spoof resistance remains unverified.
 
-## [2026-10-22 15:02] Codex
+## [2026-10-23 14:34] Codex
 
-- **Task:** Diagnose live login P2039 / MariaDB 45028 pool connection failure.
-- **Summary:** Traced login's first user lookup through the singleton PrismaMariaDb adapter. The supplied nested 45012 error reports socket creation timing out after 1000ms; databaseOptions leaves the installed driver's 1000ms connectTimeout default unchanged. Zero active/idle connections points to connection establishment failure, not evidence of this pool reaching its five-connection limit.
-- **Files changed:** ACTIVITY.md only; runtime settings and application code unchanged.
-- **Endpoints / rate limiting:** N/A; no endpoint, authentication, limiter, schema, migration or permission changes.
-- **Status:** Completed local diagnosis; live connectivity cause unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
-- **Next steps / Notes:** Requested database provider/public-vs-private endpoint details without credentials. Check backend Vercel DATABASE_URL host/port and database firewall/trusted sources; consider a longer driver connectTimeout only after connectivity review. Consulted official MariaDB/Vercel documentation. No live DB connections or tests performed.
+- **Task:** Clarify whether TRUST_PROXY_HOPS belongs in the Express project's Vercel environment.
+- **Summary:** Confirmed the current hardcoded true ignores that setting; explained backend environment configuration must accompany app code wiring. Checked official Vercel forwarding-header documentation; recommend a verified single-hop value only for direct Vercel ingress, with client-IP/spoof checks after deployment.
+- **Files changed:** ACTIVITY.md only.
+- **Endpoints / rate limiting:** N/A; no routes, rate budgets or proxy behavior changed.
+- **Status:** Completed guidance. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Vercel normally overwrites X-Forwarded-For, so the direct-origin reproduction alone does not establish a Vercel bypass. No application/environment edits, deployment or tests performed.
 
-## [2026-10-22 14:18] Codex
+## [2026-10-23 13:36] Codex
 
-- **Task:** Fix deployed Vercel ERR_MODULE_NOT_FOUND for src/config/env.
-- **Summary:** Traced the crash to Vercel transpiling src/app.ts without the existing dist alias/extension rewrite. Verified official Express builder output-directory selection and configured dist so it selects compiled dist/app.js; corrected earlier deployment guidance and added an isolated plain-Node startup smoke check.
-- **Files changed:** vercel.json, package.json, tests/config/vercel-runtime.mjs, README.md, ACTIVITY.md.
-- **Endpoints / rate limiting:** N/A; no route, middleware, authentication, tenant scope, frontend, database, migration or permission changes.
-- **Status:** Completed locally; hosted redeployment unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
-- **Next steps / Notes:** Full prod:build, isolated startup smoke, lint, 49 environment/logger tests and Git whitespace check passed. Smoke uses placeholder configuration, skips private env loading, stubs shared service clients and blocks network access. No production connections, migrations, seeds or deployment performed. Push and redeploy with Express/outputDirectory=dist; check /api/health. Prior unset-output advice bypassed the compiled artifact and was incorrect for this build pipeline.
+- **Task:** Propose fixes for the annotated permission/security audit findings.
+- **Summary:** Rechecked proxy settings/log attribution, tenant actor/target guards, profile boundaries and dormant invitation flow. Proposed honoring verified proxy trust, applying transactional tenant-admin/protected-target checks, and removing unused renewal or replacing it with guarded token-rotating resend.
+- **Files changed:** ACTIVITY.md only.
+- **Endpoints / rate limiting:** No changes; proposed maintaining existing limits and testing forged-IP budgets and sensitive resend 429 responses.
+- **Status:** Completed proposal; implementation not requested in this turn. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Source review and official Express proxy guidance checked. No application, database, dependency or environment changes; no tests rerun for this proposal. Production proxy topology still needs verification before selecting its trust setting.
+
+## [2026-10-23 13:30] Codex
+
+- **Task:** Audit dependencies and review application permissions across both apps.
+- **Summary:** Saved live all/production npm audits, outdated/installed inventories, source review and isolated evidence probes in ../artifacts/security-audit/REPORT.md. Confirmed proxy-IP rate-limit evasion and conditional protected-admin mutation bypass; classified shadowed invitation renewal as dormant.
+- **Files changed:** ACTIVITY.md; shared ../artifacts/security-audit/* only. Application source, manifests, locks, environment and database unchanged by this audit.
+- **Endpoints / rate limiting:** No routes or policies changed. Reviewed auth, user/role administration, tenant and platform guards.
+- **Status:** Completed audit; remediation outstanding. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** 247 backend baseline and 16 frontend tests passed; 14 isolated rate-policy checks and 4 permission probes passed. Original rate-policy suite failed setup on missing DB config; artifact fixture mocks new logging imports. Audit findings: frontend 16/all,14/production; backend 14/all,5/production. No live grants, production ingress, DB integrations or full builds verified. Review report before fixing; do not reorder unsafe renewal route alone.
+
+## [2026-10-23 11:44] Codex
+
+- **Task:** Inspect existing feedback/seed flow for an optional landing testimonial preview.
+- **Summary:** Traced feedback consent, approval, withdrawal, routes and development seeds. Automatic approval review rejected a proposed public feed from private feedback; all partial backend source edits were reverted. Frontend now uses local fictional preview fixtures and an empty, explicitly curated public list.
+- **Files changed:** ACTIVITY.md only; no backend source or database changes remain.
+- **Endpoints / rate limiting:** N/A; no new endpoint, public disclosure or limiter change.
+- **Status:** Completed investigation. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Backend source diff verified empty before this log; no database writes or backend tests were required. Landing build/TypeScript, lint, four unit cases, desktop/mobile browser checks and production sample exclusion passed in sibling frontend.
+
+## [2026-10-23 09:36] Codex
+
+- **Task:** Implement visitor access logging, platform-admin APIs, Aiven runtime settings and 30-day Vercel retention.
+- **Summary:** Reused the ESM Prisma singleton/adapter and existing platform auth; added AccessLog, finish/waitUntil middleware, exact-IP pagination, top-20 IPs, secret-gated forwarding and cron. Reviewed local schema diff (access_logs only), then ran db push; no migration/reset/seed or remote DB changes.
+- **Files changed:** prisma/schema.prisma, prisma.config.ts, prisma/seed-{bright-star,catalog,development}.ts, src/{app.ts,routes/index.ts,config/{database,env-file,env-schema}.ts,middleware/{access-logger,rateLimiter}.ts,modules/access-logs/*}, package*.json, vercel.json, tests/{logging/access-logs*,config/environment.test.ts}, eslint.config.js, .env.example, .gitignore, README.md, docs/ACCESS_LOGGING.md, ACTIVITY.md.
+- **Endpoints / rate limiting:** GET /api/{admin,system-admin}/access-logs and /top-ips use authenticate + apiLimiter + requireSystemAdmin; GET /api/cron/access-logs uses publicApiLimiter and CRON_SECRET. Existing budgets/stores preserved; explicit proxy validation settings match requested trust proxy=true.
+- **Status:** Completed locally. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** prod:build, final build, Prisma type check, full lint and whitespace checks passed; 5 focused suites/91 tests passed. Actual local Express/curl/MySQL verified PH/General Santos, local fallback, internal-secret gating, admin endpoints/alias, anonymous/tenant denial, no self-logging and expired-only cleanup. Recent synthetic rows retained. Add DB_* PEM/TLS and both secrets in Vercel, db push Aiven after diff review, replace frontend [CONTACT EMAIL], deploy preview and verify real headers/connectivity/production cron. See setup doc; static Next-only requests are outside Express logging.
 
 ## [2026-10-22 13:55] Codex
 

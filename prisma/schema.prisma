@@ -14,6 +14,24 @@ datasource db {
   provider = "mysql"
 }
 
+// Platform-wide traffic; readable only by platform administrators.
+model AccessLog {
+  id         Int      @id @default(autoincrement())
+  ip         String   @db.VarChar(45)
+  method     String   @db.VarChar(32)
+  path       String   @db.VarChar(500)
+  status     Int
+  durationMs Int
+  country    String?  @db.VarChar(2)
+  city       String?  @db.VarChar(255)
+  userAgent  String?  @db.VarChar(300)
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([ip])
+  @@map("access_logs")
+}
+
 enum OrganizationStatus {
   ACTIVE
   INACTIVE

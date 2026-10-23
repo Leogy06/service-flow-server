@@ -25,6 +25,18 @@ const production = {
   CORS_ORIGIN: "https://app.example.com",
 };
 
+test("accepts complete Aiven runtime settings without DATABASE_URL and uses PEM TLS with one connection", () => {
+  const values = { ...production, DATABASE_URL: undefined, DB_HOST: "aiven.example.invalid", DB_PORT: "28669", DB_USER: "app", DB_PASSWORD: "sample", DB_NAME: "app", DB_CA: "-----BEGIN CERTIFICATE-----\nsample\n-----END CERTIFICATE-----" };
+  const parsed = envSchema.parse(values);
+  expect(databaseOptions(parsed)).toMatchObject({
+    host: values.DB_HOST, port: 28669, user: "app", password: "sample", database: "app",
+    ssl: { ca: values.DB_CA, rejectUnauthorized: true }, connectionLimit: 1,
+  });
+  expect(envSchema.safeParse({ ...values, DB_CA: undefined }).success).toBe(false);
+  expect(envSchema.safeParse({ ...values, DB_CA: "filename.pem" }).success).toBe(false);
+  expect(envSchema.safeParse({ ...values, DB_HOST: "127.0.0.1" }).success).toBe(false);
+});
+
 test("defaults to development without separate DATABASE_* inputs and derives logging defaults", () => {
   expect(envSchema.parse(development)).toMatchObject({ NODE_ENV: "development", PORT: 4000, LOG_LEVEL: "debug" });
   expect(envSchema.parse(production).LOG_LEVEL).toBe("info");
@@ -153,7 +165,7 @@ test.each(["development", "test"])("adapter uses plain MySQL unless TLS is reque
     NODE_ENV: mode,
     DATABASE_URL: "mysql://user:sample@database.example.com:3306/service_flow?connection_limit=5",
   });
-  expect(options.connectionLimit).toBe(5);
+  expect(options.connectionLimit).toBe(1);
   expect(options.ssl).toBeUndefined();
 });
 
@@ -165,9 +177,9 @@ test("production adapter requires verified TLS even if called without a URL TLS 
   expect(options.ssl).toEqual({ rejectUnauthorized: true });
 });
 
-test("adapter decodes URL credentials and uses the URL pool limit and verified production TLS", () => {
+test("adapter decodes URL credentials and uses a serverless pool and verified production TLS", () => {
   expect(databaseOptions({ ...development, NODE_ENV: "development" })).toMatchObject({
-    host: "127.0.0.1", port: 3307, user: "root", password: "p@ss#word", database: "service_flow_dev", connectionLimit: 5,
+    host: "127.0.0.1", port: 3307, user: "root", password: "p@ss#word", database: "service_flow_dev", connectionLimit: 1,
   });
   expect(databaseOptions(production)).toMatchObject({ ssl: { rejectUnauthorized: true }, allowPublicKeyRetrieval: false });
   expect(databaseOptions({ ...development, NODE_ENV: "development" }).ssl).toBeUndefined();

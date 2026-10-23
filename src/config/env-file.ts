@@ -8,6 +8,7 @@ export function loadEnvironment() {
   // Tests may supply explicit isolated connection values over development defaults.
   const file = mode === "test" ? "development" : mode;
   if (!["development", "production"].includes(file)) return;
+  config({ path: fileURLToPath(new URL("../../.env", import.meta.url)), override: false, quiet: true });
   config({
     path: fileURLToPath(new URL(`../../.env.${file}`, import.meta.url)),
     override: false,

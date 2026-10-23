@@ -30,6 +30,8 @@ function limiter(name: string, windowMs: number, limit: number, keyGenerator = u
     requestWasSuccessful: (_req, res) => res.statusCode >= 200 && res.statusCode < 300,
     skip: (req) => skipPreflight(req) || options.skip?.(req) === true,
     keyGenerator,
+    // The deployment trusts its forwarding proxy; IP keys are explicitly supplied above.
+    validate: { trustProxy: false, xForwardedForHeader: false },
     handler: limitReached,
   });
 }

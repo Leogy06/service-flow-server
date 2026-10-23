@@ -5,6 +5,8 @@ import { rateLimitEnvironmentSchema } from "./rate-limit";
 
 export const envSchema = databaseEnvironmentSchema.safeExtend({
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+  CRON_SECRET: z.string().min(16).optional(),
+  INTERNAL_API_SECRET: z.string().min(16).optional(),
   // Match the verified proxy path; every reachable path must have the same hop count.
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
   TRUST_PROXY_DIAGNOSTICS: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
