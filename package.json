@@ -17,6 +17,8 @@
     "test:predeploy:runner": "node --test scripts/predeploy-safety.mjs",
     "bootstrap:system-admin": "node dist/modules/system-admin/bootstrap.cli.js --bootstrap-system-admin",
     "bootstrap:system-admin:dev": "tsx src/modules/system-admin/bootstrap.cli.ts --bootstrap-system-admin",
+    "recover:account": "node dist/modules/auth/account-recovery.cli.js",
+    "recover:account:dev": "tsx src/modules/auth/account-recovery.cli.ts",
     "alerts:process": "node dist/modules/system-admin/process-alerts.cli.js",
     "alerts:process:dev": "tsx src/modules/system-admin/process-alerts.cli.ts",
     "test:system-admin:mysql": "cross-env RUN_DB_PLATFORM_TESTS=1 LOG_LEVEL=error NODE_ENV=test node --import tsx tests/system-admin/mysql.integration.mjs",

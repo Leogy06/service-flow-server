@@ -15,11 +15,17 @@ const settings = {
   ...rateLimitEnvironmentSchema.parse({ API_RATE_LIMIT_MAX: 3, AUTH_RATE_LIMIT_MAX: 3, REFRESH_RATE_LIMIT_MAX: 3,
     PUBLIC_API_RATE_LIMIT_MAX: 3, SIGNUP_RATE_LIMIT_MAX: 3 }),
   APP_ENV: "policy-tests", NODE_ENV: "test", JWT_ACCESS_SECRET: "fixture-access-secret",
+  TWO_FACTOR_SEND_MAX_PER_HOUR: 20,
   CORS_ORIGIN: "http://localhost:3000", TRUST_PROXY_HOPS: 0, TRUST_PROXY_DIAGNOSTICS: false,
 };
 jest.unstable_mockModule("@/config/env.js", () => ({ env: settings }));
 jest.unstable_mockModule("@/lib/redis.js", () => ({ redis: {}, redisReady: async () => {} }));
 jest.unstable_mockModule("@/lib/logger.js", () => ({ logger }));
+jest.unstable_mockModule("@/lib/prisma", () => ({ prisma: {
+  user: { findFirst: async () => null },
+  loginChallenge: { findUnique: async () => ({ userId: "resend-user" }) },
+} }));
+jest.unstable_mockModule("@/modules/auth/trusted-device.routes", () => ({ default: express.Router() }));
 jest.unstable_mockModule("rate-limit-redis", () => {
   return { RedisStore: class {
     private memory = new MemoryStore();
@@ -60,7 +66,7 @@ jest.unstable_mockModule("@/modules/feedback/feedback.routes.js", () => ({
   tenantFeedbackRoutes: resource(), platformFeedbackRoutes: resource(), publicFeedbackRoutes: resource(),
 }));
 jest.unstable_mockModule("@/modules/auth/auth.controller.js", () => ({ authController: {
-  register: success, refresh: success, logout: logoutController, logoutAll: success, me: success,
+  register: success, refresh: success, logout: logoutController, logoutAll: success, me: success, verifyTwoFactor: success, resendTwoFactor: success,
   login: ((req, res, next) => {
     if (req.body.password === "incorrect") return next(new AppError(401, "Invalid credentials"));
     res.json({ fixture: true });
@@ -76,6 +82,7 @@ jest.unstable_mockModule("@/modules/system-admin/operations.service.js", () => (
 
 const { app } = await import("../../src/app");
 const { apiLimiter } = await import("../../src/middleware/rateLimiter");
+const { twoFactorDeliveryAccountLimiter } = await import("../../src/middleware/two-factor-rate-limit");
 const { errorHandler } = await import("../../src/middleware/errorHandler");
 const login = (password = "correct") => request(app).post("/api/auth/login").send({ email: "fixture@example.invalid", password });
 beforeEach(async () => { storeUnavailable = false; await Promise.all(resetStores.map((reset) => reset())); jest.clearAllMocks(); });
@@ -195,8 +202,37 @@ test("Redis outage keeps browsing open and auth closed while logout still clears
   const read = await request(app).get("/api/auth/me").auth("outage-user", { type: "bearer" });
   expect(read.status).toBe(200);
   expect((await login()).status).toBe(503);
+  expect((await request(app).post("/api/auth/2fa/verify").send({ challengeId: "a".repeat(43), code: "1234" })).status).toBe(503);
+  expect((await request(app).post("/api/auth/2fa/resend").send({ challengeId: "a".repeat(43) })).status).toBe(503);
   const blocked = await request(app).post("/api/auth/logout").set("Cookie", "refreshToken=private-fixture-refresh");
   expect(blocked.status).toBe(503);
   expectClearedRefreshCookies(blocked.headers);
   expect(logoutController).not.toHaveBeenCalled();
+});
+
+test("2FA verification has an independent IP budget and Retry-After", async () => {
+  const send = () => request(app).post("/api/auth/2fa/verify").send({ challengeId: "a".repeat(43), code: "1234", rememberDevice: false });
+  for (let i = 0; i < 30; i++) expect((await send()).status).toBe(200);
+  const blocked = await send();
+  expect(blocked.status).toBe(429); expect(Number(blocked.headers["retry-after"])).toBeGreaterThan(0);
+  expect(blocked.body.code).toBe("RATE_LIMITED");
+  expect((await request(app).get("/api/auth/me").auth("verify-limited", { type: "bearer" })).status).toBe(200);
+});
+
+test("login and resend share a strict delivery IP budget", async () => {
+  for (let i = 0; i < 10; i++) expect((await login()).status).toBe(200);
+  const resend = () => request(app).post("/api/auth/2fa/resend").send({ challengeId: "a".repeat(43) });
+  for (let i = 0; i < 10; i++) expect((await resend()).status).toBe(200);
+  const blocked = await resend(); expect(blocked.status).toBe(429);
+  expect(Number(blocked.headers["retry-after"])).toBeGreaterThan(0);
+  expect((await login()).status).toBe(429);
+});
+
+test("delivery account middleware limits normalized email independently of the IP policy", async () => {
+  const isolated = express(); isolated.use(express.json());
+  isolated.post("/login", twoFactorDeliveryAccountLimiter, success); isolated.use(errorHandler);
+  for (let i = 0; i < 20; i++) expect((await request(isolated).post("/login").send({ email: i % 2 ? "Sample@Example.invalid" : " sample@example.invalid " })).status).toBe(200);
+  const blocked = await request(isolated).post("/login").send({ email: "sample@example.invalid" });
+  expect(blocked.status).toBe(429); expect(blocked.headers["retry-after"]).toBeDefined();
+  expect((await request(isolated).post("/login").send({ email: "another@example.invalid" })).status).toBe(200);
 });

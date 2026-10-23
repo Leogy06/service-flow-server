@@ -40,7 +40,15 @@ Backend mode files and production CORS/TLS requirements are documented in
 `../../../docs/ENVIRONMENT.md`.
 
 Login uses `authLimiter` (10 failed attempts/15 minutes by IP); successful 2xx
-responses are decremented. No 2FA route exists in this checkout. Refresh uses a
+responses are decremented. Mandatory email verification now gates new sessions;
+see [configuration, API contract and recovery](../../../docs/EMAIL_TWO_FACTOR.md).
+`two-factor.service.ts` stores keyed code hashes and opaque challenge hashes,
+serializes code consumption with session creation, and enforces resend/attempt
+budgets. `login-session.ts` issues tokens after factor verification or a scoped
+trusted-device match. Device routes use authenticated read/write/strict policies.
+Credential/access changes and logout-all revoke factors transactionally.
+Login/resend also share strict Redis IP/account budgets; verification has a
+separate strict IP limiter. Refresh uses a
 separate `refreshLimiter` (60/minute), keyed by a signature-verified access-token
 subject when supplied, otherwise IP. An expired access token may identify that
 budget only; the refresh service still validates/rotates the HTTP-only cookie.

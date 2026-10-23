@@ -8,7 +8,7 @@ const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
 const sensitiveRedaction = {
   paths: ["req.headers.authorization", "req.headers.cookie", "res.headers[\"set-cookie\"]", "req.body.password",
     "req.body.currentPassword", "req.body.newPassword", "req.body.confirmPassword", "req.body.token",
-    "req.body.accessToken", "req.body.refreshToken"],
+    "req.body.accessToken", "req.body.refreshToken", "req.body.code", "req.body.challengeId"],
   censor: "[REDACTED]",
 };
 

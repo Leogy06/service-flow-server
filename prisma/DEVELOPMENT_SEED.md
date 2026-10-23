@@ -16,7 +16,7 @@ through the usual login page. No emails are sent or sessions/tokens manufactured
 
 | Workspace | Login emails |
 | --- | --- |
-| Platform administration | `operator@service-flow.example.test` |
+| Platform administration | `leogy_santiIIan850@outlook.com` |
 | Acme Plumbing | `admin@acme-plumbing.example.test`, `manager@acme-plumbing.example.test`, `staff@acme-plumbing.example.test` |
 | Bright Star Electrical | `admin@bright-star-electrical.example.test`, `manager@bright-star-electrical.example.test`, `staff@bright-star-electrical.example.test` |
 | Summit HVAC | `admin@summit-hvac.example.test`, `manager@summit-hvac.example.test`, `staff@summit-hvac.example.test` |

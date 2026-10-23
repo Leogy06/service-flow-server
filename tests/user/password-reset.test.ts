@@ -31,6 +31,8 @@ function resetData() {
   audits = []; failAudit = false; beforeTransaction = undefined;
 }
 const db = {
+  trustedDevice: { updateMany: jest.fn(async (_input: unknown) => ({ count: 0 })) },
+  loginChallenge: { updateMany: jest.fn(async (_input: unknown) => ({ count: 0 })) },
   user: {
     findUnique: jest.fn(async ({ where, select: fields }: Row) => select(users.find((row) => match(row, where)), fields)),
     findFirst: jest.fn(async ({ where, select: fields }: Row) => select(users.find((row) => match(row, where)), fields)),
@@ -80,6 +82,8 @@ test("tenant admin resets only managed staff, hashes the password, revokes sessi
   expect(users[1]).toMatchObject({ sessionVersion: 1, inviteToken: null, inviteTokenExpiry: null, status: "ACTIVE", securityStatus: "ACTIVE" });
   expect(users[0]).toEqual(adminBefore); expect(users[2]).toEqual(foreignBefore);
   expect(sessions).toHaveLength(2);
+  expect(db.trustedDevice.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "staff-a", revokedAt: null } }));
+  expect(db.loginChallenge.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "staff-a", consumedAt: null } }));
   expect(audits).toEqual([{ action: "auth.staff.password.reset.success", entity: "User", entityId: "staff-a", after: { reason: body.reason, sessionsRevoked: 1 } }]);
   const output = JSON.stringify({ response: response.body, audits });
   for (const secret of [adminPassword, body.newPassword, users[1]!.password, staffHash]) expect(output).not.toContain(secret);

@@ -1,3 +1,28 @@
+## [2026-10-24 01:23] Codex (root; frontend, email and device implementation agents)
+
+- **Task:** Implement mandatory email 2FA and trusted-device login for tenants and system administrators.
+- **Summary:** Completed server-enforced challenge/session flow, keyed code hashes, persistent attempt/issuance limits, scoped trust cookies, settings revocation, credential/access-change invalidation including historical bindings, shared Resend/CID code template, both login/profile UIs and private audited operator recovery. Added configuration/recovery/rollout guide.
+- **Files changed:** Backend auth/user/platform-security/email/config/Prisma modules and tests; frontend login/session/profile/platform-profile files and tests; backend/docs/EMAIL_TWO_FACTOR.md; implementation plan and activity logs. Existing unrelated UI/dependency/seed changes preserved.
+- **Endpoints / rate limiting:** POST /api/auth/login and /2fa/resend share fail-closed Redis IP/account delivery budgets; POST /2fa/verify uses strict IP policy plus persistent per-code attempts; GET/DELETE /trusted-devices and DELETE /trusted-devices/:id use authenticate + existing API/strict/write limiters. Retry-After also covers service throttles. No permission definitions changed; additive migration 20261023160000_email_two_factor and login response union added.
+- **Status:** Completed locally. **Agent rate limit:** Delegated agents hit account usage limit; root completed integration and review. **Resets at:** reported 2026-10-24 00:09 (elapsed).
+- **Next steps / Notes:** Prisma generation, both builds, backend lint, targeted frontend lint and diff checks passed; 345 focused backend tests plus configuration test, 11 frontend session tests, login/profile sample-API browser checks passed. Full backend: 1169 passed/4 failed; 3 unchanged pool-size assertions remain, logger timeout passes isolated rerun (5 tests). Full frontend lint retains unrelated use-mobile.ts error/layout import warning. No migration applied, live MySQL acceptance, real email, recovery execution or deployment; review migration and verify real mailbox/hosted cookies after coordinated deployment. Default code length 4, configurable to 6. Existing valid sessions continue until expiry/revocation.
+## [2026-10-24 01:07] Codex and implementation agents
+
+- **Task:** Implement email 2FA for tenant and system-admin login.
+- **Summary:** Added challenge/device schema and migration, authentication service/routes, shared Resend code email, trusted-device management/revocation, recovery CLI and frontend forms. Integrated verification is still running.
+- **Files changed:** Auth/email/config/Prisma modules and tests; frontend login/profile/admin files; implementation plan. Existing unrelated UI/dependency edits preserved.
+- **Endpoints / rate limiting:** Login/resend share fail-closed IP/account delivery budgets; verify uses strict IP budget plus persistent per-code attempts; trusted-device routes use existing authenticated read/write/strict limiters.
+- **Status:** Partial. **Agent rate limit:** Frontend, email-review and device implementation agents hit account usage limit; root continuing independent integration checks. **Resets at:** reported 2026-10-24 00:09, now elapsed.
+- **Next steps / Notes:** Prisma generate and backend build passed; 17 core factor and 29 email tests passed. Full suite exposed missing fixture mocks and three pre-existing pool-size expectations; resolving integration. No migrations applied, real emails sent or deployment. Frontend dependency restore/browser verification pending.
+## [2026-10-23 19:59] Codex
+
+- **Task:** Resolve npm postinstall failure rejecting DATABASE_URL; assess Node 24.22.1 upgrade context.
+- **Summary:** Traced the selected URL without printing credentials to local .env.development with unsupported sslaccept=accept_invalid_certs. Removed only that local URL option. npm install including Prisma generation now exits 0 under Node 24.22.1/npm 11.19.1.
+- **Files changed:** Private .env.development; root/backend ACTIVITY.md. Generated Prisma Client 7.10.1 refreshed; package.json/package-lock.json hashes unchanged.
+- **Endpoints / rate limiting:** N/A; no source, schema, migration, API, permission, production configuration or database-record changes.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Redacted failing/passing config probes, effective environment validation, full npm install/postinstall and typecheck:prisma passed; production validation still rejects the corrected local URL. No database connections, migrations, full unit/build checks or audit remediation run. Initial tsx probe hit sandbox spawn EPERM; native Node type stripping worked. Five allowScripts package warnings remain nonfatal; reported frontend audit vulnerabilities remain separate.
+
 ## [2026-10-23 19:14] Codex
 
 - **Task:** Check npm installation failures in both apps.

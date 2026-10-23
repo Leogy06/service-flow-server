@@ -11,6 +11,7 @@ import { recordPlatformAudit } from "@/modules/system-admin/platform-audit";
 import { requestContext } from "@/lib/requestContext";
 import { loadAuthorization, sessionUser } from "./authorization";
 import type { RegisterInput } from "./auth.schema";
+import { twoFactorService, type LoginHints } from "./two-factor.service";
 
 export const authService = {
   async register(input: RegisterInput) {
@@ -19,7 +20,7 @@ export const authService = {
     return signupService.submit(input);
   },
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, hints: LoginHints = { userAgent: "", ipAddress: "", trustedTokens: {} }) {
     try {
       const credentials = await prisma.user.findFirst({
         where: { email, deletedAt: null },
@@ -31,55 +32,7 @@ export const authService = {
       ) {
         throw new AppError(401, "Invalid credentials");
       }
-      return await prisma.$transaction(
-        async (db) => {
-          const current = await loadAuthorization(credentials.id, db);
-          const verified = await db.user.findFirst({
-            where: { id: credentials.id, password: credentials.password },
-            select: { id: true },
-          });
-          if (!verified) throw new AppError(401, "Invalid credentials");
-          const user = sessionUser(current);
-          const refreshToken = generateRefreshTokenValue();
-          await db.refreshToken.create({
-            data: {
-              token: hashToken(refreshToken),
-              userId: current.id,
-              organizationId: current.organizationId,
-              expiresAt: getRefreshExpiry(),
-            },
-          });
-          await requestContext.run(
-            {
-              ...(requestContext.get() ?? { requestId: "authentication" }),
-              userId: current.id,
-              organizationId: current.organizationId ?? undefined,
-            },
-            () =>
-              recordPlatformAudit(db, {
-                action: "auth.login.success",
-                entity: "User",
-                entityId: current.id,
-                actorType:
-                  current.platformRole === "SYSTEM_ADMIN"
-                    ? "SYSTEM_ADMIN"
-                    : "USER",
-                organizationId: current.organizationId,
-                after: { id: current.id, platformRole: current.platformRole },
-              }),
-          );
-          return {
-            accessToken: generateAccessToken(user),
-            refreshToken,
-            user,
-            organization: current.organization
-              ? { id: current.organization.id, slug: current.organization.slug }
-              : null,
-            permissions: user.permissions,
-          };
-        },
-        { isolationLevel: "Serializable" },
-      );
+      return await twoFactorService.beginLogin({ id: credentials.id, password: credentials.password }, hints);
     } catch (error) {
       if (
         error instanceof AppError &&

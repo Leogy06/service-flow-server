@@ -1,6 +1,7 @@
 import { invalidating } from "@/utils/module-cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { revokeAuthenticationFactors, revokeOrganizationAuthenticationFactors } from "@/modules/auth/authentication-factors";
 import { requirePlatformAuthority } from "@/modules/role/tenant-access-policy";
 import { AppError } from "@/utils/AppError";
 import { pagination } from "@/utils/tenant-transaction";
@@ -327,6 +328,7 @@ export const foundationService = {
       const revoked = await db.refreshToken.deleteMany({
         where: { organizationId: id },
       });
+      await revokeOrganizationAuthenticationFactors(db, id);
       await recordPlatformAudit(db, {
         action: "tenant.status.changed",
         entity: "Organization",
@@ -369,6 +371,7 @@ export const foundationService = {
       const revoked = await db.refreshToken.deleteMany({
         where: { userId: id },
       });
+      await revokeAuthenticationFactors(db, id);
       await recordPlatformAudit(db, {
         action: "user.security.changed",
         entity: "User",
@@ -403,6 +406,7 @@ export const foundationService = {
       const revoked = await db.refreshToken.deleteMany({
         where: { userId: id },
       });
+      await revokeAuthenticationFactors(db, id);
       await recordPlatformAudit(db, {
         action: "user.sessions.revoked",
         entity: "User",

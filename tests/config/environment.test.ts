@@ -160,6 +160,16 @@ test("production requires explicit strict TLS for CLI and app configuration", ()
   expect(envSchema.safeParse(settings).success).toBe(false);
 });
 
+test("two-factor settings default to four digits and validate security bounds", () => {
+  expect(envSchema.parse(development)).toMatchObject({ TWO_FACTOR_CODE_LENGTH: 4, TWO_FACTOR_CODE_TTL_SECONDS: 600, TWO_FACTOR_MAX_ATTEMPTS: 5, TWO_FACTOR_RESEND_SECONDS: 60, TWO_FACTOR_SEND_MAX_PER_HOUR: 5, TRUSTED_DEVICE_TENANT_DAYS: 30, TRUSTED_DEVICE_ADMIN_DAYS: 7 });
+  expect(envSchema.parse({ ...development, TWO_FACTOR_CODE_LENGTH: "6" }).TWO_FACTOR_CODE_LENGTH).toBe(6);
+  for (const override of [
+    { TWO_FACTOR_CODE_LENGTH: 3 }, { TWO_FACTOR_CODE_LENGTH: 9 }, { TWO_FACTOR_MAX_ATTEMPTS: 6 },
+    { TWO_FACTOR_CODE_TTL_SECONDS: 601 }, { TWO_FACTOR_RESEND_SECONDS: 59 }, { TWO_FACTOR_SECRET: "too-short" },
+    { TRUSTED_DEVICE_ADMIN_DAYS: 31 },
+  ]) expect(envSchema.safeParse({ ...development, ...override }).success).toBe(false);
+});
+
 test.each(["development", "test"])("adapter uses plain MySQL unless TLS is requested in %s", (mode) => {
   const options = databaseOptions({
     NODE_ENV: mode,

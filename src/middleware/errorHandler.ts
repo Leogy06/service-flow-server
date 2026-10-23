@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 
 export const errorHandler: ErrorRequestHandler = (err, _, res, _next) => {
   if (err instanceof AppError) {
+    if (err.retryAfterSeconds !== undefined) res.setHeader("Retry-After", String(err.retryAfterSeconds));
     return res.status(err.statusCode).json({
       error: err.message,
       ...(err.code && { code: err.code }),

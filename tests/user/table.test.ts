@@ -60,6 +60,8 @@ function select(row: Record<string, unknown>, selection?: Record<string, unknown
   return selection ? Object.fromEntries(Object.keys(selection).map((field) => [field, row[field]])) : row;
 }
 const db = {
+  trustedDevice: { updateMany: jest.fn(async (_input: unknown) => ({ count: 0 })) },
+  loginChallenge: { updateMany: jest.fn(async (_input: unknown) => ({ count: 0 })) },
   user: {
     findFirst: jest.fn(async ({ where, select: selection }: any) => {
       const user = users.find((u) => matches(u, where));
@@ -227,6 +229,14 @@ describe("User table API", () => {
     expect(response.status).toBe(200);
     expect(response.body.data).toMatchObject({ firstName: "Updated", organizationId: "org-a", roleId: "staff-role-a", phone: null });
     expect(db.user.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "staff-a", organizationId: "org-a", deletedAt: null } }));
+  });
+  it("changing email revokes account trust, outstanding challenges and sessions within its trusted tenant", async () => {
+    const response = await update("staff-a", { ...edit, email: "updated-staff@example.com" });
+    expect(response.status).toBe(200);
+    expect(users.find((user) => user.id === "staff-a")!.sessionVersion).toBe(1);
+    expect(refreshTokens).toEqual([{ userId: "admin-a" }]);
+    expect(db.trustedDevice.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "staff-a", revokedAt: null } }));
+    expect(db.loginChallenge.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "staff-a", consumedAt: null } }));
   });
   it("rejects mismatched update IDs and invalid list parameters", async () => {
     expect((await update("staff-a", { ...edit, id: "staff-b" })).status).toBe(400);

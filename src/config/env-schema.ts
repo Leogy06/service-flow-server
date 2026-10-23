@@ -20,6 +20,14 @@ export const envSchema = databaseEnvironmentSchema.safeExtend({
   JWT_REFRESH_SECRET: z.string().min(1),
   ACCESS_TOKEN_EXPIRY: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_DAYS: z.coerce.number().int().positive().default(7),
+  TWO_FACTOR_CODE_LENGTH: z.coerce.number().int().min(4).max(8).default(4),
+  TWO_FACTOR_CODE_TTL_SECONDS: z.coerce.number().int().min(60).max(600).default(600),
+  TWO_FACTOR_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(5).default(5),
+  TWO_FACTOR_RESEND_SECONDS: z.coerce.number().int().min(60).default(60),
+  TWO_FACTOR_SEND_MAX_PER_HOUR: z.coerce.number().int().positive().default(5),
+  TWO_FACTOR_SECRET: z.string().min(32).optional(),
+  TRUSTED_DEVICE_TENANT_DAYS: z.coerce.number().int().min(1).max(90).default(30),
+  TRUSTED_DEVICE_ADMIN_DAYS: z.coerce.number().int().min(1).max(30).default(7),
 
   //bcrypt
   SALT_ROUNDS: z.coerce.number().int().min(4).max(15).default(10),
