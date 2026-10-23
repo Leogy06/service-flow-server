@@ -19,7 +19,7 @@ import {
 import { recordPlatformServerError } from "./modules/system-admin/operations.service";
 
 export const app = express();
-app.set("trust proxy", true);
+app.set("trust proxy", env.TRUST_PROXY_HOPS);
 onPlatformServerError(recordPlatformServerError);
 
 // Register first so CORS preflights and other early responses are logged too.
@@ -30,14 +30,33 @@ app.use((req, _res, next) => {
   if (env.TRUST_PROXY_DIAGNOSTICS && !loggedProxyDiagnostic) {
     loggedProxyDiagnostic = true;
     // Opt-in, once per warm runtime; never include cookies or authorization headers.
-    logger.info({ ip: req.ip, forwardedFor: req.get("X-Forwarded-For")?.slice(0, 512), trustProxyHops: env.TRUST_PROXY_HOPS }, "Proxy IP diagnostic");
+    logger.info(
+      {
+        ip: req.ip,
+        forwardedFor: req.get("X-Forwarded-For")?.slice(0, 512),
+        trustProxyHops: env.TRUST_PROXY_HOPS,
+      },
+      "Proxy IP diagnostic",
+    );
   }
   next();
 });
 app.use(helmet());
-app.use(cors({ origin: env.CORS_ORIGIN, credentials: true, exposedHeaders: [
-  "Retry-After", "RateLimit-Limit", "RateLimit-Remaining", "RateLimit-Reset", "RateLimit-Policy", "RateLimit", "X-Request-Id",
-] }));
+app.use(
+  cors({
+    origin: env.CORS_ORIGIN,
+    credentials: true,
+    exposedHeaders: [
+      "Retry-After",
+      "RateLimit-Limit",
+      "RateLimit-Remaining",
+      "RateLimit-Reset",
+      "RateLimit-Policy",
+      "RateLimit",
+      "X-Request-Id",
+    ],
+  }),
+);
 app.use(compression()); // gzip reduces the size of the response
 app.use(observeRequests);
 app.use(express.json());

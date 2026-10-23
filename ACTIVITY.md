@@ -1,3 +1,57 @@
+## [2026-10-23 15:32] Codex
+
+- **Task:** Conduct an independent full-system SaaS and simulated certification-readiness audit without implementing fixes.
+- **Summary:** Reviewed both apps, schema/migrations, auth/tenant/billing/cache/deployment/UX; delivered three shared reports with 23 findings, 57.0/100 score and FAIL remediation verdict. Verified unchanged hashes for 723 source/config files.
+- **Files changed:** Shared ../docs/audits/{SERVICEFLOW_AUDIT_REPORT.md,CERTIFICATION_READINESS.md,REMEDIATION_ROADMAP.md,evidence/*}; ACTIVITY.md only within each app repository.
+- **Endpoints / rate limiting:** N/A; no source, API, permission, rate policy, environment or database changes.
+- **Status:** Completed audit; remediation not implemented. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Lint/types pass both; frontend 43/43, permission probes 4/4 and safety utilities 4/4 pass; backend 1,090 pass, 3 fail, one further suite setup failure. Isolated backend emit/alias and frontend network webpack build pass; normal backend build blocked by dist EPERM. Fresh npm audits completed. Docker stage omissions reproduced; no real DB/browser/load/production assessment. Review reports before fixes.
+
+## [2026-10-23 14:39] Codex
+
+- **Task:** Assess the current trust-proxy and diagnostic block's risk.
+- **Summary:** Explained conditional forwarding-header spoofing risk on direct/unsanitized ingress, standard Vercel header sanitization, and that diagnostic logging does not enforce the configured hop count.
+- **Files changed:** ACTIVITY.md only.
+- **Endpoints / rate limiting:** N/A; no runtime or policy changes.
+- **Status:** Completed assessment. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Official Express/Vercel documentation rechecked. No application or environment edits, deployments or tests; live deployment spoof resistance remains unverified.
+
+## [2026-10-23 14:34] Codex
+
+- **Task:** Clarify whether TRUST_PROXY_HOPS belongs in the Express project's Vercel environment.
+- **Summary:** Confirmed the current hardcoded true ignores that setting; explained backend environment configuration must accompany app code wiring. Checked official Vercel forwarding-header documentation; recommend a verified single-hop value only for direct Vercel ingress, with client-IP/spoof checks after deployment.
+- **Files changed:** ACTIVITY.md only.
+- **Endpoints / rate limiting:** N/A; no routes, rate budgets or proxy behavior changed.
+- **Status:** Completed guidance. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Vercel normally overwrites X-Forwarded-For, so the direct-origin reproduction alone does not establish a Vercel bypass. No application/environment edits, deployment or tests performed.
+
+## [2026-10-23 13:36] Codex
+
+- **Task:** Propose fixes for the annotated permission/security audit findings.
+- **Summary:** Rechecked proxy settings/log attribution, tenant actor/target guards, profile boundaries and dormant invitation flow. Proposed honoring verified proxy trust, applying transactional tenant-admin/protected-target checks, and removing unused renewal or replacing it with guarded token-rotating resend.
+- **Files changed:** ACTIVITY.md only.
+- **Endpoints / rate limiting:** No changes; proposed maintaining existing limits and testing forged-IP budgets and sensitive resend 429 responses.
+- **Status:** Completed proposal; implementation not requested in this turn. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Source review and official Express proxy guidance checked. No application, database, dependency or environment changes; no tests rerun for this proposal. Production proxy topology still needs verification before selecting its trust setting.
+
+## [2026-10-23 13:30] Codex
+
+- **Task:** Audit dependencies and review application permissions across both apps.
+- **Summary:** Saved live all/production npm audits, outdated/installed inventories, source review and isolated evidence probes in ../artifacts/security-audit/REPORT.md. Confirmed proxy-IP rate-limit evasion and conditional protected-admin mutation bypass; classified shadowed invitation renewal as dormant.
+- **Files changed:** ACTIVITY.md; shared ../artifacts/security-audit/* only. Application source, manifests, locks, environment and database unchanged by this audit.
+- **Endpoints / rate limiting:** No routes or policies changed. Reviewed auth, user/role administration, tenant and platform guards.
+- **Status:** Completed audit; remediation outstanding. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** 247 backend baseline and 16 frontend tests passed; 14 isolated rate-policy checks and 4 permission probes passed. Original rate-policy suite failed setup on missing DB config; artifact fixture mocks new logging imports. Audit findings: frontend 16/all,14/production; backend 14/all,5/production. No live grants, production ingress, DB integrations or full builds verified. Review report before fixing; do not reorder unsafe renewal route alone.
+
+## [2026-10-23 11:44] Codex
+
+- **Task:** Inspect existing feedback/seed flow for an optional landing testimonial preview.
+- **Summary:** Traced feedback consent, approval, withdrawal, routes and development seeds. Automatic approval review rejected a proposed public feed from private feedback; all partial backend source edits were reverted. Frontend now uses local fictional preview fixtures and an empty, explicitly curated public list.
+- **Files changed:** ACTIVITY.md only; no backend source or database changes remain.
+- **Endpoints / rate limiting:** N/A; no new endpoint, public disclosure or limiter change.
+- **Status:** Completed investigation. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Backend source diff verified empty before this log; no database writes or backend tests were required. Landing build/TypeScript, lint, four unit cases, desktop/mobile browser checks and production sample exclusion passed in sibling frontend.
+
 ## [2026-10-23 09:36] Codex
 
 - **Task:** Implement visitor access logging, platform-admin APIs, Aiven runtime settings and 30-day Vercel retention.
