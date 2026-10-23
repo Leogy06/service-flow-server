@@ -1,3 +1,12 @@
+## [2026-10-23 09:36] Codex
+
+- **Task:** Implement visitor access logging, platform-admin APIs, Aiven runtime settings and 30-day Vercel retention.
+- **Summary:** Reused the ESM Prisma singleton/adapter and existing platform auth; added AccessLog, finish/waitUntil middleware, exact-IP pagination, top-20 IPs, secret-gated forwarding and cron. Reviewed local schema diff (access_logs only), then ran db push; no migration/reset/seed or remote DB changes.
+- **Files changed:** prisma/schema.prisma, prisma.config.ts, prisma/seed-{bright-star,catalog,development}.ts, src/{app.ts,routes/index.ts,config/{database,env-file,env-schema}.ts,middleware/{access-logger,rateLimiter}.ts,modules/access-logs/*}, package*.json, vercel.json, tests/{logging/access-logs*,config/environment.test.ts}, eslint.config.js, .env.example, .gitignore, README.md, docs/ACCESS_LOGGING.md, ACTIVITY.md.
+- **Endpoints / rate limiting:** GET /api/{admin,system-admin}/access-logs and /top-ips use authenticate + apiLimiter + requireSystemAdmin; GET /api/cron/access-logs uses publicApiLimiter and CRON_SECRET. Existing budgets/stores preserved; explicit proxy validation settings match requested trust proxy=true.
+- **Status:** Completed locally. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** prod:build, final build, Prisma type check, full lint and whitespace checks passed; 5 focused suites/91 tests passed. Actual local Express/curl/MySQL verified PH/General Santos, local fallback, internal-secret gating, admin endpoints/alias, anonymous/tenant denial, no self-logging and expired-only cleanup. Recent synthetic rows retained. Add DB_* PEM/TLS and both secrets in Vercel, db push Aiven after diff review, replace frontend [CONTACT EMAIL], deploy preview and verify real headers/connectivity/production cron. See setup doc; static Next-only requests are outside Express logging.
+
 ## [2026-10-22 13:55] Codex
 
 - **Task:** Fix Vercel TS7006 errors in Prisma seeds despite a successful local production build.

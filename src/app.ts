@@ -9,6 +9,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { notFound } from "./middleware/notFound";
 import { withRequestContext } from "./middleware/requestContext.middleware";
 import { requestLogger } from "./middleware/request-logger";
+import { accessLogger } from "./middleware/access-logger";
 import { unauthenticatedErrorLimiter } from "./middleware/rateLimiter";
 import { logger } from "./lib/logger";
 import {
@@ -18,11 +19,12 @@ import {
 import { recordPlatformServerError } from "./modules/system-admin/operations.service";
 
 export const app = express();
-app.set("trust proxy", env.TRUST_PROXY_HOPS);
+app.set("trust proxy", true);
 onPlatformServerError(recordPlatformServerError);
 
 // Register first so CORS preflights and other early responses are logged too.
 app.use(requestLogger);
+app.use(accessLogger);
 let loggedProxyDiagnostic = false;
 app.use((req, _res, next) => {
   if (env.TRUST_PROXY_DIAGNOSTICS && !loggedProxyDiagnostic) {

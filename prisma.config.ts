@@ -18,6 +18,7 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: prismaDatasourceUrl(env.DATABASE_URL),
+    // Generation needs no connection; db push still requires the local CLI URL.
+    url: env.DATABASE_URL ? prismaDatasourceUrl(env.DATABASE_URL) : undefined,
   },
 });
