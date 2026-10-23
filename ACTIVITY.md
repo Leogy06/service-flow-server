@@ -1,3 +1,12 @@
+## [2026-10-23 19:14] Codex
+
+- **Task:** Check npm installation failures in both apps.
+- **Summary:** PowerShell AllSigned rejects unsigned npm.ps1; npm.cmd runs. Backend online dependency dry-run succeeds. Frontend separately fails ERESOLVE from eslint-config-next 14.2.35 versus ESLint 9; dry-run with matching config 16.4.2 succeeds.
+- **Files changed:** ACTIVITY.md and shared root/frontend activity logs only; existing source, manifests and lockfiles preserved.
+- **Endpoints / rate limiting:** N/A; no API, database, migration or permission changes.
+- **Status:** Completed diagnosis; no packages installed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Use npm.cmd in PowerShell. Dry-runs disabled lifecycle scripts, so backend Prisma postinstall and full installation remain unverified; lint/tests/build were not run for diagnosis only. No current esbuild lock observed. Agent-only offline/cache restrictions were bypassed for approved online probes.
+
 ## [2026-10-23 15:32] Codex
 
 - **Task:** Conduct an independent full-system SaaS and simulated certification-readiness audit without implementing fixes.
