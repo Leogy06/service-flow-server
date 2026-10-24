@@ -66,10 +66,13 @@ jest.unstable_mockModule("@/modules/feedback/feedback.routes.js", () => ({
   tenantFeedbackRoutes: resource(), platformFeedbackRoutes: resource(), publicFeedbackRoutes: resource(),
 }));
 jest.unstable_mockModule("@/modules/auth/auth.controller.js", () => ({ authController: {
-  register: success, refresh: success, logout: logoutController, logoutAll: success, me: success, verifyTwoFactor: success, resendTwoFactor: success,
-  login: ((req, res, next) => {
+  register: success, refresh: success, logout: logoutController, logoutAll: success, me: success, verifyTwoFactor: success,
+  resendTwoFactor: (async (req, res, next) => {
+    try { await (await import("@/middleware/two-factor-rate-limit")).limitTwoFactorDelivery(req, res, "login-user"); success(req, res, next); } catch (error) { next(error); }
+  }) satisfies express.RequestHandler,
+  login: (async (req, res, next) => {
     if (req.body.password === "incorrect") return next(new AppError(401, "Invalid credentials"));
-    res.json({ fixture: true });
+    try { await (await import("@/middleware/two-factor-rate-limit")).limitTwoFactorDelivery(req, res, "login-user"); res.json({ fixture: true }); } catch (error) { next(error); }
   }) satisfies express.RequestHandler,
 } }));
 jest.unstable_mockModule("@/modules/auth/profile.controller.js", () => ({ profileController: { get: success, update: success, changePassword: success } }));
@@ -82,7 +85,7 @@ jest.unstable_mockModule("@/modules/system-admin/operations.service.js", () => (
 
 const { app } = await import("../../src/app");
 const { apiLimiter } = await import("../../src/middleware/rateLimiter");
-const { twoFactorDeliveryAccountLimiter } = await import("../../src/middleware/two-factor-rate-limit");
+const { limitTwoFactorDelivery } = await import("../../src/middleware/two-factor-rate-limit");
 const { errorHandler } = await import("../../src/middleware/errorHandler");
 const login = (password = "correct") => request(app).post("/api/auth/login").send({ email: "fixture@example.invalid", password });
 beforeEach(async () => { storeUnavailable = false; await Promise.all(resetStores.map((reset) => reset())); jest.clearAllMocks(); });
@@ -228,11 +231,13 @@ test("login and resend share a strict delivery IP budget", async () => {
   expect((await login()).status).toBe(429);
 });
 
-test("delivery account middleware limits normalized email independently of the IP policy", async () => {
+test("delivery account policy uses the verified identity independently of client email and IP policy", async () => {
   const isolated = express(); isolated.use(express.json());
-  isolated.post("/login", twoFactorDeliveryAccountLimiter, success); isolated.use(errorHandler);
+  isolated.post("/login", async (req, res, next) => {
+    try { await limitTwoFactorDelivery(req, res, "verified-user"); success(req, res, next); } catch (error) { next(error); }
+  }); isolated.use(errorHandler);
   for (let i = 0; i < 20; i++) expect((await request(isolated).post("/login").send({ email: i % 2 ? "Sample@Example.invalid" : " sample@example.invalid " })).status).toBe(200);
   const blocked = await request(isolated).post("/login").send({ email: "sample@example.invalid" });
   expect(blocked.status).toBe(429); expect(blocked.headers["retry-after"]).toBeDefined();
-  expect((await request(isolated).post("/login").send({ email: "another@example.invalid" })).status).toBe(200);
+  expect((await request(isolated).post("/login").send({ email: "another@example.invalid" })).status).toBe(429);
 });

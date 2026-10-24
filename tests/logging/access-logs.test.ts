@@ -44,24 +44,24 @@ app.use(((error, _req, res, _next) => res.status(error.statusCode ?? 500).json({
 beforeEach(async () => { await Promise.all(pending.splice(0)); jest.clearAllMocks(); });
 afterEach(async () => { await Promise.all(pending.splice(0)); });
 
-test("captures only allowed metadata with Vercel IP priority and decoded city", async () => {
+test("captures only allowed metadata with Express proxy trust and decoded city", async () => {
   await request(app).post("/visit?token=do-not-store").set("x-vercel-forwarded-for", "203.0.113.42")
     .set("x-real-ip", "192.0.2.2").set("x-forwarded-for", "192.0.2.3, 192.0.2.4")
     .set("x-vercel-ip-country", "PH").set("x-vercel-ip-city", "General%20Santos")
     .set("user-agent", "Sample browser").set("authorization", "secret").set("cookie", "private=secret").send({ password: "secret" });
   await Promise.all(pending);
   expect(create).toHaveBeenCalledWith({ data: {
-    ip: "203.0.113.42", method: "POST", path: "/visit", status: 200,
+    ip: "192.0.2.3", method: "POST", path: "/visit", status: 200,
     durationMs: expect.any(Number), country: "PH", city: "General Santos", userAgent: "Sample browser",
   } });
   expect(waitUntil).toHaveBeenCalledTimes(1);
 });
 
 test.each([
-  [{ "x-real-ip": "192.0.2.2", "x-forwarded-for": "192.0.2.3, 192.0.2.4" }, "192.0.2.2"],
+  [{ "x-real-ip": "192.0.2.2", "x-forwarded-for": "192.0.2.3, 192.0.2.4" }, "192.0.2.3"],
   [{ "x-forwarded-for": "192.0.2.3, 192.0.2.4" }, "192.0.2.3"],
-  [{ "x-client-ip": "203.0.113.9", "x-real-ip": "192.0.2.2" }, "192.0.2.2"],
-  [{ "x-client-ip": "203.0.113.9", "x-internal-api-secret": "wrong", "x-real-ip": "192.0.2.2" }, "192.0.2.2"],
+  [{ "x-client-ip": "203.0.113.9", "x-real-ip": "192.0.2.2", "x-forwarded-for": "192.0.2.3" }, "192.0.2.3"],
+  [{ "x-client-ip": "203.0.113.9", "x-internal-api-secret": "wrong", "x-real-ip": "192.0.2.2", "x-forwarded-for": "192.0.2.3" }, "192.0.2.3"],
   [{ "x-client-ip": "203.0.113.9", "x-internal-api-secret": "internal-secret-for-test-only" }, "203.0.113.9"],
 ])("selects an IP and gates internal overrides: %j", async (headers, ip) => {
   await request(app).get("/visit").set(headers);
@@ -73,6 +73,28 @@ test("falls back to a loopback IP without forwarding headers", async () => {
   await request(app).get("/visit");
   await Promise.all(pending);
   expect(create).toHaveBeenCalledWith({ data: expect.objectContaining({ ip: expect.stringMatching(/127\.0\.0\.1|::1/) }) });
+});
+
+test("direct requests cannot forge IP attribution using forwarding headers", async () => {
+  const direct = express();
+  direct.set("trust proxy", 0);
+  direct.use(accessLogger);
+  direct.get("/visit", (_req, res) => res.sendStatus(200));
+  await request(direct).get("/visit").set("x-vercel-forwarded-for", "203.0.113.9")
+    .set("x-real-ip", "203.0.113.9").set("x-forwarded-for", "203.0.113.9");
+  await Promise.all(pending);
+  expect(create).toHaveBeenCalledWith({ data: expect.objectContaining({ ip: expect.stringMatching(/127\.0\.0\.1|::1/) }) });
+});
+
+test("one configured proxy hop uses Express's nearest untrusted address", async () => {
+  const proxied = express();
+  proxied.set("trust proxy", 1);
+  proxied.use(accessLogger);
+  proxied.get("/visit", (_req, res) => res.sendStatus(200));
+  await request(proxied).get("/visit").set("x-vercel-forwarded-for", "203.0.113.9")
+    .set("x-real-ip", "203.0.113.9").set("x-forwarded-for", "192.0.2.3, 192.0.2.4");
+  await Promise.all(pending);
+  expect(create).toHaveBeenCalledWith({ data: expect.objectContaining({ ip: "192.0.2.4" }) });
 });
 
 test("truncates columns and tolerates a malformed encoded city", async () => {

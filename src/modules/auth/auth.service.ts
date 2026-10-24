@@ -20,7 +20,7 @@ export const authService = {
     return signupService.submit(input);
   },
 
-  async login(email: string, password: string, hints: LoginHints = { userAgent: "", ipAddress: "", trustedTokens: {} }) {
+  async login(email: string, password: string, hints: LoginHints = { userAgent: "", ipAddress: "", trustedTokens: {} }, beforeDelivery?: (userId: string) => Promise<void>) {
     try {
       const credentials = await prisma.user.findFirst({
         where: { email, deletedAt: null },
@@ -32,6 +32,9 @@ export const authService = {
       ) {
         throw new AppError(401, "Invalid credentials");
       }
+      // Charge a victim's account budget only after password possession is proven.
+      // beginLogin still rechecks the credential hash and current authorization.
+      await beforeDelivery?.(credentials.id);
       return await twoFactorService.beginLogin({ id: credentials.id, password: credentials.password }, hints);
     } catch (error) {
       if (

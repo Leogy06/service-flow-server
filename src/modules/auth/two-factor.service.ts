@@ -125,13 +125,17 @@ export const twoFactorService = {
     return result.session ?? deliver(result.issued!);
   },
 
-  async resend(challengeId: string) {
+  async resend(challengeId: string, beforeDelivery?: (userId: string) => Promise<void>) {
+    let deliveryBudget: Promise<void> | undefined;
     const issued = await tenantTransaction(async db => {
       const challenge = await db.loginChallenge.findUnique({ where: { challengeHash: digest(challengeId) } });
       if (!challenge || challenge.createdAt.getTime() + 3600000 <= Date.now()) throw invalidCode();
       const user = await challengeUser(db, challenge);
       const latest = await db.loginChallenge.findFirst({ where: { userId: user.id, surface: challenge.surface }, orderBy: { createdAt: "desc" } });
       if (latest?.id !== challenge.id || (challenge.consumedAt && challenge.attempts < challenge.maxAttempts)) throw invalidCode();
+      // Retried transactions revalidate challenge state but charge Redis once.
+      // Unknown/stale handles cannot deplete another account's delivery budget.
+      if (beforeDelivery) await (deliveryBudget ??= beforeDelivery(user.id));
       return issue(db, user);
     });
     return deliver(issued);

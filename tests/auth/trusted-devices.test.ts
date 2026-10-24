@@ -88,7 +88,7 @@ const { default: routes } = await import("@/modules/auth/trusted-device.routes.j
 const { trustedDeviceService, revokeAuthenticationFactors } = await import("@/modules/auth/trusted-device.service.js");
 const app = express();
 app.use(express.json(), cookieParser());
-app.use((req, _res, next) => requestContext.run({ requestId: "device-test" }, next));
+app.use((_req, _res, next) => requestContext.run({ requestId: "device-test" }, next));
 app.use("/api/auth/trusted-devices", routes);
 const errors: ErrorRequestHandler = (error, _req, res, _next) => res.status(error.statusCode ?? 500).json({ error: error.statusCode ? error.message : "Internal server error" });
 app.use(errors);

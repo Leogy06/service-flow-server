@@ -38,12 +38,12 @@ export async function seedCustomers(prisma: PrismaClient) {
           continue;
         }
 
-        // Phone numbers are globally unique, including those on soft-deleted customers.
+        // Archived phone numbers stay reserved within their tenant.
         const phoneSeed = Number.parseInt(createHash("sha256").update(id).digest("hex").slice(0, 12), 16);
         let phoneNumber: string | undefined;
         for (let attempt = 0; attempt < 100; attempt++) {
           const candidate = `09${String((phoneSeed + attempt) % 1_000_000_000).padStart(9, "0")}`;
-          if (!await db.customer.findUnique({ where: { phoneNumber: candidate }, select: { id: true } })) {
+          if (!await db.customer.findFirst({ where: { organizationId: organization.id, phoneNumber: candidate }, select: { id: true } })) {
             phoneNumber = candidate;
             break;
           }

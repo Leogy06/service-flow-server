@@ -11,6 +11,15 @@ All required blank values must be filled. Existing files/values are not replaced
 `REDIS_URL` defaults to `redis://localhost:6379` for local development. Production
 requires an explicit verified `rediss://` connection URL and rejects the local default.
 
+Production also rejects JWT_ACCESS_SECRET shorter than 32 characters after
+trimming. Generate a cryptographically random key in the provider's secret store;
+never print it in logs or commit it. Existing
+values are not changed automatically. Rotating signing keys invalidates existing
+tokens and can affect code HMACs when TWO_FACTOR_SECRET is not separately set;
+coordinate rollout and session recovery. Length validation is not proof of entropy.
+Refresh tokens are opaque random values stored as hashes; the existing required
+JWT_REFRESH_SECRET setting is legacy and is not their signing key.
+
 From `backend`:
 
 ```sh

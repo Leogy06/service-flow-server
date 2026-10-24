@@ -71,7 +71,7 @@ jest.unstable_mockModule("@/utils/tokens.js", () => ({
 }));
 jest.unstable_mockModule("@/middleware/two-factor-rate-limit", () => {
   const pass = (_req: unknown, _res: unknown, next: () => void) => next();
-  return { twoFactorDeliveryIpLimiter: pass, twoFactorDeliveryAccountLimiter: pass, twoFactorVerifyLimiter: pass };
+  return { twoFactorDeliveryIpLimiter: pass, twoFactorVerifyLimiter: pass, limitTwoFactorDelivery: async () => {} };
 });
 jest.unstable_mockModule("@/middleware/rateLimiter.js", () => {
   const pass = (_req: unknown, _res: unknown, next: () => void) => next();

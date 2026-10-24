@@ -17,7 +17,7 @@ import { profileController } from "./profile.controller";
 import { updateProfileSchema, changePasswordSchema } from "./profile.schema";
 import { setPasswordSchema } from "@/modules/user/user.schema";
 import { userController } from "@/modules/user/user.controller";
-import { twoFactorDeliveryIpLimiter, twoFactorDeliveryAccountLimiter, twoFactorVerifyLimiter } from "@/middleware/two-factor-rate-limit";
+import { twoFactorDeliveryIpLimiter, twoFactorVerifyLimiter } from "@/middleware/two-factor-rate-limit";
 import trustedDeviceRoutes from "./trusted-device.routes";
 
 const router = Router();
@@ -29,9 +29,9 @@ router.post(
   authController.register,
 );
 router.use((_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
-router.post("/login", authLimiter, twoFactorDeliveryIpLimiter, validate(loginSchema), twoFactorDeliveryAccountLimiter, authController.login);
+router.post("/login", authLimiter, twoFactorDeliveryIpLimiter, validate(loginSchema), authController.login);
 router.post("/2fa/verify", twoFactorVerifyLimiter, validate(verifyTwoFactorSchema), authController.verifyTwoFactor);
-router.post("/2fa/resend", twoFactorDeliveryIpLimiter, validate(resendTwoFactorSchema), twoFactorDeliveryAccountLimiter, authController.resendTwoFactor);
+router.post("/2fa/resend", twoFactorDeliveryIpLimiter, validate(resendTwoFactorSchema), authController.resendTwoFactor);
 router.use("/trusted-devices", trustedDeviceRoutes);
 router.post(
   "/set-password",

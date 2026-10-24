@@ -78,6 +78,12 @@ const { twoFactorService } = await import("@/modules/auth/two-factor.service");
 const { env: configuration } = await import("@/config/env");
 const hints = { userAgent: "Test Browser", ipAddress: "192.0.2.1", trustedTokens: {} };
 const begin = () => twoFactorService.beginLogin({ id: current.id, password: current.password }, hints);
+
+test("unknown and replaced resend handles cannot consume an account delivery budget", async () => {
+  const budget = jest.fn(async (_userId: string) => {});
+  await expect(twoFactorService.resend("unknown-handle", budget)).rejects.toMatchObject({ statusCode: 400 });
+  expect(budget).not.toHaveBeenCalled();
+});
 beforeEach(() => {
   configuration.TWO_FACTOR_CODE_LENGTH = 4;
   now = new Date("2026-10-23T12:00:00Z"); jest.useFakeTimers({ now });

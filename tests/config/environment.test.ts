@@ -19,11 +19,29 @@ const development = {
 };
 const production = {
   ...development,
+  JWT_ACCESS_SECRET: "synthetic-production-access-key-at-least-32-chars",
+  JWT_REFRESH_SECRET: "synthetic-production-refresh-key-at-least-32-chars",
   NODE_ENV: "production",
   DATABASE_URL: "mysql://user:sample@database.example.com:3306/service_flow?connection_limit=5&sslaccept=strict",
   REDIS_URL: "rediss://default:sample@sample.upstash.io:6379",
   CORS_ORIGIN: "https://app.example.com",
 };
+
+test.each([
+  { JWT_ACCESS_SECRET: "short" },
+  { JWT_ACCESS_SECRET: " ".repeat(32) },
+  { JWT_ACCESS_SECRET: "  short  " },
+])("production rejects short access signing keys without disclosing values: %j", (override) => {
+  const result = envSchema.safeParse({ ...production, ...override });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    for (const secret of Object.values(override)) expect(JSON.stringify(result.error.issues)).not.toContain(secret);
+  }
+});
+
+test("legacy refresh-secret values do not impose a signing-key contract on opaque refresh tokens", () => {
+  expect(envSchema.safeParse({ ...production, JWT_REFRESH_SECRET: "legacy-value" }).success).toBe(true);
+});
 
 test("accepts complete Aiven runtime settings without DATABASE_URL and uses PEM TLS with one connection", () => {
   const values = { ...production, DATABASE_URL: undefined, DB_HOST: "aiven.example.invalid", DB_PORT: "28669", DB_USER: "app", DB_PASSWORD: "sample", DB_NAME: "app", DB_CA: "-----BEGIN CERTIFICATE-----\nsample\n-----END CERTIFICATE-----" };
@@ -175,7 +193,7 @@ test.each(["development", "test"])("adapter uses plain MySQL unless TLS is reque
     NODE_ENV: mode,
     DATABASE_URL: "mysql://user:sample@database.example.com:3306/service_flow?connection_limit=5",
   });
-  expect(options.connectionLimit).toBe(1);
+  expect(options.connectionLimit).toBe(5);
   expect(options.ssl).toBeUndefined();
 });
 
@@ -187,9 +205,9 @@ test("production adapter requires verified TLS even if called without a URL TLS 
   expect(options.ssl).toEqual({ rejectUnauthorized: true });
 });
 
-test("adapter decodes URL credentials and uses a serverless pool and verified production TLS", () => {
+test("adapter decodes URL credentials and honors the configured URL pool with verified production TLS", () => {
   expect(databaseOptions({ ...development, NODE_ENV: "development" })).toMatchObject({
-    host: "127.0.0.1", port: 3307, user: "root", password: "p@ss#word", database: "service_flow_dev", connectionLimit: 1,
+    host: "127.0.0.1", port: 3307, user: "root", password: "p@ss#word", database: "service_flow_dev", connectionLimit: 5,
   });
   expect(databaseOptions(production)).toMatchObject({ ssl: { rejectUnauthorized: true }, allowPublicKeyRetrieval: false });
   expect(databaseOptions({ ...development, NODE_ENV: "development" }).ssl).toBeUndefined();

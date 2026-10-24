@@ -354,10 +354,10 @@ model UserPermission {
 model Customer {
   id String @id @default(cuid())
 
-  name String @unique
+  name String
 
-  email       String  @unique
-  phoneNumber String  @unique
+  email       String
+  phoneNumber String
 
   address String?
   notes   String?
@@ -375,6 +375,9 @@ model Customer {
 
   @@index([email])
   @@index([phoneNumber])
+  @@unique([organizationId, name])
+  @@unique([organizationId, email])
+  @@unique([organizationId, phoneNumber])
 }
 
 // ─────────────────────────────────────────────

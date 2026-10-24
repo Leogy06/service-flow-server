@@ -117,6 +117,7 @@ const db: any = {
   }),
 };
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma: db }));
+jest.unstable_mockModule("@/middleware/two-factor-rate-limit", () => ({ limitTwoFactorDelivery: async () => {} }));
 jest.unstable_mockModule("@/config/env.js", () => ({ env: { SALT_ROUNDS: 4, ACCESS_TOKEN_EXPIRY: 900, NODE_ENV: "test", JWT_ACCESS_SECRET: "fixture-secret-at-least-32-characters" } }));
 jest.unstable_mockModule("@/lib/email/send-login-code", () => ({ sendLoginCodeEmail: async (_to: string, _name: string, code: string) => { codes.push(code); } }));
 jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn(async () => {}) }));
@@ -134,6 +135,18 @@ const { default: userPermissionRoutes } = await import("@/modules/user-permissio
 const { authenticate } = await import("@/middleware/auth.js");
 const { requireSystemAdmin } = await import("@/middleware/require-platform-admin.js");
 const { authController } = await import("@/modules/auth/auth.controller.js");
+const { authService } = await import("@/modules/auth/auth.service.js");
+
+test("invalid passwords cannot consume a victim's delivery budget, and valid credentials must pass the budget before issuance", async () => {
+  reset();
+  const budget = jest.fn(async (_userId: string) => {});
+  await expect(authService.login("admin-a@example.invalid", "wrong", undefined, budget)).rejects.toMatchObject({ statusCode: 401 });
+  expect(budget).not.toHaveBeenCalled();
+  const unavailable = jest.fn(async (_userId: string) => { throw new Error("Budget store unavailable"); });
+  await expect(authService.login("admin-a@example.invalid", password, undefined, unavailable)).rejects.toThrow("Budget store unavailable");
+  expect(unavailable).toHaveBeenCalledWith("admin-a");
+  expect(challenges).toHaveLength(0);
+});
 const { withRequestContext } = await import("@/middleware/requestContext.middleware.js");
 const { validate } = await import("@/middleware/validate");
 const { verifyTwoFactorSchema } = await import("@/modules/auth/auth.schema");

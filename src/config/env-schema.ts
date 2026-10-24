@@ -57,6 +57,9 @@ export const envSchema = databaseEnvironmentSchema.safeExtend({
   PLATFORM_TEST_DATABASE_NAME: z.string().optional(),
 }).superRefine((value, ctx) => {
   if (value.NODE_ENV !== "production") return;
+  if (value.JWT_ACCESS_SECRET.trim().length < 32) {
+    ctx.addIssue({ code: "custom", path: ["JWT_ACCESS_SECRET"], message: "Production signing keys require at least 32 characters after trimming; generate a random key" });
+  }
   if (!value.REDIS_URL.startsWith("rediss://")) {
     ctx.addIssue({ code: "custom", path: ["REDIS_URL"], message: "Production requires rediss:// (TLS)" });
   }

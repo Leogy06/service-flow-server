@@ -1,3 +1,12 @@
+## [2026-10-24 09:13] Codex (root; audit and final read-only review streams)
+
+- **Task:** Audit and remediate confirmed backend tenant/security/reliability defects.
+- **Summary:** Scoped customer conflicts/uniques and atomic audits, bounded metadata, parser-safe logs, proof-before-account-budget, trusted IP boundary, access-key floor, bounded shutdown, CI and Docker/runbook corrections. Added synthetic isolated MySQL/Redis acceptance; final scoped reviewer found no concrete Critical/High/Medium in inspected changes.
+- **Files changed:** Auth/customer/audit/middleware/config/runtime modules, Customer schema/new migration/seed, tests/audit and regressions, Dockerfile, .github/workflows/quality.yml and feature/environment/access docs; full reports in ../docs/audits.
+- **Endpoints / rate limiting:** Existing login/resend budgets require verified server identity; existing IP/auth/Redis policies retained. No new route/permission/response contract; new Customer organization-compound uniqueness migration only deployed to disposable owned test DBs.
+- **Status:** Completed locally; hosted/operational approval pending. **Agent rate limit:** Initial reviewers hit account usage limit, root continued. **Resets at:** reported 2026-10-24 06:49 Asia/Manila (elapsed).
+- **Next steps / Notes:** 1,198 Jest, 12 CLI, 6 launcher, 1 compiled runtime checks, lint/type/build and real SQL acceptance pass; 39 migrations/fresh/populated upgrade/races and 34 Node cases across request/workflow/access suites. Test containers cleaned; private env/historical SQL/live infrastructure untouched. Rehearse actual migration/release/mail/cookies/proxy/restore/monitoring before paying customers; no deployment performed.
+
 ## [2026-10-24 01:23] Codex (root; frontend, email and device implementation agents)
 
 - **Task:** Implement mandatory email 2FA and trusted-device login for tenants and system administrators.

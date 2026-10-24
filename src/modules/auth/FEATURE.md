@@ -47,7 +47,11 @@ serializes code consumption with session creation, and enforces resend/attempt
 budgets. `login-session.ts` issues tokens after factor verification or a scoped
 trusted-device match. Device routes use authenticated read/write/strict policies.
 Credential/access changes and logout-all revoke factors transactionally.
-Login/resend also share strict Redis IP/account budgets; verification has a
+Login/resend also share strict Redis IP/account budgets. IP protection runs before
+credential work; the shared account budget runs only after server-side password
+or current resend-challenge proof. Wrong passwords and stale handles cannot
+deplete another account's delivery budget. Credential/state checks remain inside
+the issuance transaction; retries charge Redis once. Verification has a
 separate strict IP limiter. Refresh uses a
 separate `refreshLimiter` (60/minute), keyed by a signature-verified access-token
 subject when supplied, otherwise IP. An expired access token may identify that

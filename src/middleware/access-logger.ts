@@ -25,9 +25,10 @@ export const accessLogger: RequestHandler = (req, res, next) => {
       path.startsWith("/api/cron/")) return next();
   const started = performance.now();
   const internal = matchesSecret(req.get("x-internal-api-secret"), env.INTERNAL_API_SECRET);
+  // Express applies the configured proxy trust boundary; raw forwarding headers
+  // are attacker-controlled on direct origins and unsanitized proxy paths.
   const ip = (internal ? firstIp(req.get("x-client-ip")) : undefined) ??
-    firstIp(req.get("x-vercel-forwarded-for")) ?? firstIp(req.get("x-real-ip")) ??
-    firstIp(req.get("x-forwarded-for")) ?? req.ip ?? req.socket.remoteAddress ?? "unknown";
+    req.ip ?? req.socket.remoteAddress ?? "unknown";
   const country = req.get("x-vercel-ip-country");
   let city = req.get("x-vercel-ip-city");
   try { if (city) city = decodeURIComponent(city); } catch { /* Retain malformed city text safely. */ }

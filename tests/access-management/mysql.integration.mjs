@@ -12,8 +12,15 @@ import cookieParser from "cookie-parser";
 if (process.env.RUN_DB_ACCESS_TESTS !== "1" || process.env.NODE_ENV !== "test") {
   throw new Error("Run the opt-in npm run test:access:mysql command.");
 }
+const { registerHooks } = await import("node:module");
+registerHooks({ resolve(specifier, context, nextResolve) {
+  if (specifier === "@/lib/email/send-login-code" || specifier === "@/lib/email/send-login-code.js") {
+    return { url: "data:text/javascript,export async function sendLoginCodeEmail(_to,_name,code){globalThis.__serviceFlowAccessTestCode=code;}", shortCircuit: true };
+  }
+  return nextResolve(specifier, context);
+} });
 const { prisma } = await import("../../src/lib/prisma.ts");
-const { redis } = await import("../../src/lib/redis.ts");
+const { redis, redisReady } = await import("../../src/lib/redis.ts");
 const { PERMISSIONS } = await import("../../src/constants/permission.constants.ts");
 const { authenticate } = await import("../../src/middleware/auth.ts");
 const { withRequestContext } = await import("../../src/middleware/requestContext.middleware.ts");
@@ -26,6 +33,7 @@ const { default: roleRoutes } = await import("../../src/modules/role/role.routes
 const { default: authRoutes } = await import("../../src/modules/auth/auth.routes.ts");
 const { default: organizationRoutes } = await import("../../src/modules/organization/organization.route.ts");
 const { authService } = await import("../../src/modules/auth/auth.service.ts");
+const { twoFactorService } = await import("../../src/modules/auth/two-factor.service.ts");
 const { auditService } = await import("../../src/modules/audit/audit.service.ts");
 const { generateAccessToken, verifyAccessToken } = await import("../../src/utils/tokens.ts");
 const { default: bcrypt } = await import("bcryptjs");
@@ -44,6 +52,7 @@ test("frontend role and staff permission APIs through HTTP and MySQL", { timeout
   const server = createServer();
   const originalAudit = auditService.recordInTransaction;
   try {
+    await redisReady();
     await redis.ping();
     for (const name of [PERMISSIONS.CUSTOMER_READ, PERMISSIONS.CUSTOMER_UPDATE, PERMISSIONS.USER_READ, PERMISSIONS.USER_UPDATE,
       PERMISSIONS.ROLE_READ, PERMISSIONS.ROLE_CREATE, PERMISSIONS.ROLE_UPDATE, PERMISSIONS.ROLE_DELETE]) {
@@ -234,7 +243,15 @@ test("frontend role and staff permission APIs through HTTP and MySQL", { timeout
     });
     await t.test("login and refresh JWTs use denial-aware resolution", async () => {
       await save([{ permissionId: readId, state: "deny" }]);
-      const loggedIn = await authService.login(`${staffId}@example.invalid`, password);
+      const hints = { userAgent: "Synthetic access integration", ipAddress: "127.0.0.1", trustedTokens: {} };
+      const challenge = await authService.login(`${staffId}@example.invalid`, password, hints);
+      assert.equal(challenge.requiresTwoFactor, true);
+      assert.equal(challenge.accessToken, undefined, "Password alone must not create a session");
+      const code = globalThis.__serviceFlowAccessTestCode;
+      delete globalThis.__serviceFlowAccessTestCode;
+      assert.match(code, /^\d{4,8}$/);
+      const loggedIn = await twoFactorService.verify(challenge.challengeId, code, false, hints);
+      await assert.rejects(() => twoFactorService.verify(challenge.challengeId, code, false, hints), error => error.statusCode === 400);
       assert.deepEqual(verifyAccessToken(loggedIn.accessToken).permissions, [PERMISSIONS.CUSTOMER_UPDATE]);
       const refreshed = await authService.refresh(loggedIn.refreshToken);
       assert.deepEqual(verifyAccessToken(refreshed.accessToken).permissions, [PERMISSIONS.CUSTOMER_UPDATE]);
@@ -295,8 +312,10 @@ test("frontend role and staff permission APIs through HTTP and MySQL", { timeout
       await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
     try {
-      // Every deletion is bounded to UUID fixture IDs; existing tenant data is untouched.
-      await prisma.$transaction(async (db) => {
+      // Authentication evidence is immutable. Retain its referenced UUID
+      // fixtures; the owned-container runner discards only this test database.
+      const immutable = await prisma.auditLog.count({ where: { scope: "PLATFORM", OR: [{ organizationId: { in: orgIds } }, { actorId: { in: userIds } }] } });
+      if (!immutable) await prisma.$transaction(async (db) => {
         // Include a browser-created role even if its response/verification failed.
         const fixtureRoles = await db.role.findMany({ where: { organizationId: { in: orgIds } }, select: { id: true } });
         const cleanupRoleIds = [...new Set([...roleIds, ...fixtureRoles.map((role) => role.id)])];

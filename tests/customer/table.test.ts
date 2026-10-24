@@ -10,6 +10,7 @@ type CustomerRow = {
 };
 let customers: CustomerRow[];
 let denied: string[];
+let failAudit = false;
 const record = jest.fn(async (_event: unknown) => {});
 const invalidateCache = jest.fn(async (_key: string) => {});
 const cacheKeys: string[] = [];
@@ -57,6 +58,7 @@ const db = {
     };
   }) },
   customer: {
+    findFirst: jest.fn(async ({ where }: any) => customers.find((row) => matches(row, where)) ?? null),
     findUnique: jest.fn(async ({ where }: any) => customers.find((row) => matches(row, where)) ?? null),
     count: jest.fn(async ({ where }: any) => customers.filter((row) => matches(row, where)).length),
     findMany: jest.fn(async ({ where, orderBy, skip, take }: any) => {
@@ -79,10 +81,19 @@ const db = {
       return customer;
     }),
   },
-  $transaction: jest.fn(async (work: any, _options: unknown) => work(db)),
+  $transaction: jest.fn(async (work: any, _options: unknown) => {
+    const before = customers.map(row => ({ ...row }));
+    try { return await work(db); } catch (error) { customers = before; throw error; }
+  }),
 };
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma: db }));
-jest.unstable_mockModule("@/modules/audit/audit.service.js", () => ({ auditService: { record } }));
+jest.unstable_mockModule("@/modules/audit/audit.service.js", () => ({ auditService: {
+  record,
+  recordInTransaction: async (_db: unknown, event: unknown) => {
+    if (failAudit) throw new Error("Audit unavailable");
+    await record(event);
+  },
+} }));
 jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, invalidateCache,
   getOrSetCache: async (key: string, _ttl: number, loader: () => Promise<unknown>) => { cacheKeys.push(key); return loader(); },
 }));
@@ -98,13 +109,39 @@ app.use(express.json(), withRequestContext);
 app.use("/customers", authenticate, customerRoutes);
 const errors: ErrorRequestHandler = (error, _req, res, _next) => { res.status(error.statusCode ?? 500).json({ error: error.message }); };
 app.use(errors);
-beforeEach(() => { jest.clearAllMocks(); resetData(); });
+beforeEach(() => { jest.clearAllMocks(); resetData(); failAudit = false; });
 const get = (path: string, actor = "admin-a") => request(app).get(path).set("Authorization", "Bearer " + actor);
 const update = (id: string, body: object, actor = "admin-a") => request(app).put("/customers/" + id).set("Authorization", "Bearer " + actor).send(body);
 const remove = (id: string, actor = "admin-a") => request(app).delete("/customers/" + id).set("Authorization", "Bearer " + actor);
 const restore = (id: string, actor = "admin-a") => request(app).patch(`/customers/${id}/restore`).set("Authorization", "Bearer " + actor);
 
 describe("Customer table API", () => {
+  it("allows the same customer identifiers in two tenants and scopes update conflicts", async () => {
+    const foreign = customers.find(row => row.id === "alice-b")!;
+    const body = { name: foreign.name, email: foreign.email, phoneNumber: foreign.phoneNumber };
+    const created = await request(app).post("/customers").auth("admin-a", { type: "bearer" }).send(body);
+    expect(created.status).toBe(201);
+    expect(created.body.data.organizationId).toBe("org-a");
+    expect((await request(app).post("/customers").auth("admin-a", { type: "bearer" }).send(body)).status).toBe(409);
+    customers = customers.filter(row => row.id !== "created-a");
+    expect((await update("alice-a", body)).status).toBe(200);
+  });
+
+  it.each(["create", "update", "archive", "restore"])("rolls back %s and skips cache invalidation when mandatory audit fails", async operation => {
+    const before = structuredClone(customers);
+    failAudit = true;
+    const response = operation === "create"
+      ? await request(app).post("/customers").auth("admin-a", { type: "bearer" }).send({ name: "New Person", email: "new@example.com", phoneNumber: "09179999999" })
+      : operation === "update" ? await update("alice-a", { notes: "changed" })
+      : operation === "archive" ? await remove("alice-a") : await restore("deleted-a");
+    expect(response.status).toBe(500);
+    expect(customers).toEqual(before);
+    expect(invalidateCache).not.toHaveBeenCalled();
+  });
+
+  it("reserves archived identifiers only within their tenant", async () => {
+    expect((await update("alice-a", { email: "deleted-a@example.com" })).status).toBe(409);
+  });
   it("lists current tenant customers with newest first and ignores client tenant IDs", async () => {
     const response = await get("/customers?organizationId=org-b");
     expect(response.status).toBe(200);

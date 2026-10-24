@@ -1,5 +1,12 @@
 # Migration compatibility and recovery
 
+`20261024090000_customer_tenant_uniqueness` adds organization-compound customer
+keys before removing their global counterparts, retaining every row and each
+tenant's archived identifier reservation. Review actual index names/DDL/history
+and validate a populated isolated upgrade before applying it. It does not alter
+global user email uniqueness. Audit replay and populated-upgrade checks passed
+only in disposable test-owned MySQL; no existing or hosted database was changed.
+
 These MySQL migrations build the application schema in timestamp order. Physical
 table names use the exact casing of their original `CREATE TABLE` statements,
 including `User`, `Job`, `RolePermission` and `UserPermission`. Prisma models have

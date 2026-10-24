@@ -8,6 +8,7 @@ import { env } from "@/config/env";
 import { clearRefreshCookies } from "@/middleware/clear-refresh-cookies";
 import { twoFactorService, type CompletedLogin, type LoginHints } from "./two-factor.service";
 import { clearTrustedDeviceCookies } from "./trusted-device.controller";
+import { limitTwoFactorDelivery } from "@/middleware/two-factor-rate-limit";
 
 const refreshCookieOptions = {
   httpOnly: true,
@@ -59,7 +60,7 @@ export const authController = {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const { email, password } = req.validated?.body ?? req.body;
-      const result = await authService.login(email, password, loginHints(req));
+      const result = await authService.login(email, password, loginHints(req), userId => limitTwoFactorDelivery(req, res, userId));
       if ("requiresTwoFactor" in result) {
         clearRefreshCookies(res);
         sendResponse(res, 200, result.deliveryStatus === "sent" ? "Enter the code sent to your email" : "We could not deliver the verification email. Please try resending the code.", result);
@@ -79,7 +80,7 @@ export const authController = {
   async resendTwoFactor(req: Request, res: Response, next: NextFunction) {
     try {
       const { challengeId } = req.validated.body as { challengeId: string };
-      const result = await twoFactorService.resend(challengeId);
+      const result = await twoFactorService.resend(challengeId, userId => limitTwoFactorDelivery(req, res, userId));
       sendResponse(res, 200, result.deliveryStatus === "sent" ? "Verification code sent" : "We could not deliver the verification email. Please try resending the code.", result);
     } catch (error) { next(error); }
   },
