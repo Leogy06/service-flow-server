@@ -94,6 +94,14 @@ export const loginSchema = z.object({
   }),
 });
 
+const challengeHandle = z.string().regex(/^[A-Za-z0-9_-]{43}$/, "Invalid verification request");
+export const resendTwoFactorSchema = z.object({ body: z.object({ challengeId: challengeHandle }).strict() });
+export const verifyTwoFactorSchema = z.object({ body: z.object({
+  challengeId: challengeHandle,
+  code: z.string().regex(/^\d{4,8}$/, "Enter the verification code"),
+  rememberDevice: z.boolean().default(false),
+}).strict() });
+
 // Infer TS types straight from the schemas — one source of truth
 export type RegisterInput = z.infer<typeof registerSchema>["body"];
 export type LoginInput = z.infer<typeof loginSchema>["body"];

@@ -6,6 +6,9 @@ import { sendResponse } from "@/utils/sendResponse";
 import { profileService } from "./profile.service";
 import { env } from "@/config/env";
 import { clearRefreshCookies } from "@/middleware/clear-refresh-cookies";
+import { twoFactorService, type CompletedLogin, type LoginHints } from "./two-factor.service";
+import { clearTrustedDeviceCookies } from "./trusted-device.controller";
+import { limitTwoFactorDelivery } from "@/middleware/two-factor-rate-limit";
 
 const refreshCookieOptions = {
   httpOnly: true,
@@ -14,6 +17,28 @@ const refreshCookieOptions = {
   path: "/api/auth",
   maxAge: REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000,
 };
+
+function loginHints(req: Request): LoginHints {
+  return {
+    userAgent: req.get("user-agent") ?? "", ipAddress: req.ip ?? "",
+    trustedTokens: {
+      tenant: typeof req.cookies?.trustedDeviceTenant === "string" ? req.cookies.trustedDeviceTenant : undefined,
+      "system-admin": typeof req.cookies?.trustedDeviceAdmin === "string" ? req.cookies.trustedDeviceAdmin : undefined,
+    },
+  };
+}
+
+function completeLogin(res: Response, result: CompletedLogin) {
+  res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
+  res.cookie("refreshToken", result.refreshToken, refreshCookieOptions);
+  const { refreshToken: _refreshToken, trustedDevice, ...publicResult } = result;
+  if (trustedDevice) {
+    res.cookie(trustedDevice.surface === "tenant" ? "trustedDeviceTenant" : "trustedDeviceAdmin", trustedDevice.token, {
+      httpOnly: true, secure: env.NODE_ENV === "production", sameSite: "strict", path: "/api/auth", maxAge: trustedDevice.days * 86400000,
+    });
+  }
+  sendResponse(res, 200, "User logged in successfully", publicResult);
+}
 
 export const authController = {
   async register(req: Request, res: Response, next: NextFunction) {
@@ -34,16 +59,30 @@ export const authController = {
 
   async login(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, password } = req.body;
-      const result = await authService.login(email, password);
-
-      res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
-      res.cookie("refreshToken", result.refreshToken, refreshCookieOptions);
-      const { refreshToken: _refreshToken, ...publicResult } = result;
-      sendResponse(res, 200, "User logged in successfully", publicResult);
+      const { email, password } = req.validated?.body ?? req.body;
+      const result = await authService.login(email, password, loginHints(req), userId => limitTwoFactorDelivery(req, res, userId));
+      if ("requiresTwoFactor" in result) {
+        clearRefreshCookies(res);
+        sendResponse(res, 200, result.deliveryStatus === "sent" ? "Enter the code sent to your email" : "We could not deliver the verification email. Please try resending the code.", result);
+      } else completeLogin(res, result);
     } catch (err) {
       next(err);
     }
+  },
+
+  async verifyTwoFactor(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { challengeId, code, rememberDevice } = req.validated.body as { challengeId: string; code: string; rememberDevice: boolean };
+      completeLogin(res, await twoFactorService.verify(challengeId, code, rememberDevice, loginHints(req)));
+    } catch (error) { next(error); }
+  },
+
+  async resendTwoFactor(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { challengeId } = req.validated.body as { challengeId: string };
+      const result = await twoFactorService.resend(challengeId, userId => limitTwoFactorDelivery(req, res, userId));
+      sendResponse(res, 200, result.deliveryStatus === "sent" ? "Verification code sent" : "We could not deliver the verification email. Please try resending the code.", result);
+    } catch (error) { next(error); }
   },
 
   async refresh(req: Request, res: Response, next: NextFunction) {
@@ -77,6 +116,7 @@ export const authController = {
   async logoutAll(_req: Request, res: Response, next: NextFunction) {
     try {
       await profileService.logoutAll();
+      clearTrustedDeviceCookies(res);
       res.clearCookie("refreshToken", { path: "/api/auth" });
       res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
       res.json({ message: "Logged out of all devices" });

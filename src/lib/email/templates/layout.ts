@@ -1,15 +1,22 @@
 import { EMAIL_LOGO_CONTENT_ID } from "../branding";
 
-interface ActionEmailProps {
+interface EmailProps {
   preheader: string;
   eyebrow: string;
   title: string;
   firstName: string;
   message: string;
-  actionLabel: string;
-  actionUrl: string;
   notice: string;
   securityNote: string;
+}
+
+interface ActionEmailProps extends EmailProps {
+  actionLabel: string;
+  actionUrl: string;
+}
+
+interface CodeEmailProps extends EmailProps {
+  code: string;
 }
 
 function escapeHtml(value: string): string {
@@ -26,13 +33,26 @@ function escapeHtml(value: string): string {
 
 /** All content is plain text; escape it before inserting into email HTML. */
 export function actionEmailHtml(props: ActionEmailProps): string {
-  const url = new URL(props.actionUrl);
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error("Email action URL must use HTTP or HTTPS");
-  }
+  return emailHtml(props, { label: props.actionLabel, url: props.actionUrl });
+}
 
-  const actionUrl = escapeHtml(props.actionUrl);
-  const actionLabel = escapeHtml(props.actionLabel);
+/** Display a copyable verification code within the same account-email design. */
+export function codeEmailHtml(props: CodeEmailProps): string {
+  return emailHtml(props, { code: props.code });
+}
+
+function emailHtml(
+  props: EmailProps,
+  action: { label: string; url: string } | { code: string },
+): string {
+  let actionUrl = "";
+  if ("url" in action) {
+    const url = new URL(action.url);
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      throw new Error("Email action URL must use HTTP or HTTPS");
+    }
+    actionUrl = escapeHtml(action.url);
+  }
   const firstName = escapeHtml(props.firstName.trim());
   // Delivery must include emailLogoAttachment; the logo needs no remote image request.
   const logoSource = `cid:${EMAIL_LOGO_CONTENT_ID}`;
@@ -79,22 +99,22 @@ export function actionEmailHtml(props: ActionEmailProps): string {
               <h1 class="email-heading" style="margin: 0 0 28px; color: #1c1917; font-size: 32px; line-height: 40px; font-weight: 700; letter-spacing: -1px;">${escapeHtml(props.title)}</h1>
               <p style="margin: 0 0 12px; font-size: 15px; line-height: 25px;">${firstName ? `Hi ${firstName},` : "Hi there,"}</p>
               <p style="margin: 0 0 28px; color: #57534e; font-size: 15px; line-height: 25px;">${escapeHtml(props.message)}</p>
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse: separate; margin: 0 0 28px;">
+              ${"code" in action ? `<p style="margin: 0 0 28px; padding: 20px 24px; border: 1px solid #e7e5e4; border-radius: 6px; background-color: #fafaf9; color: #08786f; font-family: 'Courier New', Courier, monospace; font-size: 32px; line-height: 40px; font-weight: 700; letter-spacing: 6px; text-align: center;">${escapeHtml(action.code)}</p>` : `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse: separate; margin: 0 0 28px;">
                 <tr>
                   <td align="center" bgcolor="#08786f" style="background-color: #08786f; border: 1px solid #08786f; border-radius: 6px; mso-padding-alt: 14px 24px;">
-                    <a href="${actionUrl}" style="display: inline-block; padding: 14px 24px; border-radius: 6px; color: #ffffff; font-size: 15px; line-height: 22px; font-weight: 700; text-align: center; text-decoration: none; mso-padding-alt: 0;"><span style="color: #ffffff;">${actionLabel}</span></a>
+                    <a href="${actionUrl}" style="display: inline-block; padding: 14px 24px; border-radius: 6px; color: #ffffff; font-size: 15px; line-height: 22px; font-weight: 700; text-align: center; text-decoration: none; mso-padding-alt: 0;"><span style="color: #ffffff;">${escapeHtml(action.label)}</span></a>
                   </td>
                 </tr>
-              </table>
+              </table>`}
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td bgcolor="#fafaf9" style="padding: 14px 16px; border-left: 3px solid #08786f; color: #57534e; font-size: 13px; line-height: 21px;">${escapeHtml(props.notice)}</td>
                 </tr>
               </table>
-              <p style="margin: 28px 0 8px; color: #78716c; font-size: 12px; line-height: 20px;">If the button doesn&rsquo;t work, copy and paste this link into your browser:</p>
+              ${"url" in action ? `<p style="margin: 28px 0 8px; color: #78716c; font-size: 12px; line-height: 20px;">If the button doesn&rsquo;t work, copy and paste this link into your browser:</p>
               <p style="margin: 0; font-size: 12px; line-height: 20px; word-break: break-all; overflow-wrap: anywhere;">
                 <a href="${actionUrl}" style="color: #08786f; text-decoration: underline; word-break: break-all; overflow-wrap: anywhere;">${actionUrl}</a>
-              </p>
+              </p>` : ""}
               <p style="margin: 28px 0 0; padding-top: 24px; border-top: 1px solid #e7e5e4; color: #78716c; font-size: 12px; line-height: 20px;">${escapeHtml(props.securityNote)}</p>
             </td>
           </tr>

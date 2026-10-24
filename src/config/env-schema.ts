@@ -5,6 +5,8 @@ import { rateLimitEnvironmentSchema } from "./rate-limit";
 
 export const envSchema = databaseEnvironmentSchema.safeExtend({
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+  CRON_SECRET: z.string().min(16).optional(),
+  INTERNAL_API_SECRET: z.string().min(16).optional(),
   // Match the verified proxy path; every reachable path must have the same hop count.
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
   TRUST_PROXY_DIAGNOSTICS: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
@@ -18,6 +20,14 @@ export const envSchema = databaseEnvironmentSchema.safeExtend({
   JWT_REFRESH_SECRET: z.string().min(1),
   ACCESS_TOKEN_EXPIRY: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_DAYS: z.coerce.number().int().positive().default(7),
+  TWO_FACTOR_CODE_LENGTH: z.coerce.number().int().min(4).max(8).default(4),
+  TWO_FACTOR_CODE_TTL_SECONDS: z.coerce.number().int().min(60).max(600).default(600),
+  TWO_FACTOR_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(5).default(5),
+  TWO_FACTOR_RESEND_SECONDS: z.coerce.number().int().min(60).default(60),
+  TWO_FACTOR_SEND_MAX_PER_HOUR: z.coerce.number().int().positive().default(5),
+  TWO_FACTOR_SECRET: z.string().min(32).optional(),
+  TRUSTED_DEVICE_TENANT_DAYS: z.coerce.number().int().min(1).max(90).default(30),
+  TRUSTED_DEVICE_ADMIN_DAYS: z.coerce.number().int().min(1).max(30).default(7),
 
   //bcrypt
   SALT_ROUNDS: z.coerce.number().int().min(4).max(15).default(10),
@@ -47,6 +57,9 @@ export const envSchema = databaseEnvironmentSchema.safeExtend({
   PLATFORM_TEST_DATABASE_NAME: z.string().optional(),
 }).superRefine((value, ctx) => {
   if (value.NODE_ENV !== "production") return;
+  if (value.JWT_ACCESS_SECRET.trim().length < 32) {
+    ctx.addIssue({ code: "custom", path: ["JWT_ACCESS_SECRET"], message: "Production signing keys require at least 32 characters after trimming; generate a random key" });
+  }
   if (!value.REDIS_URL.startsWith("rediss://")) {
     ctx.addIssue({ code: "custom", path: ["REDIS_URL"], message: "Production requires rediss:// (TLS)" });
   }

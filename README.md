@@ -94,7 +94,8 @@ Set these in **Project Settings > Environment Variables** for the deployment's
 environment, then redeploy:
 
 - `NODE_ENV=production`
-- `DATABASE_URL` with the remote MySQL endpoint and `sslaccept=strict`
+- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, and `DB_CA` (full PEM)
+- `CRON_SECRET` and server-only `INTERNAL_API_SECRET` (the latter also on the frontend)
 - `REDIS_URL` with the Upstash `rediss://` connection URL
 - `CORS_ORIGIN` with the exact HTTPS frontend origin (no trailing slash)
 - `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET`
@@ -104,6 +105,9 @@ Enter raw values without Bash quote delimiters. Add any other required settings
 from [.env.example](.env.example). A custom `sslcert` path must refer to a CA file
 available inside the deployment, not a path on your computer. Environment-only
 startup does not require `.env.production`; keep private env files out of Git.
+`DATABASE_URL` is local CLI-only when the six DB_* runtime values are configured.
+See [access logging setup](docs/ACCESS_LOGGING.md) for Aiven TLS, the required
+`prisma db push`, daily retention, the admin view and the privacy contact placeholder.
 
 For Aiven, use the exact hostname and assigned port from the service's connection
 information; omitting the port makes the adapter use `3306`. With Aiven's project
@@ -120,9 +124,9 @@ as the deployment. The Vercel build does not migrate or seed.
 
 Branding uploads currently use local filesystem storage. Vercel Functions have a
 read-only filesystem outside temporary scratch space, so durable branding uploads
-require shared storage before using that feature there. Configure trusted proxy
-hops only after verifying the deployed proxy path; the diagnostic setting is
-documented in [.env.example](.env.example).
+require shared storage before using that feature there. Express now trusts the
+forwarding proxy for visitor IP logging; verify the real Vercel IP headers in a
+preview. The diagnostic setting is documented in [.env.example](.env.example).
 
 References: [Express on Vercel](https://vercel.com/docs/frameworks/backend/express),
 [Express output-directory entrypoint selection](https://github.com/vercel/vercel/blob/main/packages/express/src/build.ts),

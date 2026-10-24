@@ -14,6 +14,9 @@ type RecordAuditInput = {
   after?: Prisma.InputJsonValue;
 };
 
+const boundedMetadata = (value: string | undefined, length: number) =>
+  value === undefined ? null : Array.from(value).slice(0, length).join("");
+
 export const auditService = {
   async list(query: ListAuditLogsQuery) {
     // authenticate reloads the user's active role and organization from the database.
@@ -140,9 +143,9 @@ export const auditService = {
         action: input.action,
         entity: input.entity,
         entityId: input.entityId,
-        ipAddress: ctx?.ip ?? null,
-        userAgent: ctx?.userAgent ?? null,
-        requestId: ctx?.requestId ?? null,
+        ipAddress: boundedMetadata(ctx?.ip, 45),
+        userAgent: boundedMetadata(ctx?.userAgent, 191),
+        requestId: boundedMetadata(ctx?.requestId, 191),
         metadata: { before: input.before, after: input.after },
       },
     });
@@ -159,9 +162,9 @@ export const auditService = {
           action: input.action,
           entity: input.entity,
           entityId: input.entityId,
-          ipAddress: ctx?.ip ?? null,
-          userAgent: ctx?.userAgent ?? null,
-          requestId: ctx?.requestId ?? null,
+          ipAddress: boundedMetadata(ctx?.ip, 45),
+          userAgent: boundedMetadata(ctx?.userAgent, 191),
+          requestId: boundedMetadata(ctx?.requestId, 191),
           organizationId: ctx?.organizationId ?? null,
           metadata: {
             before: input.before,

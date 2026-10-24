@@ -1,5 +1,10 @@
 # Rate limit diagnosis, changes and validation
 
+Email 2FA adds shared login/resend IP and account delivery budgets plus a separate
+verification IP policy, all fail closed through the existing Redis store. Device
+settings use authenticated `apiLimiter`, `writeLimiter` and `strictLimiter`.
+See [2FA configuration and API details](EMAIL_TWO_FACTOR.md).
+
 ## Diagnosis first
 
 The unmodified backend was exercised against an isolated Docker Redis before

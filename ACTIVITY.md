@@ -1,38 +1,108 @@
-## [2026-10-22 15:23] Codex
+## [2026-10-24 09:13] Codex (root; audit and final read-only review streams)
 
-- **Task:** Investigate the supplied Aiven endpoint and mitigate the live one-second database connection timeout.
-- **Summary:** DNS resolved the supplied public host; a credential-free TCP connection to port 28669 succeeded in 168ms outside the network sandbox. Set the MariaDB adapter connectTimeout to 10000ms and documented Aiven's assigned port and deployed project CA configuration. TLS verification and the five-connection pool limit are preserved.
-- **Files changed:** src/config/database.ts, README.md, ACTIVITY.md.
-- **Endpoints / rate limiting:** N/A; no frontend, route, authentication logic, limiter, schema, migration or permission changes.
-- **Status:** Completed local mitigation and verification; Vercel result unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
-- **Next steps / Notes:** All 44 environment tests, full ESLint, build TypeScript no-emit check and git diff whitespace check passed. TCP test initially returned sandbox EACCES; approved retry succeeded. No credentials, database queries, deployment or live login used. Ensure Vercel DATABASE_URL explicitly contains the supplied hostname and :28669, then deploy the backend change; workspace reachability does not prove Vercel reachability or the deployed environment value.
+- **Task:** Audit and remediate confirmed backend tenant/security/reliability defects.
+- **Summary:** Scoped customer conflicts/uniques and atomic audits, bounded metadata, parser-safe logs, proof-before-account-budget, trusted IP boundary, access-key floor, bounded shutdown, CI and Docker/runbook corrections. Added synthetic isolated MySQL/Redis acceptance; final scoped reviewer found no concrete Critical/High/Medium in inspected changes.
+- **Files changed:** Auth/customer/audit/middleware/config/runtime modules, Customer schema/new migration/seed, tests/audit and regressions, Dockerfile, .github/workflows/quality.yml and feature/environment/access docs; full reports in ../docs/audits.
+- **Endpoints / rate limiting:** Existing login/resend budgets require verified server identity; existing IP/auth/Redis policies retained. No new route/permission/response contract; new Customer organization-compound uniqueness migration only deployed to disposable owned test DBs.
+- **Status:** Completed locally; hosted/operational approval pending. **Agent rate limit:** Initial reviewers hit account usage limit, root continued. **Resets at:** reported 2026-10-24 06:49 Asia/Manila (elapsed).
+- **Next steps / Notes:** 1,198 Jest, 12 CLI, 6 launcher, 1 compiled runtime checks, lint/type/build and real SQL acceptance pass; 39 migrations/fresh/populated upgrade/races and 34 Node cases across request/workflow/access suites. Test containers cleaned; private env/historical SQL/live infrastructure untouched. Rehearse actual migration/release/mail/cookies/proxy/restore/monitoring before paying customers; no deployment performed.
 
-## [2026-10-22 15:07] Codex
+## [2026-10-24 01:23] Codex (root; frontend, email and device implementation agents)
 
-- **Task:** Refine live MySQL connection diagnosis after confirmation that the provider is Aiven.
-- **Summary:** Checked official Aiven connection, firewall, VPC and CA documentation against existing verified-TLS adapter support. Identified host/assigned-port, IP filtering/public endpoint and deployed project CA as the provider-specific checks; socket timeout alone does not identify which is failing.
-- **Files changed:** ACTIVITY.md only; no application or environment changes.
-- **Endpoints / rate limiting:** N/A; no route, limiter, schema or permission changes.
-- **Status:** Completed guidance; hosted cause unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
-- **Next steps / Notes:** Need non-secret Aiven host/port and IP-filter/public-access details to narrow live connectivity. Driver still uses 1000ms connectTimeout. No live connections, deployment or tests performed.
+- **Task:** Implement mandatory email 2FA and trusted-device login for tenants and system administrators.
+- **Summary:** Completed server-enforced challenge/session flow, keyed code hashes, persistent attempt/issuance limits, scoped trust cookies, settings revocation, credential/access-change invalidation including historical bindings, shared Resend/CID code template, both login/profile UIs and private audited operator recovery. Added configuration/recovery/rollout guide.
+- **Files changed:** Backend auth/user/platform-security/email/config/Prisma modules and tests; frontend login/session/profile/platform-profile files and tests; backend/docs/EMAIL_TWO_FACTOR.md; implementation plan and activity logs. Existing unrelated UI/dependency/seed changes preserved.
+- **Endpoints / rate limiting:** POST /api/auth/login and /2fa/resend share fail-closed Redis IP/account delivery budgets; POST /2fa/verify uses strict IP policy plus persistent per-code attempts; GET/DELETE /trusted-devices and DELETE /trusted-devices/:id use authenticate + existing API/strict/write limiters. Retry-After also covers service throttles. No permission definitions changed; additive migration 20261023160000_email_two_factor and login response union added.
+- **Status:** Completed locally. **Agent rate limit:** Delegated agents hit account usage limit; root completed integration and review. **Resets at:** reported 2026-10-24 00:09 (elapsed).
+- **Next steps / Notes:** Prisma generation, both builds, backend lint, targeted frontend lint and diff checks passed; 345 focused backend tests plus configuration test, 11 frontend session tests, login/profile sample-API browser checks passed. Full backend: 1169 passed/4 failed; 3 unchanged pool-size assertions remain, logger timeout passes isolated rerun (5 tests). Full frontend lint retains unrelated use-mobile.ts error/layout import warning. No migration applied, live MySQL acceptance, real email, recovery execution or deployment; review migration and verify real mailbox/hosted cookies after coordinated deployment. Default code length 4, configurable to 6. Existing valid sessions continue until expiry/revocation.
+## [2026-10-24 01:07] Codex and implementation agents
 
-## [2026-10-22 15:02] Codex
+- **Task:** Implement email 2FA for tenant and system-admin login.
+- **Summary:** Added challenge/device schema and migration, authentication service/routes, shared Resend code email, trusted-device management/revocation, recovery CLI and frontend forms. Integrated verification is still running.
+- **Files changed:** Auth/email/config/Prisma modules and tests; frontend login/profile/admin files; implementation plan. Existing unrelated UI/dependency edits preserved.
+- **Endpoints / rate limiting:** Login/resend share fail-closed IP/account delivery budgets; verify uses strict IP budget plus persistent per-code attempts; trusted-device routes use existing authenticated read/write/strict limiters.
+- **Status:** Partial. **Agent rate limit:** Frontend, email-review and device implementation agents hit account usage limit; root continuing independent integration checks. **Resets at:** reported 2026-10-24 00:09, now elapsed.
+- **Next steps / Notes:** Prisma generate and backend build passed; 17 core factor and 29 email tests passed. Full suite exposed missing fixture mocks and three pre-existing pool-size expectations; resolving integration. No migrations applied, real emails sent or deployment. Frontend dependency restore/browser verification pending.
+## [2026-10-23 19:59] Codex
 
-- **Task:** Diagnose live login P2039 / MariaDB 45028 pool connection failure.
-- **Summary:** Traced login's first user lookup through the singleton PrismaMariaDb adapter. The supplied nested 45012 error reports socket creation timing out after 1000ms; databaseOptions leaves the installed driver's 1000ms connectTimeout default unchanged. Zero active/idle connections points to connection establishment failure, not evidence of this pool reaching its five-connection limit.
-- **Files changed:** ACTIVITY.md only; runtime settings and application code unchanged.
-- **Endpoints / rate limiting:** N/A; no endpoint, authentication, limiter, schema, migration or permission changes.
-- **Status:** Completed local diagnosis; live connectivity cause unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
-- **Next steps / Notes:** Requested database provider/public-vs-private endpoint details without credentials. Check backend Vercel DATABASE_URL host/port and database firewall/trusted sources; consider a longer driver connectTimeout only after connectivity review. Consulted official MariaDB/Vercel documentation. No live DB connections or tests performed.
+- **Task:** Resolve npm postinstall failure rejecting DATABASE_URL; assess Node 24.22.1 upgrade context.
+- **Summary:** Traced the selected URL without printing credentials to local .env.development with unsupported sslaccept=accept_invalid_certs. Removed only that local URL option. npm install including Prisma generation now exits 0 under Node 24.22.1/npm 11.19.1.
+- **Files changed:** Private .env.development; root/backend ACTIVITY.md. Generated Prisma Client 7.10.1 refreshed; package.json/package-lock.json hashes unchanged.
+- **Endpoints / rate limiting:** N/A; no source, schema, migration, API, permission, production configuration or database-record changes.
+- **Status:** Completed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Redacted failing/passing config probes, effective environment validation, full npm install/postinstall and typecheck:prisma passed; production validation still rejects the corrected local URL. No database connections, migrations, full unit/build checks or audit remediation run. Initial tsx probe hit sandbox spawn EPERM; native Node type stripping worked. Five allowScripts package warnings remain nonfatal; reported frontend audit vulnerabilities remain separate.
 
-## [2026-10-22 14:18] Codex
+## [2026-10-23 19:14] Codex
 
-- **Task:** Fix deployed Vercel ERR_MODULE_NOT_FOUND for src/config/env.
-- **Summary:** Traced the crash to Vercel transpiling src/app.ts without the existing dist alias/extension rewrite. Verified official Express builder output-directory selection and configured dist so it selects compiled dist/app.js; corrected earlier deployment guidance and added an isolated plain-Node startup smoke check.
-- **Files changed:** vercel.json, package.json, tests/config/vercel-runtime.mjs, README.md, ACTIVITY.md.
-- **Endpoints / rate limiting:** N/A; no route, middleware, authentication, tenant scope, frontend, database, migration or permission changes.
-- **Status:** Completed locally; hosted redeployment unverified. **Agent rate limit:** None hit. **Resets at:** unknown.
-- **Next steps / Notes:** Full prod:build, isolated startup smoke, lint, 49 environment/logger tests and Git whitespace check passed. Smoke uses placeholder configuration, skips private env loading, stubs shared service clients and blocks network access. No production connections, migrations, seeds or deployment performed. Push and redeploy with Express/outputDirectory=dist; check /api/health. Prior unset-output advice bypassed the compiled artifact and was incorrect for this build pipeline.
+- **Task:** Check npm installation failures in both apps.
+- **Summary:** PowerShell AllSigned rejects unsigned npm.ps1; npm.cmd runs. Backend online dependency dry-run succeeds. Frontend separately fails ERESOLVE from eslint-config-next 14.2.35 versus ESLint 9; dry-run with matching config 16.4.2 succeeds.
+- **Files changed:** ACTIVITY.md and shared root/frontend activity logs only; existing source, manifests and lockfiles preserved.
+- **Endpoints / rate limiting:** N/A; no API, database, migration or permission changes.
+- **Status:** Completed diagnosis; no packages installed. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Use npm.cmd in PowerShell. Dry-runs disabled lifecycle scripts, so backend Prisma postinstall and full installation remain unverified; lint/tests/build were not run for diagnosis only. No current esbuild lock observed. Agent-only offline/cache restrictions were bypassed for approved online probes.
+
+## [2026-10-23 15:32] Codex
+
+- **Task:** Conduct an independent full-system SaaS and simulated certification-readiness audit without implementing fixes.
+- **Summary:** Reviewed both apps, schema/migrations, auth/tenant/billing/cache/deployment/UX; delivered three shared reports with 23 findings, 57.0/100 score and FAIL remediation verdict. Verified unchanged hashes for 723 source/config files.
+- **Files changed:** Shared ../docs/audits/{SERVICEFLOW_AUDIT_REPORT.md,CERTIFICATION_READINESS.md,REMEDIATION_ROADMAP.md,evidence/*}; ACTIVITY.md only within each app repository.
+- **Endpoints / rate limiting:** N/A; no source, API, permission, rate policy, environment or database changes.
+- **Status:** Completed audit; remediation not implemented. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Lint/types pass both; frontend 43/43, permission probes 4/4 and safety utilities 4/4 pass; backend 1,090 pass, 3 fail, one further suite setup failure. Isolated backend emit/alias and frontend network webpack build pass; normal backend build blocked by dist EPERM. Fresh npm audits completed. Docker stage omissions reproduced; no real DB/browser/load/production assessment. Review reports before fixes.
+
+## [2026-10-23 14:39] Codex
+
+- **Task:** Assess the current trust-proxy and diagnostic block's risk.
+- **Summary:** Explained conditional forwarding-header spoofing risk on direct/unsanitized ingress, standard Vercel header sanitization, and that diagnostic logging does not enforce the configured hop count.
+- **Files changed:** ACTIVITY.md only.
+- **Endpoints / rate limiting:** N/A; no runtime or policy changes.
+- **Status:** Completed assessment. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Official Express/Vercel documentation rechecked. No application or environment edits, deployments or tests; live deployment spoof resistance remains unverified.
+
+## [2026-10-23 14:34] Codex
+
+- **Task:** Clarify whether TRUST_PROXY_HOPS belongs in the Express project's Vercel environment.
+- **Summary:** Confirmed the current hardcoded true ignores that setting; explained backend environment configuration must accompany app code wiring. Checked official Vercel forwarding-header documentation; recommend a verified single-hop value only for direct Vercel ingress, with client-IP/spoof checks after deployment.
+- **Files changed:** ACTIVITY.md only.
+- **Endpoints / rate limiting:** N/A; no routes, rate budgets or proxy behavior changed.
+- **Status:** Completed guidance. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Vercel normally overwrites X-Forwarded-For, so the direct-origin reproduction alone does not establish a Vercel bypass. No application/environment edits, deployment or tests performed.
+
+## [2026-10-23 13:36] Codex
+
+- **Task:** Propose fixes for the annotated permission/security audit findings.
+- **Summary:** Rechecked proxy settings/log attribution, tenant actor/target guards, profile boundaries and dormant invitation flow. Proposed honoring verified proxy trust, applying transactional tenant-admin/protected-target checks, and removing unused renewal or replacing it with guarded token-rotating resend.
+- **Files changed:** ACTIVITY.md only.
+- **Endpoints / rate limiting:** No changes; proposed maintaining existing limits and testing forged-IP budgets and sensitive resend 429 responses.
+- **Status:** Completed proposal; implementation not requested in this turn. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Source review and official Express proxy guidance checked. No application, database, dependency or environment changes; no tests rerun for this proposal. Production proxy topology still needs verification before selecting its trust setting.
+
+## [2026-10-23 13:30] Codex
+
+- **Task:** Audit dependencies and review application permissions across both apps.
+- **Summary:** Saved live all/production npm audits, outdated/installed inventories, source review and isolated evidence probes in ../artifacts/security-audit/REPORT.md. Confirmed proxy-IP rate-limit evasion and conditional protected-admin mutation bypass; classified shadowed invitation renewal as dormant.
+- **Files changed:** ACTIVITY.md; shared ../artifacts/security-audit/* only. Application source, manifests, locks, environment and database unchanged by this audit.
+- **Endpoints / rate limiting:** No routes or policies changed. Reviewed auth, user/role administration, tenant and platform guards.
+- **Status:** Completed audit; remediation outstanding. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** 247 backend baseline and 16 frontend tests passed; 14 isolated rate-policy checks and 4 permission probes passed. Original rate-policy suite failed setup on missing DB config; artifact fixture mocks new logging imports. Audit findings: frontend 16/all,14/production; backend 14/all,5/production. No live grants, production ingress, DB integrations or full builds verified. Review report before fixing; do not reorder unsafe renewal route alone.
+
+## [2026-10-23 11:44] Codex
+
+- **Task:** Inspect existing feedback/seed flow for an optional landing testimonial preview.
+- **Summary:** Traced feedback consent, approval, withdrawal, routes and development seeds. Automatic approval review rejected a proposed public feed from private feedback; all partial backend source edits were reverted. Frontend now uses local fictional preview fixtures and an empty, explicitly curated public list.
+- **Files changed:** ACTIVITY.md only; no backend source or database changes remain.
+- **Endpoints / rate limiting:** N/A; no new endpoint, public disclosure or limiter change.
+- **Status:** Completed investigation. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Backend source diff verified empty before this log; no database writes or backend tests were required. Landing build/TypeScript, lint, four unit cases, desktop/mobile browser checks and production sample exclusion passed in sibling frontend.
+
+## [2026-10-23 09:36] Codex
+
+- **Task:** Implement visitor access logging, platform-admin APIs, Aiven runtime settings and 30-day Vercel retention.
+- **Summary:** Reused the ESM Prisma singleton/adapter and existing platform auth; added AccessLog, finish/waitUntil middleware, exact-IP pagination, top-20 IPs, secret-gated forwarding and cron. Reviewed local schema diff (access_logs only), then ran db push; no migration/reset/seed or remote DB changes.
+- **Files changed:** prisma/schema.prisma, prisma.config.ts, prisma/seed-{bright-star,catalog,development}.ts, src/{app.ts,routes/index.ts,config/{database,env-file,env-schema}.ts,middleware/{access-logger,rateLimiter}.ts,modules/access-logs/*}, package*.json, vercel.json, tests/{logging/access-logs*,config/environment.test.ts}, eslint.config.js, .env.example, .gitignore, README.md, docs/ACCESS_LOGGING.md, ACTIVITY.md.
+- **Endpoints / rate limiting:** GET /api/{admin,system-admin}/access-logs and /top-ips use authenticate + apiLimiter + requireSystemAdmin; GET /api/cron/access-logs uses publicApiLimiter and CRON_SECRET. Existing budgets/stores preserved; explicit proxy validation settings match requested trust proxy=true.
+- **Status:** Completed locally. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** prod:build, final build, Prisma type check, full lint and whitespace checks passed; 5 focused suites/91 tests passed. Actual local Express/curl/MySQL verified PH/General Santos, local fallback, internal-secret gating, admin endpoints/alias, anonymous/tenant denial, no self-logging and expired-only cleanup. Recent synthetic rows retained. Add DB_* PEM/TLS and both secrets in Vercel, db push Aiven after diff review, replace frontend [CONTACT EMAIL], deploy preview and verify real headers/connectivity/production cron. See setup doc; static Next-only requests are outside Express logging.
 
 ## [2026-10-22 13:55] Codex
 

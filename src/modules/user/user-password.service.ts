@@ -13,6 +13,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { comparePassword, hashedPassword } from "@/utils/bcrypPassword";
 import { AppError } from "@/utils/AppError";
 import type { ResetStaffPasswordInput } from "./user-password.schema";
+import { revokeAuthenticationFactors } from "@/modules/auth/authentication-factors";
 
 async function eligibleStaff(
   db: Prisma.TransactionClient,
@@ -106,6 +107,7 @@ export const userPasswordService = {
           organizationId: currentActor.organizationId,
         },
       });
+      await revokeAuthenticationFactors(db, staff.id);
       await auditService.recordInTransaction(db, {
         action: "auth.staff.password.reset.success",
         entity: "User",

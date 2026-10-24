@@ -65,6 +65,10 @@ function matchesRole(role: RoleRow, where: any) {
 // Repository mocks enforce query scopes against two tenants. No live database or Redis is used.
 const transaction = jest.fn<(work: any) => Promise<any>>();
 const db = {
+  trustedDevice: {
+    findFirst: jest.fn(async () => ({ id: "verified-fixture-device" })),
+    update: jest.fn(async () => ({ id: "verified-fixture-device" })),
+  },
   user: {
     count: jest.fn(async ({ where }: any) => users.filter((user) =>
       user.organizationId === where.organizationId && user.deletedAt === where.deletedAt &&
@@ -142,6 +146,10 @@ jest.unstable_mockModule("@/utils/tokens.js", () => ({
   verifyAccessToken: (token: string) => ({ sub: token, role: "Admin", organizationId: "org-b", permissions: Object.values(PERMISSIONS) }),
   generateAccessToken, generateRefreshTokenValue: () => "new-refresh", hashToken: (value: string) => value, getRefreshExpiry: () => new Date(), REFRESH_TOKEN_DAYS: 7,
 }));
+jest.unstable_mockModule("@/middleware/two-factor-rate-limit", () => {
+  const pass = (_req: unknown, _res: unknown, next: () => void) => next();
+  return { twoFactorDeliveryIpLimiter: pass, twoFactorVerifyLimiter: pass, limitTwoFactorDelivery: async () => {} };
+});
 jest.unstable_mockModule("@/middleware/rateLimiter.js", () => {
   const pass = (_req: unknown, _res: unknown, next: () => void) => next();
   return { apiLimiter: pass, publicApiLimiter: pass, refreshLimiter: pass, writeLimmiter: pass, deleteLimiter: pass, authLimiter: pass, signupLimiter: pass, strictLimiter: pass };
@@ -550,7 +558,7 @@ describe("Tri-state staff permission overrides", () => {
     users.find((u) => u.id === "staff-a")!.grants = [grant("read", false), grant("update")];
     const list = await userService.listForPermissionManagement("org-a");
     expect(list.find((u) => u.id === "staff-a")!.permissions).toEqual([PERMISSIONS.CUSTOMER_UPDATE]);
-    await authService.login("staff-a@example.com", "password");
+    await authService.login("staff-a@example.com", "password", { userAgent: "", ipAddress: "", trustedTokens: { tenant: "verified-fixture-device" } });
     expect(generateAccessToken).toHaveBeenLastCalledWith(expect.objectContaining({ permissions: [PERMISSIONS.CUSTOMER_UPDATE] }));
     await authService.refresh("old-refresh");
     expect(generateAccessToken).toHaveBeenLastCalledWith(expect.objectContaining({ permissions: [PERMISSIONS.CUSTOMER_UPDATE] }));
@@ -590,7 +598,7 @@ describe("Authentication and invitation integration", () => {
   });
   it("excludes inactive direct grants during login and refresh", async () => {
     users.find((u) => u.id === "staff-a")!.grants = [grant("update", false)];
-    await authService.login("staff-a@example.com", "password");
+    await authService.login("staff-a@example.com", "password", { userAgent: "", ipAddress: "", trustedTokens: { tenant: "verified-fixture-device" } });
     expect(generateAccessToken).toHaveBeenLastCalledWith(expect.objectContaining({ permissions: [PERMISSIONS.CUSTOMER_READ] }));
     await authService.refresh("old-refresh");
     expect(generateAccessToken).toHaveBeenLastCalledWith(expect.objectContaining({ permissions: [PERMISSIONS.CUSTOMER_READ] }));

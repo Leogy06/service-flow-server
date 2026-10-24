@@ -13,7 +13,7 @@ if (process.env.RUN_DB_SERVICE_REQUEST_TESTS !== "1" || process.env.NODE_ENV !==
   throw new Error("Run npm run test:service-requests:mysql or test:service-requests:browser.");
 }
 const { prisma } = await import("../../src/lib/prisma.ts");
-const { redis } = await import("../../src/lib/redis.ts");
+const { redis, redisReady } = await import("../../src/lib/redis.ts");
 const { authenticate } = await import("../../src/middleware/auth.ts");
 const { withRequestContext } = await import("../../src/middleware/requestContext.middleware.ts");
 const { errorHandler } = await import("../../src/middleware/errorHandler.ts");
@@ -37,6 +37,7 @@ test("service request management through frontend APIs, HTTP and MySQL", { timeo
   const server = createServer();
   let browserMode = false, tokenA;
   try {
+    await redisReady();
     await redis.ping();
     for (const name of [P.SERVICE_REQUEST_READ, P.SERVICE_REQUEST_CREATE, P.SERVICE_REQUEST_UPDATE, P.SERVICE_REQUEST_DELETE]) {
       let permission = await prisma.permission.findUnique({ where: { name } });

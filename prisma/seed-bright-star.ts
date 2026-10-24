@@ -10,6 +10,7 @@ try {
   if (flags.some((flag) => !["--apply", "--dry-run"].includes(flag)) || (flags.includes("--apply") && flags.includes("--dry-run")))
     throw new Error("Usage: npm run seed:bright-star -- dev [--dry-run | --apply]");
   if (env.NODE_ENV === "production") throw new Error("This fictional workflow seed cannot run in production.");
+  if (!env.DATABASE_URL) throw new Error("Local seed commands require DATABASE_URL.");
   const target = new URL(env.DATABASE_URL);
   if (!["localhost", "127.0.0.1", "[::1]"].includes(target.hostname))
     throw new Error("This workflow seed is restricted to a local development database.");

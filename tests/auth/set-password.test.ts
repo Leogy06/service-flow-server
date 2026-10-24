@@ -38,6 +38,9 @@ function matches(user: InviteUser, where: any) {
       (!where.role.organizationId || user.role.organizationId === where.role.organizationId)));
 }
 const db = {
+  trustedDevice: { updateMany: jest.fn(async (_input: unknown) => ({ count: 0 })) },
+  loginChallenge: { updateMany: jest.fn(async (_input: unknown) => ({ count: 0 })) },
+  refreshToken: { deleteMany: jest.fn(async (_input: unknown) => ({ count: 0 })) },
   organization: { findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, billingEnabled })) },
   subscription: { findUnique: jest.fn(async () => ({ status: "ACTIVE", startsAt: new Date(Date.now() - 86_400_000), expiresAt: new Date(Date.now() + 86_400_000), plan: { maxActiveUsers: 2 } })) },
   $queryRaw: jest.fn(async (_strings: TemplateStringsArray, id: string) => [{ id }]),
@@ -66,6 +69,10 @@ jest.unstable_mockModule("@/utils/tokens.js", () => ({
   REFRESH_TOKEN_DAYS: 7, generateAccessToken: jest.fn(), generateRefreshTokenValue: jest.fn(),
   hashToken: hash, getRefreshExpiry: jest.fn(), verifyAccessToken: jest.fn(),
 }));
+jest.unstable_mockModule("@/middleware/two-factor-rate-limit", () => {
+  const pass = (_req: unknown, _res: unknown, next: () => void) => next();
+  return { twoFactorDeliveryIpLimiter: pass, twoFactorVerifyLimiter: pass, limitTwoFactorDelivery: async () => {} };
+});
 jest.unstable_mockModule("@/middleware/rateLimiter.js", () => {
   const pass = (_req: unknown, _res: unknown, next: () => void) => next();
   return { authLimiter: pass, refreshLimiter: pass, apiLimiter: pass, publicApiLimiter: pass, signupLimiter: pass, strictLimiter: pass, writeLimmiter: pass };
@@ -98,6 +105,8 @@ test("public invite acceptance hashes the emailed token, activates only its tena
   expect(users[0]).toMatchObject({ status: "ACTIVE", inviteToken: null, inviteTokenExpiry: null });
   expect(await bcrypt.compare(body.password, users[0]!.password!)).toBe(true);
   expect(users[1]).toEqual(otherTenant);
+  expect(db.trustedDevice.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "user-a", revokedAt: null } }));
+  expect(db.loginChallenge.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "user-a", consumedAt: null } }));
   expect(db.user.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ inviteToken: hash(rawToken) }) }));
   expect(audits).toEqual([{ event: { action: "set.password.success", entity: "User", entityId: "user-a", after: { status: "ACTIVE" } }, actorId: "user-a", organizationId: "org-a" }]);
   expect(invalidateCache.mock.calls.map(([key]) => key)).toEqual(["cache:modules:v1:users:org-a:*", "cache:modules:v1:roles:org-a:*", "cache:modules:v1:jobs:org-a:*", "cache:modules:v1:upgradePlans:org-a:*", "cache:modules:v1:dashboard:org-a:*", "cache:modules:v1:platformDashboard:platform:*"]);

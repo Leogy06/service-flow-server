@@ -9,6 +9,8 @@ let users: Row[];
 let organizations: Row[];
 let tokens: Row[];
 let audits: Row[];
+let challenges: Row[];
+let codes: string[];
 let permissions: Row[];
 let platformSettings: Row | null;
 let failAudit = false;
@@ -16,6 +18,7 @@ const password = "Original123!";
 const passwordHash = await bcrypt.hash(password, 4);
 const grant = { permission: { id: "system", name: "system_admin:update", organizationId: null } };
 function reset() {
+  challenges = []; codes = [];
   platformSettings = null;
   organizations = ["a", "b"].map((key) => ({ id: "org-" + key, name: "Tenant " + key, slug: key, status: "ACTIVE", billingEnabled: false, createdAt: new Date(), updatedAt: new Date(), statusReason: null, statusChangedAt: null, statusChangedBy: null, _count: { users: 1, customers: 0, serviceRequests: 0 } }));
   users = [
@@ -53,6 +56,19 @@ function update(row: Row, data: Row) {
   for (const [key, value] of Object.entries(data)) row[key] = value && typeof value === "object" && "increment" in value ? row[key] + value.increment : value;
 }
 const db: any = {
+  trustedDevice: {
+    updateMany: jest.fn(async (_input: unknown) => ({ count: 0 })),
+    findFirst: jest.fn(async () => ({ id: "verified-fixture-device" })),
+    update: jest.fn(async () => ({ id: "verified-fixture-device" })),
+    create: jest.fn(async ({ data }: Row) => ({ id: "new-trusted-device", ...data })),
+  },
+  loginChallenge: {
+    findUnique: jest.fn(async ({ where }: Row) => challenges.find(row => matches(row, where)) ?? null),
+    findFirst: jest.fn(async ({ where }: Row) => challenges.filter(row => matches(row, where)).at(-1) ?? null),
+    count: jest.fn(async ({ where }: Row) => challenges.filter(row => matches(row, where)).length),
+    create: jest.fn(async ({ data }: Row) => { const row = { id: "challenge-" + challenges.length, consumedAt: null, ...data }; challenges.push(row); return row; }),
+    updateMany: jest.fn(async ({ where, data }: Row) => { const found = challenges.filter(row => matches(row, where)); found.forEach(row => update(row, data)); return { count: found.length }; }),
+  },
   user: {
     create: jest.fn(async ({ data }: Row) => { const row = { id: "new-user", securityStatus: "ACTIVE", sessionVersion: 0, deletedAt: null, ...data }; users.push(row); return row; }),
     findUnique: jest.fn(async ({ where, select: fields }: Row) => { const row = users.find((u) => matches(u, where)); return row ? select(view(row), fields) : null; }),
@@ -96,12 +112,14 @@ const db: any = {
   platformSettings: { findUnique: jest.fn(async () => platformSettings) },
   $queryRaw: jest.fn(async (_strings: TemplateStringsArray, id: string) => organizations.filter((o) => o.id === id).map((o) => ({ id: o.id }))),
   $transaction: jest.fn(async (work: (tx: any) => Promise<unknown>) => {
-    const saved = structuredClone({ users, organizations, tokens, audits, permissions });
-    try { return await work(db); } catch (error) { ({ users, organizations, tokens, audits, permissions } = saved); throw error; }
+    const saved = structuredClone({ users, organizations, tokens, audits, permissions, challenges });
+    try { return await work(db); } catch (error) { ({ users, organizations, tokens, audits, permissions, challenges } = saved); throw error; }
   }),
 };
 jest.unstable_mockModule("@/lib/prisma.js", () => ({ prisma: db }));
-jest.unstable_mockModule("@/config/env.js", () => ({ env: { SALT_ROUNDS: 4, ACCESS_TOKEN_EXPIRY: 900, NODE_ENV: "test" } }));
+jest.unstable_mockModule("@/middleware/two-factor-rate-limit", () => ({ limitTwoFactorDelivery: async () => {} }));
+jest.unstable_mockModule("@/config/env.js", () => ({ env: { SALT_ROUNDS: 4, ACCESS_TOKEN_EXPIRY: 900, NODE_ENV: "test", JWT_ACCESS_SECRET: "fixture-secret-at-least-32-characters" } }));
+jest.unstable_mockModule("@/lib/email/send-login-code", () => ({ sendLoginCodeEmail: async (_to: string, _name: string, code: string) => { codes.push(code); } }));
 jest.unstable_mockModule("@/utils/cache.js", () => ({ DEFAULT_TTL_SECONDS: 60, getOrSetCache: async (_key: string, _ttl: number, load: () => Promise<unknown>) => load(), invalidateCache: jest.fn(async () => {}) }));
 jest.unstable_mockModule("@/middleware/rateLimiter.js", () => { const pass = (_req: unknown, _res: unknown, next: () => void) => next(); return { apiLimiter: pass, publicApiLimiter: pass, writeLimmiter: pass, brandingAssetLimiter: pass, brandingUploadLimiter: pass, publicPageLimiter: pass }; });
 jest.unstable_mockModule("@/utils/tokens.js", () => ({
@@ -117,7 +135,21 @@ const { default: userPermissionRoutes } = await import("@/modules/user-permissio
 const { authenticate } = await import("@/middleware/auth.js");
 const { requireSystemAdmin } = await import("@/middleware/require-platform-admin.js");
 const { authController } = await import("@/modules/auth/auth.controller.js");
+const { authService } = await import("@/modules/auth/auth.service.js");
+
+test("invalid passwords cannot consume a victim's delivery budget, and valid credentials must pass the budget before issuance", async () => {
+  reset();
+  const budget = jest.fn(async (_userId: string) => {});
+  await expect(authService.login("admin-a@example.invalid", "wrong", undefined, budget)).rejects.toMatchObject({ statusCode: 401 });
+  expect(budget).not.toHaveBeenCalled();
+  const unavailable = jest.fn(async (_userId: string) => { throw new Error("Budget store unavailable"); });
+  await expect(authService.login("admin-a@example.invalid", password, undefined, unavailable)).rejects.toThrow("Budget store unavailable");
+  expect(unavailable).toHaveBeenCalledWith("admin-a");
+  expect(challenges).toHaveLength(0);
+});
 const { withRequestContext } = await import("@/middleware/requestContext.middleware.js");
+const { validate } = await import("@/middleware/validate");
+const { verifyTwoFactorSchema } = await import("@/modules/auth/auth.schema");
 let server: Server;
 let origin: string;
 beforeAll(async () => {
@@ -126,6 +158,7 @@ beforeAll(async () => {
   app.use("/permission", permissionRoutes); app.use("/legacy-admin", authenticate, legacyAdminRoutes); app.use("/user-permission", userPermissionRoutes);
   app.get("/probe", authenticate, (req, res) => res.json(req.user));
   app.post("/auth/login", authController.login); app.post("/auth/refresh", authController.refresh); app.post("/auth/logout", authController.logout);
+  app.post("/auth/2fa/verify", validate(verifyTwoFactorSchema), authController.verifyTwoFactor);
   app.use(((error, _req, res, _next) => res.status(error.statusCode ?? 500).json({ error: error.statusCode ? error.message : "Internal server error" })) as express.ErrorRequestHandler);
   server = createServer(app); await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); if (!address || typeof address === "string") throw new Error("No listener");
@@ -197,8 +230,26 @@ test("blocked accounts cannot login, refresh or access protected endpoints", asy
   expect((await request("/auth/login", "POST", { email: users[1].email, password }, null)).status).toBe(401);
   expect((await request("/auth/refresh", "POST", {}, null, "refreshToken=refresh-a")).status).toBe(401);
 });
-test("login hides refresh tokens, scopes cookies to auth and audits only minimal identity data", async () => {
+test("untrusted login issues no session; the challenge cannot authorize protected routes or refresh", async () => {
+  const before = tokens.length;
   const result = await request("/auth/login", "POST", { email: users[0].email, password }, null);
+  expect(result.status).toBe(200);
+  expect(result.body.data).toMatchObject({ requiresTwoFactor: true, deliveryStatus: "sent", codeLength: 4, trustedDeviceDays: 7 });
+  expect(result.body.data).not.toHaveProperty("accessToken"); expect(result.body.data).not.toHaveProperty("refreshToken");
+  expect(tokens).toHaveLength(before);
+  expect(result.cookie).not.toMatch(/refreshToken=[^;]/);
+  const handle = result.body.data.challengeId;
+  expect((await request("/probe", "GET", undefined, handle)).status).toBe(401);
+  expect((await request("/auth/refresh", "POST", {}, null, "refreshToken=" + handle)).status).toBe(401);
+  const verified = await request("/auth/2fa/verify", "POST", { challengeId: handle, code: codes[0], rememberDevice: true }, null);
+  expect(verified.status).toBe(200); expect(verified.body.data.user.platformRole).toBe("SYSTEM_ADMIN");
+  expect(verified.body.data).not.toHaveProperty("trustedDevice"); expect(verified.body.data).not.toHaveProperty("refreshToken");
+  expect(verified.cookie).toContain("trustedDeviceAdmin="); expect(verified.cookie).toContain("HttpOnly");
+  expect(verified.cookie).toContain("SameSite=Strict"); expect(tokens).toHaveLength(before + 1);
+  expect((await request("/auth/2fa/verify", "POST", { challengeId: handle, code: codes[0] }, null)).status).toBe(400);
+});
+test("login hides refresh tokens, scopes cookies to auth and audits only minimal identity data", async () => {
+  const result = await request("/auth/login", "POST", { email: users[0].email, password }, null, "trustedDeviceAdmin=verified-fixture-device");
   expect(result.status).toBe(200); expect(result.body.data.user.platformRole).toBe("SYSTEM_ADMIN");
   expect(result.body.data).not.toHaveProperty("refreshToken"); expect(result.cookie).toContain("HttpOnly"); expect(result.cookie).toContain("Path=/api/auth");
   const event = audits.find((a) => a.action === "auth.login.success")!;
@@ -213,7 +264,7 @@ test("failed credentials produce a sanitized platform audit without identifying 
   expect(JSON.stringify(audits)).not.toContain("unknown@example.invalid");
 });
 test("tenant login identifies its actor and tenant without granting platform authority", async () => {
-  expect((await request("/auth/login", "POST", { email: users[1].email, password }, null)).status).toBe(200);
+  expect((await request("/auth/login", "POST", { email: users[1].email, password }, null, "trustedDeviceTenant=verified-fixture-device")).status).toBe(200);
   expect(audits.at(-1)).toMatchObject({ scope: "PLATFORM", actorId: "admin-a", actorType: "USER", organizationId: "org-a" });
 });
 test("billing enabled tenants without a current subscription cannot authenticate or use a refresh session", async () => {

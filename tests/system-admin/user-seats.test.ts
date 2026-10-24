@@ -11,6 +11,8 @@ const match = (row: Row, where: Row) => Object.entries(where).every(([key, value
   (value && typeof value === "object" && "in" in value ? value.in.includes(row[key]) :
     value && typeof value === "object" && "not" in value ? row[key] !== value.not : row[key] === value));
 const db = {
+  trustedDevice: { updateMany: jest.fn(async () => ({ count: 0 })) },
+  loginChallenge: { updateMany: jest.fn(async () => ({ count: 0 })) },
   refreshToken: { deleteMany: jest.fn(async ({ where }: Row) => {
     const before = refreshTokens.length;
     refreshTokens = refreshTokens.filter((row) => !match(row, where));

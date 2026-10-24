@@ -11,7 +11,7 @@ const { fetch } = globalThis;
 
 if (process.env.RUN_DB_WORKFLOW_TESTS !== "1" || process.env.NODE_ENV !== "test") throw new Error("Run test:workflow:mysql or test:workflow:browser");
 const { prisma } = await import("../../src/lib/prisma.ts");
-const { redis } = await import("../../src/lib/redis.ts");
+const { redis, redisReady } = await import("../../src/lib/redis.ts");
 const { authenticate } = await import("../../src/middleware/auth.ts");
 const { withRequestContext } = await import("../../src/middleware/requestContext.middleware.ts");
 const { errorHandler } = await import("../../src/middleware/errorHandler.ts");
@@ -34,6 +34,7 @@ test("request -> assigned jobs -> completion -> invoice -> payments", { timeout:
   const server = createServer();
   let browserMode = false, dropPaymentResponse = false, tokenA;
   try {
+    await redisReady();
     await redis.ping();
     const allPermissions = [P.SERVICE_REQUEST_READ, P.SERVICE_REQUEST_CREATE, P.SERVICE_REQUEST_UPDATE, P.JOB_READ, P.JOB_CREATE, P.JOB_UPDATE, P.JOB_DELETE,
       P.INVOICE_READ, P.INVOICE_CREATE, P.INVOICE_UPDATE, P.INVOICE_DELETE];
@@ -90,6 +91,8 @@ test("request -> assigned jobs -> completion -> invoice -> payments", { timeout:
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
     process.env.NEXT_PUBLIC_API_URL = `http://127.0.0.1:${server.address().port}/api`;
     const { api, setAccessToken } = await import("../../../frontend/app/lib/api/client.ts");
+    const longUserAgent = "ServiceFlow audit " + "x".repeat(500);
+    api.defaults.headers.common["User-Agent"] = longUserAgent;
     const { jobApi: jobs, invoiceApi: invoices } = await import("../../../frontend/features/workflow/api.ts");
     const { serviceRequestApi: requests } = await import("../../../frontend/features/service-requests/api/service-request-api.ts");
     const safe = async (work) => {
@@ -100,6 +103,8 @@ test("request -> assigned jobs -> completion -> invoice -> payments", { timeout:
     const listParams = { page: 1, pageSize: 10, search: "", sortOrder: "desc" };
     const requestInput = (title) => ({ title, customerId: customerA, serviceTypeId: typeA, description: "Workflow fixture", priority: "NORMAL" });
     const firstRequest = await as(tokenA, () => requests.create(requestInput("Workflow test request")));
+    const firstAudit = await prisma.auditLog.findFirst({ where: { organizationId: orgA, entityId: firstRequest.id } });
+    assert.equal(firstAudit.userAgent, longUserAgent.slice(0, 191), "Long valid headers must not break audited MySQL writes");
     const otherRequest = await as(tokenA, () => requests.create(requestInput("Other workflow request")));
     const jobInput = (requestId = firstRequest.id) => ({ serviceRequestId: requestId, assignedStaffId: staff, description: "Repair work", location: "Manila", internalNotes: "Fixture notes", scheduledStart: null, scheduledEnd: null });
     const invoiceInput = (jobId, unitPrice = "100.00") => ({ jobId, items: [{ description: "Completed service", quantity: "1", unitPrice }], dueAt: null, notes: "Fixture invoice" });
@@ -257,8 +262,11 @@ test("request -> assigned jobs -> completion -> invoice -> payments", { timeout:
       const start = new Date(Date.now() + 2 * 86400000).toISOString();
       const end = new Date(Date.parse(start) + 3600000).toISOString();
       const input = { ...jobInput(request.id), scheduledStart: start, scheduledEnd: end };
+      // Establish one session for the race; setAccessToken starts a new client
+      // generation and would deliberately discard the first concurrent response.
+      setAccessToken(tokenA);
       const attempts = await Promise.allSettled([
-        as(tokenA, () => jobs.create(input)), as(tokenA, () => jobs.create(input)),
+        safe(() => jobs.create(input)), safe(() => jobs.create(input)),
       ]);
       const saved = attempts.filter((result) => result.status === "fulfilled");
       const rejected = attempts.filter((result) => result.status === "rejected");

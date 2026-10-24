@@ -9,6 +9,7 @@ import { invalidateModuleCache } from "@/utils/module-cache";
 import { isPrismaError } from "@/utils/errorHelper";
 import { loadAuthorization, resolvePermissions } from "./authorization";
 import type { ChangePasswordInput, UpdateProfileInput } from "./profile.schema";
+import { revokeAuthenticationFactors } from "./authentication-factors";
 
 const profileSelect = {
   id: true,
@@ -168,6 +169,7 @@ export const profileService = {
       const revoked = await db.refreshToken.deleteMany({
         where: { userId: actor.id, organizationId: actor.organizationId },
       });
+      await revokeAuthenticationFactors(db, actor.id);
       await auditService.recordInTransaction(db, {
         action: "auth.password.change.success",
         entity: "User",
@@ -187,6 +189,7 @@ export const profileService = {
       const revoked = await db.refreshToken.deleteMany({
         where: { userId: actor.id, organizationId: actor.organizationId },
       });
+      await revokeAuthenticationFactors(db, actor.id);
       await auditService.recordInTransaction(db, {
         action: "auth.logout.all.success",
         entity: "User",

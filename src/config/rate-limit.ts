@@ -12,6 +12,8 @@ export const rateLimitEnvironmentSchema = z.object({
   PUBLIC_API_RATE_LIMIT_MAX: positiveInteger(60),
   AUTH_RATE_LIMIT_WINDOW_MS: positiveInteger(15 * 60 * 1000),
   AUTH_RATE_LIMIT_MAX: positiveInteger(10),
+  TWO_FACTOR_VERIFY_RATE_LIMIT_WINDOW_MS: positiveInteger(10 * 60 * 1000),
+  TWO_FACTOR_VERIFY_RATE_LIMIT_MAX: positiveInteger(30),
   REFRESH_RATE_LIMIT_WINDOW_MS: positiveInteger(60 * 1000),
   REFRESH_RATE_LIMIT_MAX: positiveInteger(60),
   STRICT_RATE_LIMIT_WINDOW_MS: positiveInteger(60 * 60 * 1000),

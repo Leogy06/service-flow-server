@@ -7,6 +7,24 @@ import { isPrismaError } from "@/utils/errorHelper";
 import { requestContext } from "@/lib/requestContext";
 import { cachedRead, invalidateModuleCache } from "@/utils/module-cache";
 import { CreateCustomerInput } from "./types";
+import { tenantTransaction } from "@/utils/tenant-transaction";
+
+async function checkCustomerConflicts(
+  db: Prisma.TransactionClient,
+  organizationId: string,
+  data: UpdateCustomerInput,
+  id?: string,
+) {
+  // Archived identifiers stay reserved within this organization only.
+  for (const [field, label] of [["email", "Email"], ["phoneNumber", "Mobile number"], ["name", "Customer name"]] as const) {
+    if (data[field] === undefined) continue;
+    const existing = await db.customer.findFirst({
+      where: { organizationId, [field]: data[field] },
+      select: { id: true },
+    });
+    if (existing && existing.id !== id) throw new AppError(409, `${label} already in use`);
+  }
+}
 
 function customerOrganization() {
   const organizationId = requestContext.getValue("organizationId");
@@ -19,43 +37,26 @@ export const customerService = {
   async create(data: CreateCustomerInput) {
     const organizationId = customerOrganization();
 
-    const [existingEmail, existingMobileNumber, existingName] =
-      await Promise.all([
-        prisma.customer.findUnique({
-          where: {
-            email: data.email,
-          },
-        }),
-        prisma.customer.findUnique({
-          where: {
-            phoneNumber: data.phoneNumber,
-          },
-        }),
-        prisma.customer.findUnique({ where: { name: data.name } }),
-      ]);
+    const newCustomer = await tenantTransaction(async db => {
+      await checkCustomerConflicts(db, organizationId, data);
+      const customer = await db.customer.create({
+        data: {
+          name: data.name,
+          email: data.email,
+          phoneNumber: data.phoneNumber,
+          address: data.address,
+          notes: data.notes,
+          organizationId,
+        },
+      });
 
-    if (existingMobileNumber)
-      throw new AppError(409, "Mobile number already in use");
-    if (existingEmail) throw new AppError(409, "Email already in use");
-    if (existingName) throw new AppError(409, "Customer name already in use");
-
-    const newCustomer = await prisma.customer.create({
-      data: {
-        name: data.name,
-        email: data.email,
-        phoneNumber: data.phoneNumber,
-        address: data.address,
-        notes: data.notes,
-        organizationId,
-      },
-    });
-
-    void auditService.record({
-      action: "create.customer.success",
-      entity: "Customer",
-      entityId: newCustomer.id,
-      // before: null,
-      after: JSON.stringify(newCustomer),
+      await auditService.recordInTransaction(db, {
+        action: "create.customer.success",
+        entity: "Customer",
+        entityId: customer.id,
+        after: JSON.stringify(customer),
+      });
+      return customer;
     });
 
     await invalidateModuleCache("customers");
@@ -140,52 +141,27 @@ export const customerService = {
 
   async update(id: string, data: UpdateCustomerInput) {
     const organizationId = customerOrganization();
-    const existingCustomer = await prisma.customer.findUnique({
-      where: { id, organizationId, deletedAt: null },
-    });
+    const updatedCustomer = await tenantTransaction(async db => {
+      const existingCustomer = await db.customer.findUnique({
+        where: { id, organizationId, deletedAt: null },
+      });
 
-    if (!existingCustomer) throw new AppError(404, "Customer not found");
+      if (!existingCustomer) throw new AppError(404, "Customer not found");
 
-    const [existingEmail, existingMobileNumber, existingName] =
-      await Promise.all([
-        data.email === undefined
-          ? null
-          : prisma.customer.findUnique({
-              where: {
-                email: data.email,
-              },
-            }),
-        data.phoneNumber === undefined
-          ? null
-          : prisma.customer.findUnique({
-              where: {
-                phoneNumber: data.phoneNumber,
-              },
-            }),
-        data.name === undefined
-          ? null
-          : prisma.customer.findUnique({ where: { name: data.name } }),
-      ]);
+      await checkCustomerConflicts(db, organizationId, data, id);
+      const customer = await db.customer.update({
+        where: { id, organizationId, deletedAt: null },
+        data,
+      });
 
-    if (existingEmail && existingEmail.id !== id)
-      throw new AppError(409, "Email already in use");
-
-    if (existingMobileNumber && existingMobileNumber.id !== id)
-      throw new AppError(409, "Mobile number already in use");
-    if (existingName && existingName.id !== id)
-      throw new AppError(409, "Customer name already in use");
-
-    const updatedCustomer = await prisma.customer.update({
-      where: { id, organizationId, deletedAt: null },
-      data,
-    });
-
-    void auditService.record({
-      action: "update.customer.success",
-      entity: "Customer",
-      entityId: id,
-      before: JSON.stringify(existingCustomer),
-      after: JSON.stringify(updatedCustomer),
+      await auditService.recordInTransaction(db, {
+        action: "update.customer.success",
+        entity: "Customer",
+        entityId: id,
+        before: JSON.stringify(existingCustomer),
+        after: JSON.stringify(customer),
+      });
+      return customer;
     });
 
     await invalidateModuleCache("customers");
@@ -195,28 +171,31 @@ export const customerService = {
 
   async restore(id: string) {
     const organizationId = customerOrganization();
-    const where = { id, organizationId, deletedAt: { not: null } };
-    const existingCustomer = await prisma.customer.findUnique({ where });
-    if (!existingCustomer) throw new AppError(404, "Customer not found");
+    const restoredCustomer = await tenantTransaction(async db => {
+      const where = { id, organizationId, deletedAt: { not: null } };
+      const existingCustomer = await db.customer.findUnique({ where });
+      if (!existingCustomer) throw new AppError(404, "Customer not found");
 
-    let restoredCustomer;
-    try {
-      restoredCustomer = await prisma.customer.update({
-        where,
-        data: { deletedAt: null },
+      let restored;
+      try {
+        restored = await db.customer.update({
+          where,
+          data: { deletedAt: null },
+        });
+      } catch (error) {
+        if (isPrismaError(error, "P2025"))
+          throw new AppError(404, "Customer not found");
+        throw error;
+      }
+
+      await auditService.recordInTransaction(db, {
+        action: "restore.customer.success",
+        entity: "Customer",
+        entityId: id,
+        before: JSON.stringify(existingCustomer),
+        after: JSON.stringify(restored),
       });
-    } catch (error) {
-      if (isPrismaError(error, "P2025"))
-        throw new AppError(404, "Customer not found");
-      throw error;
-    }
-
-    void auditService.record({
-      action: "restore.customer.success",
-      entity: "Customer",
-      entityId: id,
-      before: JSON.stringify(existingCustomer),
-      after: JSON.stringify(restoredCustomer),
+      return restored;
     });
     await invalidateModuleCache("customers");
     return restoredCustomer;
@@ -224,23 +203,26 @@ export const customerService = {
 
   async delete(id: string) {
     const organizationId = customerOrganization();
-    const existingCustomer = await prisma.customer.findUnique({
-      where: { id, organizationId, deletedAt: null },
-    });
+    const deletedCustomer = await tenantTransaction(async db => {
+      const existingCustomer = await db.customer.findUnique({
+        where: { id, organizationId, deletedAt: null },
+      });
 
-    if (!existingCustomer) throw new AppError(404, "Customer not found");
+      if (!existingCustomer) throw new AppError(404, "Customer not found");
 
-    const deletedCustomer = await prisma.customer.update({
-      where: { id, organizationId, deletedAt: null },
-      data: { deletedAt: new Date() },
-    });
+      const customer = await db.customer.update({
+        where: { id, organizationId, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
 
-    void auditService.record({
-      action: "delete.customer.success",
-      entity: "Customer",
-      entityId: id,
-      before: JSON.stringify(existingCustomer),
-      after: JSON.stringify(deletedCustomer),
+      await auditService.recordInTransaction(db, {
+        action: "delete.customer.success",
+        entity: "Customer",
+        entityId: id,
+        before: JSON.stringify(existingCustomer),
+        after: JSON.stringify(customer),
+      });
+      return customer;
     });
 
     await invalidateModuleCache("customers");

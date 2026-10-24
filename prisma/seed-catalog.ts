@@ -10,6 +10,7 @@ try {
       (args.includes("--apply") && args.includes("--dry-run"))) {
     throw new Error("Usage: npm run seed:catalog -- dev [--dry-run | --apply]");
   }
+  if (!env.DATABASE_URL) throw new Error("Local seed commands require DATABASE_URL.");
   const target = new URL(env.DATABASE_URL);
   if (env.NODE_ENV === "production") throw new Error("Use seed:prod for production permissions and the system administrator. The plan catalog is for development only.");
   console.log(`Catalog target: ${target.hostname}:${target.port || 3306}/${decodeURIComponent(target.pathname.slice(1))}`);

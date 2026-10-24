@@ -9,7 +9,8 @@ try {
   if (flags.some((flag) => !["--dry-run", "--apply"].includes(flag)) || (flags.includes("--dry-run") && flags.includes("--apply"))) {
     throw new Error("Usage: npm run seed:dev -- [--dry-run | --apply]");
   }
-  const result = await seedDevelopment(prisma, { ...env, DEV_SEED_PASSWORD: process.env.DEV_SEED_PASSWORD }, { dryRun: !flags.includes("--apply") });
+  if (!env.DATABASE_URL) throw new Error("Local seed commands require DATABASE_URL.");
+  const result = await seedDevelopment(prisma, { ...env, DATABASE_URL: env.DATABASE_URL, DEV_SEED_PASSWORD: process.env.DEV_SEED_PASSWORD }, { dryRun: !flags.includes("--apply") });
   if (flags.includes("--apply")) {
     await invalidateModuleCache("plans");
     for (const organizationId of result.organizationIds) {

@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { sendResponse } from "@/utils/sendResponse";
 import { profileService } from "./profile.service";
 import type { ChangePasswordInput, UpdateProfileInput } from "./profile.schema";
+import { clearTrustedDeviceCookies } from "./trusted-device.controller";
 
 export const profileController = {
   async get(_req: Request, res: Response, next: NextFunction) {
@@ -35,6 +36,7 @@ export const profileController = {
       );
       res.clearCookie("refreshToken", { path: "/api/auth" });
       res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
+      clearTrustedDeviceCookies(res);
       sendResponse(
         res,
         200,

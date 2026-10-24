@@ -7,6 +7,7 @@ jest.unstable_mockModule("@/lib/prisma.js", () => ({
   prisma: {
     customer: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
       create: jest.fn(),
@@ -16,7 +17,11 @@ jest.unstable_mockModule("@/lib/prisma.js", () => ({
 }));
 
 jest.unstable_mockModule("@/modules/audit/audit.service.js", () => ({
-  auditService: { record: jest.fn() },
+  auditService: { record: jest.fn(), recordInTransaction: jest.fn() },
+}));
+
+jest.unstable_mockModule("@/utils/tenant-transaction.js", () => ({
+  tenantTransaction: async (work: (db: unknown) => Promise<unknown>) => work(prisma),
 }));
 
 jest.unstable_mockModule("@/lib/requestContext.js", () => ({

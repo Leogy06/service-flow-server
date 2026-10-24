@@ -7,7 +7,8 @@ RUN apt-get update \
 
 FROM base AS build
 COPY package.json package-lock.json ./
-RUN npm ci --include=dev
+# Generation runs explicitly below after its schema/configuration are present.
+RUN npm ci --include=dev --ignore-scripts
 COPY tsconfig.json tsconfig.build.json prisma.config.ts ./
 COPY prisma ./prisma
 COPY src ./src

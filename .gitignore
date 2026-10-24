@@ -2,6 +2,7 @@ node_modules/
 dist/
 build/
 .env
+*.pem
 .env.*
 !.env.example
 /src/generated/prisma

@@ -19,11 +19,41 @@ const development = {
 };
 const production = {
   ...development,
+  JWT_ACCESS_SECRET: "synthetic-production-access-key-at-least-32-chars",
+  JWT_REFRESH_SECRET: "synthetic-production-refresh-key-at-least-32-chars",
   NODE_ENV: "production",
   DATABASE_URL: "mysql://user:sample@database.example.com:3306/service_flow?connection_limit=5&sslaccept=strict",
   REDIS_URL: "rediss://default:sample@sample.upstash.io:6379",
   CORS_ORIGIN: "https://app.example.com",
 };
+
+test.each([
+  { JWT_ACCESS_SECRET: "short" },
+  { JWT_ACCESS_SECRET: " ".repeat(32) },
+  { JWT_ACCESS_SECRET: "  short  " },
+])("production rejects short access signing keys without disclosing values: %j", (override) => {
+  const result = envSchema.safeParse({ ...production, ...override });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    for (const secret of Object.values(override)) expect(JSON.stringify(result.error.issues)).not.toContain(secret);
+  }
+});
+
+test("legacy refresh-secret values do not impose a signing-key contract on opaque refresh tokens", () => {
+  expect(envSchema.safeParse({ ...production, JWT_REFRESH_SECRET: "legacy-value" }).success).toBe(true);
+});
+
+test("accepts complete Aiven runtime settings without DATABASE_URL and uses PEM TLS with one connection", () => {
+  const values = { ...production, DATABASE_URL: undefined, DB_HOST: "aiven.example.invalid", DB_PORT: "28669", DB_USER: "app", DB_PASSWORD: "sample", DB_NAME: "app", DB_CA: "-----BEGIN CERTIFICATE-----\nsample\n-----END CERTIFICATE-----" };
+  const parsed = envSchema.parse(values);
+  expect(databaseOptions(parsed)).toMatchObject({
+    host: values.DB_HOST, port: 28669, user: "app", password: "sample", database: "app",
+    ssl: { ca: values.DB_CA, rejectUnauthorized: true }, connectionLimit: 1,
+  });
+  expect(envSchema.safeParse({ ...values, DB_CA: undefined }).success).toBe(false);
+  expect(envSchema.safeParse({ ...values, DB_CA: "filename.pem" }).success).toBe(false);
+  expect(envSchema.safeParse({ ...values, DB_HOST: "127.0.0.1" }).success).toBe(false);
+});
 
 test("defaults to development without separate DATABASE_* inputs and derives logging defaults", () => {
   expect(envSchema.parse(development)).toMatchObject({ NODE_ENV: "development", PORT: 4000, LOG_LEVEL: "debug" });
@@ -148,6 +178,16 @@ test("production requires explicit strict TLS for CLI and app configuration", ()
   expect(envSchema.safeParse(settings).success).toBe(false);
 });
 
+test("two-factor settings default to four digits and validate security bounds", () => {
+  expect(envSchema.parse(development)).toMatchObject({ TWO_FACTOR_CODE_LENGTH: 4, TWO_FACTOR_CODE_TTL_SECONDS: 600, TWO_FACTOR_MAX_ATTEMPTS: 5, TWO_FACTOR_RESEND_SECONDS: 60, TWO_FACTOR_SEND_MAX_PER_HOUR: 5, TRUSTED_DEVICE_TENANT_DAYS: 30, TRUSTED_DEVICE_ADMIN_DAYS: 7 });
+  expect(envSchema.parse({ ...development, TWO_FACTOR_CODE_LENGTH: "6" }).TWO_FACTOR_CODE_LENGTH).toBe(6);
+  for (const override of [
+    { TWO_FACTOR_CODE_LENGTH: 3 }, { TWO_FACTOR_CODE_LENGTH: 9 }, { TWO_FACTOR_MAX_ATTEMPTS: 6 },
+    { TWO_FACTOR_CODE_TTL_SECONDS: 601 }, { TWO_FACTOR_RESEND_SECONDS: 59 }, { TWO_FACTOR_SECRET: "too-short" },
+    { TRUSTED_DEVICE_ADMIN_DAYS: 31 },
+  ]) expect(envSchema.safeParse({ ...development, ...override }).success).toBe(false);
+});
+
 test.each(["development", "test"])("adapter uses plain MySQL unless TLS is requested in %s", (mode) => {
   const options = databaseOptions({
     NODE_ENV: mode,
@@ -165,7 +205,7 @@ test("production adapter requires verified TLS even if called without a URL TLS 
   expect(options.ssl).toEqual({ rejectUnauthorized: true });
 });
 
-test("adapter decodes URL credentials and uses the URL pool limit and verified production TLS", () => {
+test("adapter decodes URL credentials and honors the configured URL pool with verified production TLS", () => {
   expect(databaseOptions({ ...development, NODE_ENV: "development" })).toMatchObject({
     host: "127.0.0.1", port: 3307, user: "root", password: "p@ss#word", database: "service_flow_dev", connectionLimit: 5,
   });

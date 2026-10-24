@@ -41,6 +41,8 @@ function selected(user: UserRow, select: any) {
   return Object.fromEntries(Object.keys(select).map((key) => [key, row[key as keyof typeof row]]));
 }
 const db = {
+  trustedDevice: { updateMany: jest.fn(async (_input: unknown) => ({ count: 0 })) },
+  loginChallenge: { updateMany: jest.fn(async (_input: unknown) => ({ count: 0 })) },
   user: {
     findUnique: jest.fn(async ({ where }: any) => { const user = users.find((user) => user.id === where.id); return user ? { ...user, organization: { id: user.organizationId, slug: user.organizationId, status: "ACTIVE", billingEnabled: false } } : null; }),
     findFirst: jest.fn(async ({ where, select }: any) => { const user = users.find((user) => matches(user, where)); return user ? selected(user, select) : null; }),
@@ -72,6 +74,10 @@ jest.unstable_mockModule("@/lib/email/send-invite", () => ({ sendInviteEmail: je
 jest.unstable_mockModule("@/modules/audit/audit.service.js", () => ({ auditService: {
   recordInTransaction: async (_db: unknown, event: unknown) => { if (failAudit) throw new Error("Audit unavailable"); audits.push(event); },
 } }));
+jest.unstable_mockModule("@/middleware/two-factor-rate-limit", () => {
+  const pass = (_req: unknown, _res: unknown, next: () => void) => next();
+  return { twoFactorDeliveryIpLimiter: pass, twoFactorVerifyLimiter: pass, limitTwoFactorDelivery: async () => {} };
+});
 jest.unstable_mockModule("@/middleware/rateLimiter.js", () => {
   const pass = (_req: unknown, _res: unknown, next: () => void) => next();
   return { authLimiter: pass, refreshLimiter: pass, apiLimiter: pass, publicApiLimiter: pass, signupLimiter: pass, strictLimiter: pass, writeLimmiter: pass };
@@ -147,6 +153,9 @@ test("password change hashes the password, revokes only self tokens, clears the 
   expect(tokens.map((token) => token.userId)).toEqual(["staff-b"]);
   expect(result.cookie).toContain("refreshToken=;");
   expect(result.cookie).toContain("Path=/api/auth/refresh");
+  expect(result.cookie).toContain("trustedDeviceTenant=;");
+  expect(db.trustedDevice.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "staff-a", revokedAt: null } }));
+  expect(db.loginChallenge.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "staff-a", consumedAt: null } }));
   expect(audits).toEqual([{ action: "auth.password.change.success", entity: "User", entityId: "staff-a", after: { sessionsRevoked: 2 } }]);
 });
 
@@ -171,6 +180,8 @@ test("sign-out-all revokes only self refresh tokens and records an audit", async
   expect(result.status).toBe(200);
   expect(tokens.map((token) => token.userId)).toEqual(["staff-b"]);
   expect(audits).toContainEqual(expect.objectContaining({ action: "auth.logout.all.success", entityId: "staff-a" }));
+  expect(db.trustedDevice.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "staff-a", revokedAt: null } }));
+  expect(db.loginChallenge.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "staff-a", consumedAt: null } }));
 });
 
 test.each(["profile", "password"])("audit failure rolls back the %s mutation", async (kind) => {

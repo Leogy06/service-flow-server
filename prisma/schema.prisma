@@ -14,6 +14,24 @@ datasource db {
   provider = "mysql"
 }
 
+// Platform-wide traffic; readable only by platform administrators.
+model AccessLog {
+  id         Int      @id @default(autoincrement())
+  ip         String   @db.VarChar(45)
+  method     String   @db.VarChar(32)
+  path       String   @db.VarChar(500)
+  status     Int
+  durationMs Int
+  country    String?  @db.VarChar(2)
+  city       String?  @db.VarChar(255)
+  userAgent  String?  @db.VarChar(300)
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([ip])
+  @@map("access_logs")
+}
+
 enum OrganizationStatus {
   ACTIVE
   INACTIVE
@@ -179,6 +197,8 @@ model Organization {
   invoices        Invoice[]
   auditLogs       AuditLog[]
   refreshTokens   RefreshToken[]
+  loginChallenges LoginChallenge[]
+  trustedDevices TrustedDevice[]
 
   roles       Role[]
   permissions Permission[]
@@ -259,6 +279,8 @@ model User {
   jobStatusHistories JobStatusHistory[]
   productFeedback ProductFeedback[]
   refreshTokens      RefreshToken[]
+  loginChallenges    LoginChallenge[]
+  trustedDevices     TrustedDevice[]
   role               Role               @relation(fields: [roleId], references: [id])
   userPermissions    UserPermission[]
 
@@ -332,10 +354,10 @@ model UserPermission {
 model Customer {
   id String @id @default(cuid())
 
-  name String @unique
+  name String
 
-  email       String  @unique
-  phoneNumber String  @unique
+  email       String
+  phoneNumber String
 
   address String?
   notes   String?
@@ -353,6 +375,9 @@ model Customer {
 
   @@index([email])
   @@index([phoneNumber])
+  @@unique([organizationId, name])
+  @@unique([organizationId, email])
+  @@unique([organizationId, phoneNumber])
 }
 
 // ─────────────────────────────────────────────
@@ -910,5 +935,51 @@ model RefreshToken {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([expiresAt])
+}
+
+// Opaque challenge handles and short codes are stored only as hashes.
+model LoginChallenge {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  organizationId String?
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  surface String @db.VarChar(20)
+  challengeHash String @unique @db.VarChar(64)
+  codeHash String @db.VarChar(64)
+  codeLength Int
+  attempts Int @default(0)
+  maxAttempts Int @default(5)
+  sessionVersion Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  lastSentAt DateTime @default(now())
+  deliveryStatus String @default("pending") @db.VarChar(10)
+  consumedAt DateTime?
+
+  @@index([userId, createdAt])
+  @@index([userId, surface, consumedAt])
+  @@index([organizationId])
+  @@index([expiresAt])
+}
+
+model TrustedDevice {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  organizationId String?
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  surface String @db.VarChar(20)
+  tokenHash String @unique @db.VarChar(64)
+  userAgent String @db.VarChar(500)
+  ipAddress String @db.VarChar(45)
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  @@index([userId, organizationId, revokedAt])
+  @@index([organizationId])
   @@index([expiresAt])
 }

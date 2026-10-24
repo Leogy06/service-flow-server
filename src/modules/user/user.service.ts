@@ -1,5 +1,6 @@
 import { Prisma, UserStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { revokeAuthenticationFactors } from "@/modules/auth/authentication-factors";
 import { AppError } from "@/utils/AppError";
 import { cachedRead, invalidateModuleCache } from "@/utils/module-cache";
 import { hashedPassword } from "@/utils/bcrypPassword";
@@ -437,9 +438,12 @@ export const userService = {
             status: "ACTIVE",
             inviteToken: null,
             inviteTokenExpiry: null,
+            sessionVersion: { increment: 1 },
           },
         });
         if (result.count !== 1) throw invalidInvite();
+        await db.refreshToken.deleteMany({ where: { userId: user.id, organizationId } });
+        await revokeAuthenticationFactors(db, user.id);
 
         // The verified invitation establishes the actor and tenant for this public operation.
         await requestContext.run(
@@ -467,7 +471,7 @@ export const userService = {
   },
 
   async update(id: string, input: UserUpdateInput, authUserOrg: string) {
-    const existing = await this.getById(id, authUserOrg); // 404 if missing, deleted, other org
+    await this.getById(id, authUserOrg); // 404 if missing, deleted, other org
 
     const [byEmail, byPhone] = await Promise.all([
       input.email
@@ -490,16 +494,35 @@ export const userService = {
 
     let user;
     try {
-      user = await prisma.user.update({
-        where: { id, ...userScope(authUserOrg) },
-        data: {
-          firstName: input.firstName,
-          lastName: input.lastName,
-          middleName: input.middleName,
-          suffix: input.suffix,
-          email: input.email,
-          phone: input.phone,
-        },
+      user = await accessTransaction(async (db) => {
+        await lockOrganization(db, authUserOrg);
+        const current = await db.user.findFirst({ where: { id, ...userScope(authUserOrg) } });
+        if (!current) throw new AppError(404, "User not found");
+        const emailChanged = input.email !== undefined && input.email !== current.email;
+        const updated = await db.user.update({
+          where: { id, ...userScope(authUserOrg) },
+          data: {
+            firstName: input.firstName,
+            lastName: input.lastName,
+            middleName: input.middleName,
+            suffix: input.suffix,
+            email: input.email,
+            phone: input.phone,
+            ...(emailChanged ? { sessionVersion: { increment: 1 }, inviteToken: null, inviteTokenExpiry: null } : {}),
+          },
+        });
+        if (emailChanged) {
+          await db.refreshToken.deleteMany({ where: { userId: id, organizationId: authUserOrg } });
+          await revokeAuthenticationFactors(db, id);
+        }
+        await auditService.recordInTransaction(db, {
+          action: "update.user.success",
+          entity: "User",
+          entityId: updated.id,
+          before: stripSecrets(current),
+          after: stripSecrets(updated),
+        });
+        return updated;
       });
     } catch (error) {
       if (isPrismaError(error, "P2025"))
@@ -510,16 +533,6 @@ export const userService = {
     }
 
     const safe = stripSecrets(user);
-
-    void auditService
-      .record({
-        action: "update.user.success",
-        entity: "User",
-        entityId: user.id,
-        before: existing,
-        after: safe,
-      })
-      .catch((err) => console.error("audit failed:", err));
 
     await this.invalidateUserCache();
     return safe;
@@ -548,6 +561,7 @@ export const userService = {
         const revoked = await db.refreshToken.deleteMany({
           where: { userId: id },
         });
+        await revokeAuthenticationFactors(db, id);
         await auditService.recordInTransaction(db, {
           action: "delete.user.success",
           entity: "User",
@@ -598,6 +612,7 @@ export const userService = {
         const revoked = await db.refreshToken.deleteMany({
           where: { userId: id },
         });
+        await revokeAuthenticationFactors(db, id);
         await auditService.recordInTransaction(db, {
           action: "restore.user.success",
           entity: "User",
