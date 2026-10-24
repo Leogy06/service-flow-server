@@ -1,5 +1,6 @@
 import { Prisma, UserStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { assertDemoActionAllowed } from "@/lib/demo-guard";
 import { revokeAuthenticationFactors } from "@/modules/auth/authentication-factors";
 import { AppError } from "@/utils/AppError";
 import { cachedRead, invalidateModuleCache } from "@/utils/module-cache";
@@ -203,6 +204,7 @@ export const userService = {
 
   async createDirect(input: CreateUserInput) {
     const actor = await requireTenantAdmin(prisma, PERMISSIONS.USER_CREATE);
+    await assertDemoActionAllowed(prisma, actor.organizationId, "add staff accounts");
     input = { ...input, organizationId: actor.organizationId };
     if (!input.password) throw new AppError(400, "Password is required");
     //check email duplication and phone
@@ -215,6 +217,7 @@ export const userService = {
         db,
         PERMISSIONS.USER_CREATE,
       );
+      await assertDemoActionAllowed(db, currentActor.organizationId, "add staff accounts");
       await requireAssignableRole(db, input.roleId, currentActor);
       await enforceSeatLimit(db, currentActor.organizationId, 1, {
         includePending: true,
@@ -257,6 +260,7 @@ export const userService = {
 
   async createWithInvite(input: CreateUserInput) {
     const actor = await requireTenantAdmin(prisma, PERMISSIONS.USER_CREATE);
+    await assertDemoActionAllowed(prisma, actor.organizationId, "invite staff");
     input = { ...input, organizationId: actor.organizationId };
     await this.validateCreateInput(input);
 
@@ -272,6 +276,7 @@ export const userService = {
         db,
         PERMISSIONS.USER_CREATE,
       );
+      await assertDemoActionAllowed(db, currentActor.organizationId, "invite staff");
       await requireAssignableRole(db, input.roleId, currentActor);
       await enforceSeatLimit(db, currentActor.organizationId, 1, {
         includePending: true,

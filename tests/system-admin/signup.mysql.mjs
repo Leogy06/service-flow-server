@@ -1,14 +1,22 @@
-import "dotenv/config";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import express from "express";
 import { createServer } from "node:http";
+import { registerHooks } from "node:module";
 
 const databaseName = process.env.DATABASE_NAME ?? "";
 if (process.env.NODE_ENV !== "test" || process.env.RUN_DB_PLATFORM_TESTS !== "1" ||
     !/^service_flow_platform_test_[a-z0-9_]+$/.test(databaseName) || process.env.PLATFORM_TEST_DATABASE_NAME !== databaseName ||
     new URL(process.env.DATABASE_URL).pathname !== `/${databaseName}`) throw new Error("Isolated platform test database required");
+
+// Capture only the delivery boundary; the real challenge/hash/session flow still runs.
+const emailFixture = "data:text/javascript," + encodeURIComponent("export const codes=new Map(); export async function sendLoginCodeEmail(email,firstName,code){codes.set(email,code);}");
+const emailHook = registerHooks({ resolve(specifier, context, nextResolve) {
+  if (/(?:^|\/)lib\/email\/send-login-code(?:\.[jt]s)?$/.test(specifier)) return { url: emailFixture, shortCircuit: true };
+  return nextResolve(specifier, context);
+} });
+const { codes } = await import(emailFixture);
 
 const { prisma } = await import("../../src/lib/prisma.ts");
 const { redis } = await import("../../src/lib/redis.ts");
@@ -82,7 +90,12 @@ test("public signup waits for approval and provisions one isolated workspace und
     assert.equal(await prisma.user.count({ where: { organizationId: reviewed.organizationId } }), 1);
     assert.equal(await prisma.role.count({ where: { organizationId: reviewed.organizationId } }), 3);
     assert.equal(await prisma.auditLog.count({ where: { entityId: application.id, action: "signup.reviewed" } }), 1);
-    const login = await http("/auth/login", "POST", { email: details.email, password });
+    const challenge = await http("/auth/login", "POST", { email: details.email, password });
+    assert.equal(challenge.status, 200); assert.equal(challenge.body.data.requiresTwoFactor, true);
+    assert.equal(challenge.body.data.accessToken, undefined);
+    assert.match(codes.get(details.email), /^\d+$/);
+    assert.equal(codes.get(details.email).length, challenge.body.data.codeLength);
+    const login = await http("/auth/2fa/verify", "POST", { challengeId: challenge.body.data.challengeId, code: codes.get(details.email), rememberDevice: false });
     assert.equal(login.status, 200); assert.equal(login.body.data.user.role, "Admin"); assert.equal(login.body.data.user.platformRole, "NONE");
     assert.deepEqual(new Set(login.body.data.permissions), new Set(TENANT_ADMIN_PERMISSIONS));
     const probe = await http("/probe", "GET", undefined, login.body.data.accessToken);
@@ -126,6 +139,7 @@ test("public signup waits for approval and provisions one isolated workspace und
     assert.equal(JSON.stringify(events).includes(application.passwordHash), false); assert.equal(JSON.stringify(events).includes(password), false);
     console.log("Real signup MySQL checks passed: 202/no session, versioned agreement persistence, waiting/no login, duplicate credentials, tenant guards, concurrent approval and slug uniqueness, password-verified legacy agreement recovery, default permissions, trial login, rejection, payment gating and safe audits.");
   } finally {
+    emailHook.deregister();
     if (server) { server.closeAllConnections(); await new Promise((done) => server.close(done)); }
     await prisma.$disconnect(); await redis.quit();
   }

@@ -1,3 +1,13 @@
+## [2026-10-24 14:34] Codex (root, provisioning, demo-safety and review agents)
+
+- **Task:** Implement secure industry-template tenant provisioning and isolated demo workflows.
+- **Summary:** Added versioned templates, strict schemas, shared signup role helper, atomic resources/audits/retry identity, durable invitation leases/recovery/status, draft websites, fictional manifests/reset and persisted demo guards. Hardened invitation transport, reserved sample contact editing and obsolete TypeScript test configuration.
+- **Files changed:** Prisma schema/new 20261024110000_tenant_onboarding_templates migration; modules/system-admin/provisioning; demo-guard/email/customer/organization/payment/feedback/user/billing/reporting services; new and existing tests, scripts/test-provisioning-isolated.mjs, package/.gitignore and FEATURE docs. Exact manifest: ../artifacts/tenant-onboarding/CHANGED_FILES.md.
+- **Endpoints / rate limiting:** /api/system-admin/provisioning templates/detail/create/status/invitation/reset-demo inherit authenticate, persisted platform authority and apiLimiter/no-store; mutations add writeLimmiter. Existing route limits and tenant permission behavior preserved; route tests cover 401/403/400/429 and Retry-After.
+- **Verification:** 61 Jest suites/1,246 tests, full lint, build, Prisma generation/type checks and diff checks pass. Disposable local MySQL fresh replay and provisioning/signup/2FA suites pass, including concurrent retries, invoice integrity, owner activation, trial preservation, invitation failure/retry, reset isolation and forced transaction rollback/retry.
+- **Status:** Completed locally; hosted acceptance pending. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** Migration applied only to disposable owned test databases; no existing DB/private env edits, real mail or deployment. All labelled containers removed. See ../docs/TENANT_ONBOARDING.md for rollout/recovery. Real trials start at provisioning per current policy; no-trial owner activation requires paid entitlement. No demo conversion. Initial aggregate logging timeout passed separate and complete reruns; SQL fixture/harness failures were corrected without weakening production checks.
+
 ## [2026-10-24 09:13] Codex (root; audit and final read-only review streams)
 
 - **Task:** Audit and remediate confirmed backend tenant/security/reliability defects.

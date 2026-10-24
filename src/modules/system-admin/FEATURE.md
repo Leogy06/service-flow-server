@@ -1,5 +1,11 @@
 # Platform administration and subscription billing
 
+Demo tenants cannot receive subscription assignments, trials, plan/status changes,
+receipts, payment verification or refunds. These mutations reload persisted mode
+after the tenant row lock. Financial CSV exports and dashboard gross/refund totals
+also exclude demo organizations. Organization counts may include demo tenants;
+customer invoices remain fictional internal workflow records.
+
 ## Purpose and scope
 
 Platform operators manage organizations, plans, subscription entitlements,

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { auditService } from "@/modules/audit/audit.service";
 import type { CustomerListInput, UpdateCustomerInput } from "./customer.schema";
+import { isDemoCustomerPhone } from "./customer.schema";
 import type { Prisma } from "@/generated/prisma/client";
 import { AppError } from "@/utils/AppError";
 import { isPrismaError } from "@/utils/errorHelper";
@@ -8,6 +9,14 @@ import { requestContext } from "@/lib/requestContext";
 import { cachedRead, invalidateModuleCache } from "@/utils/module-cache";
 import { CreateCustomerInput } from "./types";
 import { tenantTransaction } from "@/utils/tenant-transaction";
+
+async function validateDemoCustomerPhone(db: Prisma.TransactionClient, organizationId: string, phoneNumber?: string) {
+  if (!phoneNumber || !isDemoCustomerPhone(phoneNumber)) return;
+  // Reserved sample contacts stay editable without admitting foreign numbers to real businesses.
+  const organization = await db.organization.findUnique({ where: { id: organizationId }, select: { isDemo: true } });
+  if (!organization) throw new AppError(404, "Organization not found");
+  if (!organization.isDemo) throw new AppError(400, "Please enter a valid Philippine mobile number");
+}
 
 async function checkCustomerConflicts(
   db: Prisma.TransactionClient,
@@ -38,6 +47,7 @@ export const customerService = {
     const organizationId = customerOrganization();
 
     const newCustomer = await tenantTransaction(async db => {
+      await validateDemoCustomerPhone(db, organizationId, data.phoneNumber);
       await checkCustomerConflicts(db, organizationId, data);
       const customer = await db.customer.create({
         data: {
@@ -148,6 +158,7 @@ export const customerService = {
 
       if (!existingCustomer) throw new AppError(404, "Customer not found");
 
+      await validateDemoCustomerPhone(db, organizationId, data.phoneNumber);
       await checkCustomerConflicts(db, organizationId, data, id);
       const customer = await db.customer.update({
         where: { id, organizationId, deletedAt: null },

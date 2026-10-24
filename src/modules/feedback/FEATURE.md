@@ -1,5 +1,10 @@
 # Feedback
 
+Demo organizations cannot create customer feedback invitations or submit product
+feedback. Existing demo public links return the generic unavailable-link response,
+and testimonial approval rejects demo content. Private customer feedback workflows
+remain readable. Mode comes from persisted organization data at the service boundary.
+
 Private feedback about Service Flow and customer feedback about tenant services
 use separate tables and inboxes. `feedback.service.ts` enforces ownership and
 transactions; schemas, controllers and routes follow existing API conventions.

@@ -2,6 +2,10 @@ import { z } from "zod";
 import { paginationSchema } from "@/schemas/pagination.schema";
 import emptyToUndefined from "@/utils/emptyToUndefined";
 
+const philippineMobile = /^(?:\+63|63|0)9\d{9}$/;
+const demoCustomerPhone = /^\+1202555010[1-3]$/;
+export const isDemoCustomerPhone = (value: string) => demoCustomerPhone.test(value);
+
 const customerBodySchema = z.object({
   name: z.string().trim().max(100).min(2, "Name is required"),
   email: z
@@ -16,8 +20,8 @@ const customerBodySchema = z.object({
     .pipe(
       z
         .string()
-        .regex(
-          /^(?:\+63|63|0)9\d{9}$/,
+        .refine(
+          (value) => philippineMobile.test(value) || isDemoCustomerPhone(value),
           "Please enter a valid Philippine mobile number",
         ),
     ),

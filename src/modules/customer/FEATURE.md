@@ -11,6 +11,10 @@ Create/update/archive/restore and their mandatory audit evidence commit in the
 existing serializable tenant transaction. Audit failures roll back the mutation;
 cache invalidation follows successful commit. Reads keep active/archived separation.
 
+The three reserved sample phone numbers `+12025550101` through `+12025550103`
+remain editable in demo workspaces. Create/update reload persisted organization
+mode before admitting these contacts; real tenants retain Philippine-mobile rules.
+
 Lists/details use `utils/module-cache.ts` through the shared Redis utility.
 Successful create/update/delete/restore invalidates the tenant's customers,
 request customer choices, requests, jobs, invoices and dashboard because those

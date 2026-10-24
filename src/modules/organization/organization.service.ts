@@ -177,6 +177,7 @@ export const organizationService = {
       select: {
         name: true,
         slug: true,
+        isDemo: true,
       },
     });
     if (!organization) throw new AppError(404, "Organization not found");
@@ -191,7 +192,7 @@ export const organizationService = {
 
     const organization = await prisma.organization.findUnique({
       where: { slug: cleanSlug, status: "ACTIVE" },
-      select: { name: true, slug: true },
+      select: { name: true, slug: true, isDemo: true },
     });
     if (!organization) throw new AppError(404, "Organization not found");
 

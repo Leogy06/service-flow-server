@@ -3,6 +3,7 @@ import { jest } from "@jest/globals";
 // Real services + real cache utility; only Redis and the database are in-memory.
 type Row = Record<string, any>;
 let customers: Row[], requests: Row[], jobs: Row[], invoices: Row[], payments: Row[];
+let isDemo = false;
 const store = new Map<string, string>();
 const redis = {
   get: jest.fn(async (key: string) => store.get(key) ?? null),
@@ -32,6 +33,7 @@ function model(rows: () => Row[], view: (row: Row) => Row = (row) => row) {
   };
 }
 const db = {
+  organization: { findUnique: jest.fn(async () => ({ id: "org-a", isDemo })) },
   customer: model(() => customers), serviceRequest: model(() => requests, requestView), job: model(() => jobs, jobView),
   invoice: model(() => invoices, invoiceView),
   user: { findFirst: jest.fn(async () => ({ id: "staff-a" })) },
@@ -62,12 +64,22 @@ const jobQuery = jobListInput.parse({ query: {} }).query;
 const tenant = <T>(work: () => T, organizationId = "org-a", userId = "staff-a", permissions = ["dashboard:read"]) =>
   requestContext.run({ requestId: "service-cache-test", organizationId, userId, role: "Staff", permissions }, work);
 beforeEach(() => {
-  store.clear(); jest.clearAllMocks();
+  store.clear(); jest.clearAllMocks(); isDemo = false;
   customers = [{ id: "customer-a", organizationId: "org-a", name: "Original name", deletedAt: null }];
   requests = [{ id: "request-a", organizationId: "org-a", customerId: "customer-a", status: "PENDING" }];
   jobs = [{ id: "job-a", organizationId: "org-a", customerId: "customer-a", serviceRequestId: "request-a", assignedStaffId: "staff-a", status: "ASSIGNED" }];
   invoices = [{ id: "invoice-a", organizationId: "org-a", customerId: "customer-a", total: new Prisma.Decimal(100), amountPaid: new Prisma.Decimal(0), status: "UNPAID" }];
   payments = [];
+});
+
+test("demo invoice payment is rejected before any financial writes or cache invalidation", async () => {
+  isDemo = true;
+  await expect(tenant(() => paymentService.record("invoice-a", {
+    amount: "25.00", method: "CASH", idempotencyKey: "12345678-1234-4234-8234-123456789012", referenceNumber: "", notes: "",
+  }))).rejects.toMatchObject({ statusCode: 403, code: "DEMO_ACTION_DISABLED" });
+  expect(payments).toHaveLength(0);
+  expect(invoices[0]!.amountPaid.toFixed(2)).toBe("0.00");
+  expect(redis.incr).not.toHaveBeenCalled();
 });
 
 test("customer edits refresh cached customer, request and job projections", async () => {

@@ -1,5 +1,5 @@
 // src/lib/email/client.ts
-import { Resend } from "resend";
-import { env } from "@/config/env";
+import { getAuthenticationEmailClient } from "./authentication-client";
 
-export const resend = new Resend(env.RESEND_API_KEY);
+// Invitations carry account activation secrets, so use the same private transport.
+export const resend = getAuthenticationEmailClient();

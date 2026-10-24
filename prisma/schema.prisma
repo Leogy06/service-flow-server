@@ -182,6 +182,8 @@ model Organization {
   slug   String             @unique
   status OrganizationStatus @default(ACTIVE)
   billingEnabled Boolean @default(false)
+  // Provisioned demo tenants cannot be converted into operational businesses.
+  isDemo Boolean @default(false)
   statusReason String? @db.VarChar(1000)
   statusChangedAt DateTime?
   statusChangedBy String?
@@ -212,8 +214,33 @@ model Organization {
   customerFeedback CustomerFeedback[]
   settings OrganizationSettings?
   page OrganizationPage?
+  provisioning TenantProvisioning?
 
   @@index([status, createdAt])
+}
+
+// A successful atomic workspace setup survives subsequent email delivery failures.
+model TenantProvisioning {
+  id String @id
+  actorId String
+  requestHash String @db.VarChar(64)
+  organizationId String @unique
+  organization Organization @relation(fields: [organizationId], references: [id])
+  ownerId String
+  templateId String @db.VarChar(50)
+  templateVersion Int
+  mode String @db.VarChar(10)
+  includeDemoData Boolean
+  generateWebsite Boolean
+  invitationStatus String @default("PENDING") @db.VarChar(20)
+  invitationAttemptId String? @db.VarChar(64)
+  invitationAttemptedAt DateTime?
+  invitationError String? @db.VarChar(300)
+  demoManifest Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([actorId, createdAt])
 }
 
 model OrganizationPage {

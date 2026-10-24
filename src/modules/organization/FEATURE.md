@@ -1,5 +1,10 @@
 # Organization settings and branding
 
+Persisted demo organizations can save private page drafts but cannot publish.
+Public page lookup returns the same 404 for demo, missing and unpublished pages,
+including previously published snapshots. Paid upgrade discovery, requests and
+platform upgrade review also reject demo organizations through the shared guard.
+
 Organization routes cover platform provisioning, tenant subscriptions and tenant
 branding. Existing organization names/slugs and billing workflows retain their
 contracts; branding display names never rename an organization or change URLs.

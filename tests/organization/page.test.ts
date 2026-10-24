@@ -9,12 +9,13 @@ let rows = new Map<string, OrganizationPage>();
 let audits: unknown[] = [];
 let hasSettings = true;
 let failAudit = false;
+let isDemo = false;
 const organizations = new Map([["org-a", "ACTIVE"], ["org-b", "ACTIVE"]]);
 const db = {
-  organization: { findUnique: jest.fn(async ({ where }: { where: { id?: string; slug?: string; status: string } }) => {
+  organization: { findUnique: jest.fn(async ({ where }: { where: { id?: string; slug?: string; status?: string } }) => {
     const id = where.id ?? where.slug;
-    if (!id || organizations.get(id) !== where.status) return null;
-    return { id, slug: id, name: `Business ${id}`, page: rows.get(id) ?? null, settings: hasSettings ? { displayName: null, primaryColor: "#123456", logoUrl: null } : null };
+    if (!id || !organizations.has(id) || (where.status && organizations.get(id) !== where.status)) return null;
+    return { id, slug: id, isDemo, name: `Business ${id}`, page: rows.get(id) ?? null, settings: hasSettings ? { displayName: null, primaryColor: "#123456", logoUrl: null } : null };
   }) },
   organizationPage: {
     findUnique: jest.fn(async ({ where }: { where: { organizationId: string } }) => rows.get(where.organizationId) ?? null),
@@ -66,10 +67,19 @@ const legacyContent = { headline: "Electrical services", about: "We maintain and
 const content = pageContentSchema.parse(legacyContent);
 const input = (version: string | null = null, publication: "keep" | "publish" | "unpublish" = "keep") => ({ content, version, publication });
 beforeEach(async () => {
+  isDemo = false;
   hasSettings = true;
   jest.clearAllMocks(); rows = new Map(); audits = []; failAudit = false; organizations.set("org-a", "ACTIVE");
   for (const ip of ["::ffff:127.0.0.1", "127.0.0.1", "::1"]) for (const limiter of [apiLimiter, writeLimmiter, publicPageLimiter]) await limiter.resetKey(ipKeyGenerator(ip));
   for (const id of ["admin", "admin-b", "staff", "operator"]) for (const limiter of [apiLimiter, writeLimmiter]) await limiter.resetKey(`u:${id}`);
+});
+
+test("demo pages permit private drafts but cannot publish or expose old public content", async () => {
+  const published = await tenant(() => service.update(input(null, "publish")));
+  isDemo = true;
+  await expect(tenant(() => service.update(input(published.version, "publish")))).rejects.toMatchObject({ statusCode: 403, code: "DEMO_ACTION_DISABLED" });
+  await expect(service.publicPage("org-a")).rejects.toMatchObject({ statusCode: 404 });
+  expect(await tenant(() => service.update(input(published.version, "keep")))).toMatchObject({ content });
 });
 
 test("new tenant has an empty private draft without writes", async () => {

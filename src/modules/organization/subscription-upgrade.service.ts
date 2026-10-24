@@ -4,6 +4,7 @@ import type {
   SubscriptionUpgradeRequest,
 } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { assertDemoActionAllowed } from "@/lib/demo-guard";
 import { requestContext } from "@/lib/requestContext";
 import { loadAuthorization } from "@/modules/auth/authorization";
 import {
@@ -89,6 +90,7 @@ async function requireSubscriptionAdmin(db: Prisma.TransactionClient) {
   ) {
     throw new AppError(403, "Tenant administration is required");
   }
+  await assertDemoActionAllowed(db, ctx.organizationId, "request paid subscription upgrades");
   return { actorId: actor.id, organizationId: ctx.organizationId };
 }
 
@@ -257,6 +259,7 @@ export const subscriptionUpgradeService = {
     return invalidating("upgradePlans", () => tenantTransaction(async (db) => {
       const actor = await requirePlatformAuthority(db);
       await lockOrganization(db, subscription.organizationId);
+      await assertDemoActionAllowed(db, subscription.organizationId, "change subscription upgrades");
       const request = await db.subscriptionUpgradeRequest.findFirst({
         where: {
           id: input.requestId,

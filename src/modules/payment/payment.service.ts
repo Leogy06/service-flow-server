@@ -9,6 +9,7 @@ import {
 } from "@/utils/tenant-transaction";
 import { AppError } from "@/utils/AppError";
 import type { RecordPayment } from "./payment.schema";
+import { assertDemoActionAllowed } from "@/lib/demo-guard";
 
 export const paymentService = {
   async record(invoiceId: string, data: RecordPayment) {
@@ -19,6 +20,7 @@ export const paymentService = {
       .digest("hex");
     const amount = new Prisma.Decimal(data.amount);
     const work = async (db: Prisma.TransactionClient) => {
+      await assertDemoActionAllowed(db, organizationId, "record payments");
       // Serialize financial writes on this tenant's invoice before checking its balance.
       const locked = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
         SELECT id FROM Invoice WHERE id = ${invoiceId} AND organizationId = ${organizationId} FOR UPDATE

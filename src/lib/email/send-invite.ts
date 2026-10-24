@@ -17,18 +17,18 @@ export async function sendInviteEmail({
 }: SendInviteEmailProps) {
   const inviteUrl = `${env.CORS_ORIGIN}/set-password?token=${token}&email=${encodeURIComponent(to)}`;
 
-  const { data, error } = await resend.emails.send({
-    from: env.EMAIL_FROM,
-    to,
-    subject: "You’re invited to join ServiceFlow",
-    html: inviteUserHtml({ firstName, inviteUrl }),
-    attachments: [emailLogoAttachment],
-  });
-
-  if (error) {
-    console.error("Error sending invite email", error);
-    throw error;
+  try {
+    const { data, error } = await resend.emails.send({
+      from: env.EMAIL_FROM,
+      to,
+      subject: "You’re invited to join ServiceFlow",
+      html: inviteUserHtml({ firstName, inviteUrl }),
+      attachments: [emailLogoAttachment],
+    });
+    if (error || !data?.id) throw new Error("Invitation delivery failed");
+    return data;
+  } catch {
+    // Provider failures may contain recipient or request details, including links.
+    throw new Error("Invitation delivery failed");
   }
-
-  return data;
 }

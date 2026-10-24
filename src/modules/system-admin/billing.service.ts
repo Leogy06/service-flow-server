@@ -1,6 +1,7 @@
 import { cachedRead, invalidating } from "@/utils/module-cache";
 import { Prisma, type Subscription } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { assertDemoActionAllowed } from "@/lib/demo-guard";
 import { requestContext } from "@/lib/requestContext";
 import { requirePlatformAuthority } from "@/modules/role/tenant-access-policy";
 import { AppError } from "@/utils/AppError";
@@ -410,6 +411,7 @@ export const billingService = {
     return invalidating("subscriptions", () => platformTransaction(async (db) => {
       await requirePlatformAuthority(db);
       await lockOrganization(db, input.organizationId);
+      await assertDemoActionAllowed(db, input.organizationId, "use subscription billing");
       const existing = await db.subscription.findUnique({
         where: { organizationId: input.organizationId },
       });
@@ -482,6 +484,7 @@ export const billingService = {
     return invalidating("subscriptions", () => platformTransaction(async (db) => {
       await requirePlatformAuthority(db);
       await lockOrganization(db, organizationId);
+      await assertDemoActionAllowed(db, organizationId, "use subscription billing");
       const before = await requireSubscription(db, id);
       if (
         before.trialStartedAt ||
@@ -541,6 +544,7 @@ export const billingService = {
     return invalidating("subscriptions", () => platformTransaction(async (db) => {
       await requirePlatformAuthority(db);
       await lockOrganization(db, organizationId);
+      await assertDemoActionAllowed(db, organizationId, "use subscription billing");
       const before = await requireSubscription(db, id);
       const plan = await db.plan.findUnique({ where: { id: input.planId } });
       if (!plan?.isActive)
@@ -575,6 +579,7 @@ export const billingService = {
     return invalidating("subscriptions", () => platformTransaction(async (db) => {
       await requirePlatformAuthority(db);
       await lockOrganization(db, organizationId);
+      await assertDemoActionAllowed(db, organizationId, "use subscription billing");
       const before = await requireSubscription(db, id);
       assertManualSubscriptionTransition(before.status, input.status);
       const subscription = await db.subscription.update({
@@ -605,6 +610,7 @@ export const billingService = {
     return platformTransaction(async (db) => {
       await requirePlatformAuthority(db);
       await lockOrganization(db, organizationId);
+      await assertDemoActionAllowed(db, organizationId, "use subscription billing");
       const subscription = await requireSubscription(db, input.subscriptionId);
       const existing = await db.subscriptionPayment.findUnique({
         where: { idempotencyKey: input.idempotencyKey },
@@ -666,6 +672,7 @@ export const billingService = {
     return invalidating("subscriptions", () => platformTransaction(async (db) => {
       const actor = await requirePlatformAuthority(db);
       await lockOrganization(db, organizationId);
+      await assertDemoActionAllowed(db, organizationId, "use subscription billing");
       const before = await db.subscriptionPayment.findUnique({ where: { id } });
       if (!before) throw new AppError(404, "Payment not found");
       if (before.status === input.decision) return before;
@@ -783,6 +790,7 @@ export const billingService = {
     return platformTransaction(async (db) => {
       const actor = await requirePlatformAuthority(db);
       await lockOrganization(db, organizationId);
+      await assertDemoActionAllowed(db, organizationId, "use subscription billing");
       const existing = await db.subscriptionRefundRequest.findUnique({
         where: { idempotencyKey: input.idempotencyKey },
       });
@@ -843,6 +851,7 @@ export const billingService = {
     return platformTransaction(async (db) => {
       const actor = await requirePlatformAuthority(db);
       await lockOrganization(db, organizationId);
+      await assertDemoActionAllowed(db, organizationId, "use subscription billing");
       const request = await db.subscriptionRefundRequest.findFirst({
         where: { id: input.requestId, paymentId: id },
       });
@@ -898,6 +907,7 @@ export const billingService = {
     return invalidating("subscriptions", () => platformTransaction(async (db) => {
       const actor = await requirePlatformAuthority(db);
       await lockOrganization(db, organizationId);
+      await assertDemoActionAllowed(db, organizationId, "use subscription billing");
       const existing = await db.subscriptionRefund.findUnique({
         where: { idempotencyKey: input.idempotencyKey },
       });

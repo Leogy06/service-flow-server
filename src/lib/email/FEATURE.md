@@ -15,7 +15,9 @@ No additional packages are required.
 - `send-login-code.ts`: tenant and system-admin verification-code delivery with
   HTML, plain text, configurable expiry messaging and the shared inline logo.
 - `authentication-client.ts`: uses the SDK's public transport hook to keep raw
-  provider errors out of nonproduction logs for sensitive authentication mail.
+  provider errors out of nonproduction logs for verification and invitation mail.
+  `client.ts` shares this transport with the invitation sender; delivery failures
+  propagate as a fixed safe error without logging recipients, tokens or provider bodies.
 - `branding.ts`: bundled PNG and matching Content-ID for inline email attachments.
 - `templates/layout.ts`: shared presentation, HTML escaping and HTTP(S) URL guard.
 - `templates/invite-user.ts`: existing `inviteUserHtml({ firstName, inviteUrl })` API.

@@ -7,6 +7,7 @@ import billingRoutes from "./billing.routes";
 import operationsRoutes from "./operations.routes";
 import legacyAdminRoutes from "@/modules/user/routes/system-admin.routes";
 import signupRoutes from "./signup.routes";
+import provisioningRoutes from "./provisioning/provisioning.routes";
 
 const routes = Router();
 routes.use((_req, res, next) => {
@@ -15,6 +16,7 @@ routes.use((_req, res, next) => {
 });
 routes.use(authenticate, apiLimiter, requireSystemAdmin);
 routes.use(signupRoutes);
+routes.use(provisioningRoutes);
 routes.use(foundationRoutes);
 routes.use(billingRoutes);
 routes.use(operationsRoutes);

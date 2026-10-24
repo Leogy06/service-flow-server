@@ -100,6 +100,26 @@ beforeEach(() => {
     payments: [], refunds: [], refundRequests: [], history: [], audits: [] };
 });
 
+test("demo tenants cannot receive subscription assignments or paid receipts", async () => {
+  state.organizations[0]!.isDemo = true;
+  await expect(billingService.recordPayment(paymentInput)).rejects.toMatchObject({ statusCode: 403, code: "DEMO_ACTION_DISABLED" });
+  state.subscriptions = [];
+  await expect(billingService.assignSubscription({ ...reason, organizationId: "org-a", planId: "plan-a", startTrial: true })).rejects.toMatchObject({ statusCode: 403, code: "DEMO_ACTION_DISABLED" });
+  expect(state.payments).toHaveLength(0);
+  expect(state.subscriptions).toHaveLength(0);
+  expect(state.audits).toHaveLength(0);
+});
+
+test("demo tenants cannot activate subscriptions or verify an existing receipt", async () => {
+  const receipt = await billingService.recordPayment(paymentInput);
+  state.organizations[0]!.isDemo = true;
+  await expect(billingService.startTrial("sub-a", reason)).rejects.toMatchObject({ code: "DEMO_ACTION_DISABLED" });
+  await expect(billingService.changePlan("sub-a", { ...reason, planId: "plan-b" })).rejects.toMatchObject({ code: "DEMO_ACTION_DISABLED" });
+  await expect(billingService.changeStatus("sub-a", { ...reason, status: "CANCELED" })).rejects.toMatchObject({ code: "DEMO_ACTION_DISABLED" });
+  await expect(billingService.reviewPayment(receipt.id, reviewInput)).rejects.toMatchObject({ code: "DEMO_ACTION_DISABLED" });
+  expect(state.payments[0]!.status).toBe("PENDING");
+});
+
 test("review count includes pending subscriptions or requested upgrades in one distinct subscription count", async () => {
   db.subscription.count.mockResolvedValueOnce(7);
   expect(await billingService.countSubscriptionReviews()).toEqual({ needsReview: 7 });

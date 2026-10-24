@@ -1,5 +1,12 @@
 # Shared runtime infrastructure
 
+`demo-guard.ts` reloads the persisted organization mode inside protected service
+operations. Demo tenants receive `403 DEMO_ACTION_DISABLED` for customer payments,
+staff creation/invitations, feedback dispatch and subscription financial mutations.
+Missing tenants and failed mode reads fail closed. The flag is never accepted from
+the request. Demo owners still complete ordinary invitations and email login
+verification; internal customer/request/job/invoice workflows remain available.
+
 Prisma and Redis clients are shared per warm runtime. The standalone entrypoint
 owns process signals through `shutdown.ts`: stop accepting HTTP requests, drain
 active work, close both clients and exit. Repeated signals share one shutdown.

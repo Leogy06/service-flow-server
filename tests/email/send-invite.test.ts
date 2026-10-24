@@ -29,6 +29,7 @@ const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {}
 beforeEach(() => {
   env.CORS_ORIGIN = "https://app.example.com";
   fetchSpy.mockReset().mockResolvedValue(Response.json({ id: "email-fixture" }));
+  consoleErrorSpy.mockClear();
 });
 
 afterAll(() => {
@@ -68,13 +69,15 @@ it.each(["https://app.example.com", "http://localhost:4001"])(
   },
 );
 
-it("propagates delivery rejection instead of reporting a branded email as sent", async () => {
+it("rejects provider failures without exposing provider details or logging invitation data", async () => {
   const error = { name: "validation_error", message: "Sample delivery rejected", statusCode: 422 };
   fetchSpy.mockResolvedValue(Response.json(error, { status: 422 }));
-  await expect(sendInviteEmail(invite)).rejects.toEqual(error);
+  await expect(sendInviteEmail(invite)).rejects.toThrow("Invitation delivery failed");
+  expect(consoleErrorSpy).not.toHaveBeenCalled();
 });
 
 it("propagates network failure", async () => {
   fetchSpy.mockRejectedValue(new Error("Sample network failure"));
-  await expect(sendInviteEmail(invite)).rejects.toMatchObject({ name: "application_error" });
+  await expect(sendInviteEmail(invite)).rejects.toThrow("Invitation delivery failed");
+  expect(consoleErrorSpy).not.toHaveBeenCalled();
 });

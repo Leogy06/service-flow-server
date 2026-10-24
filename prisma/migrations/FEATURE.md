@@ -72,3 +72,14 @@ Fresh replay does not prove upgrades on populated databases: historical required
 columns, removed enum values, dropped columns and new unique keys retain their
 existing data requirements. Review those requirements and back up data before an
 upgrade. Hosting must also allow the platform audit triggers in this history.
+
+## Tenant onboarding templates (24 October 2026)
+
+`20261024110000_tenant_onboarding_templates` adds `Organization.isDemo` with a
+false default and the one-to-one `TenantProvisioning` recovery record. Existing
+organizations remain real tenants. No customer, financial or subscription row
+is changed. Deploy this additive migration and regenerate Prisma before enabling
+the API; never infer demo mode from an editable organization name or slug.
+
+See `../../../docs/TENANT_ONBOARDING.md` for recovery, invitation delivery and
+isolated test instructions.

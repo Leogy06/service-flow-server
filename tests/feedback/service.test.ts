@@ -25,6 +25,7 @@ let requestStatus = "COMPLETED";
 let jobs = [{ status: "COMPLETED" }];
 let archivedCustomer = false;
 let organizationStatus = "ACTIVE";
+let isDemo = false;
 const matches = (row: object, where: Record<string, unknown>) => Object.entries(where).every(([key, value]) => {
   const actual = Reflect.get(row, key);
   return typeof value === "object" && value && "not" in value ? actual !== value.not : actual === value;
@@ -37,11 +38,12 @@ function grouped(rows: Array<{ status: FeedbackStatus; rating: number }>, where:
 }
 const invitationRow = () => ({
   id: "invite-a", organizationId: "org-a", serviceRequestId: "request-a", tokenHash: invitationHash, expiresAt,
-  organization: { name: "Business A", status: organizationStatus },
+  organization: { name: "Business A", status: organizationStatus, isDemo },
   serviceRequest: { status: requestStatus, customer: { deletedAt: archivedCustomer ? now() : null }, jobs },
   feedback: responses[0] ?? null,
 });
 const db = {
+  organization: { findUnique: jest.fn(async () => ({ id: "org-a", isDemo })) },
   productFeedback: {
     groupBy: jest.fn(async ({ where }: { where: Record<string, unknown> }) => grouped(products, where)),
     findFirst: jest.fn(async ({ where }: { where: Record<string, unknown> }) => products.find((row) => matches(row, where)) ?? null),
@@ -88,9 +90,25 @@ const query = listInput.parse({ query: {} }).query;
 const asTenant = <T>(work: () => Promise<T>, organizationId = "org-a", userId = "user-a") => requestContext.run({ requestId: "feedback-test", organizationId, userId }, work);
 const asOperator = <T>(work: () => Promise<T>) => requestContext.run({ requestId: "feedback-test", userId: "operator" }, work);
 beforeEach(() => {
+  isDemo = false;
   jest.clearAllMocks(); products = []; responses = []; auditRows = []; failAudit = false;
   invitationHash = hash(rawToken); expiresAt = new Date(Date.now() + 86400000);
   requestStatus = "COMPLETED"; jobs = [{ status: "COMPLETED" }]; archivedCustomer = false; organizationStatus = "ACTIVE";
+});
+
+test("demo tenants cannot dispatch feedback invitations or add public product testimonials", async () => {
+  isDemo = true;
+  await expect(asTenant(() => service.createInvitation("request-a"))).rejects.toMatchObject({ statusCode: 403, code: "DEMO_ACTION_DISABLED" });
+  await expect(asTenant(() => service.submitProduct(input))).rejects.toMatchObject({ code: "DEMO_ACTION_DISABLED" });
+  expect(db.feedbackInvitation.upsert).not.toHaveBeenCalled();
+  expect(products).toHaveLength(0);
+});
+
+test("existing demo feedback links reveal no business context and cannot accept responses", async () => {
+  isDemo = true;
+  await expect(service.publicContext(rawToken)).rejects.toMatchObject({ statusCode: 404 });
+  await expect(service.submitCustomer(publicInput)).rejects.toMatchObject({ statusCode: 404 });
+  expect(responses).toHaveLength(0);
 });
 
 test("product feedback is private by default and retries create one record/audit", async () => {

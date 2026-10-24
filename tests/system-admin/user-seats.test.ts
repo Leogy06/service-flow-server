@@ -6,6 +6,7 @@ let refreshTokens: Row[];
 let failAudit = false;
 let maxActiveUsers = 2;
 let billingEnabled = true;
+let isDemo = false;
 let transactionQueue: Promise<unknown> = Promise.resolve();
 const match = (row: Row, where: Row) => Object.entries(where).every(([key, value]) => value === undefined ||
   (value && typeof value === "object" && "in" in value ? value.in.includes(row[key]) :
@@ -18,7 +19,7 @@ const db = {
     refreshTokens = refreshTokens.filter((row) => !match(row, where));
     return { count: before - refreshTokens.length };
   }) },
-  organization: { findUnique: jest.fn(async () => ({ id: "org-a", billingEnabled })) },
+  organization: { findUnique: jest.fn(async () => ({ id: "org-a", billingEnabled, isDemo })) },
   subscription: { findUnique: jest.fn(async () => ({ plan: { maxActiveUsers } })) },
   role: { findFirst: jest.fn(async () => ({ id: "staff-role", organizationId: "org-a" })) },
   user: {
@@ -64,10 +65,19 @@ const { userService } = await import("@/modules/user/user.service.js");
 const { sendInviteEmail } = await import("@/lib/email/send-invite");
 const input = { firstName: "New", lastName: "Staff", email: "new@example.invalid", password: "ValidPassword123!", roleId: "staff-role", organizationId: "foreign-org" };
 beforeEach(() => {
+  isDemo = false;
   jest.clearAllMocks(); failAudit = false; maxActiveUsers = 2; billingEnabled = true; audits = []; transactionQueue = Promise.resolve();
   users = [{ id: "owner", organizationId: "org-a", roleId: "admin-role", email: "owner@example.invalid", status: "ACTIVE", securityStatus: "BLOCKED", platformRole: "NONE", sessionVersion: 0, deletedAt: null },
     { id: "archived", organizationId: "org-a", roleId: "staff-role", email: "archived@example.invalid", status: "ACTIVE", securityStatus: "BLOCKED", platformRole: "NONE", sessionVersion: 0, deletedAt: new Date(), password: "private-hash" }];
   refreshTokens = [{ id: "owner-session", userId: "owner" }, { id: "archived-session", userId: "archived" }];
+});
+
+test("demo staff creation cannot create accounts or dispatch invitations", async () => {
+  isDemo = true;
+  await expect(userService.createWithInvite(input)).rejects.toMatchObject({ statusCode: 403, code: "DEMO_ACTION_DISABLED" });
+  await expect(userService.createDirect(input)).rejects.toMatchObject({ statusCode: 403, code: "DEMO_ACTION_DISABLED" });
+  expect(db.user.create).not.toHaveBeenCalled();
+  expect(sendInviteEmail).not.toHaveBeenCalled();
 });
 
 test("direct creation explicitly activates a seat in the trusted tenant and audits atomically", async () => {

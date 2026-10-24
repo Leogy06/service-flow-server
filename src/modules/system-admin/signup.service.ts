@@ -1,7 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePlatformAuthority } from "@/modules/role/tenant-access-policy";
-import { DEFAULT_ROLE_DEFINITIONS } from "@/constants/default-roles";
 import {
   PUBLISHED_PRIVACY_VERSIONS,
   PUBLISHED_TERMS_VERSIONS,
@@ -12,6 +11,7 @@ import { pagination } from "@/utils/tenant-transaction";
 import { registerSchema, type RegisterInput } from "@/modules/auth/auth.schema";
 import { platformTransaction, recordPlatformAudit } from "./platform-audit";
 import { trialPeriod } from "./billing-policy";
+import { createDefaultTenantRoles } from "./provisioning/default-roles";
 import type { SignupListQuery, SignupReviewInput } from "./signup.schema";
 
 const signupSelect = {
@@ -277,22 +277,6 @@ export const signupService = {
             409,
             "Choose an available plan with at least one user place",
           );
-        const permissionNames = [
-          ...new Set(
-            DEFAULT_ROLE_DEFINITIONS.flatMap((role) => [
-              ...role.permissionNames,
-            ]),
-          ),
-        ];
-        const permissions = await db.permission.findMany({
-          where: { name: { in: permissionNames }, organizationId: null },
-          select: { id: true, name: true },
-        });
-        if (permissions.length !== permissionNames.length)
-          throw new AppError(
-            409,
-            "Default tenant permissions must be provisioned before approval",
-          );
         const organization = await db.organization.create({
           data: {
             name: application.organizationName,
@@ -301,27 +285,7 @@ export const signupService = {
           },
         });
         organizationId = organization.id;
-        let adminRoleId: string | undefined;
-        for (const definition of DEFAULT_ROLE_DEFINITIONS) {
-          const role = await db.role.create({
-            data: {
-              name: definition.name,
-              organizationId,
-              permissions: {
-                create: permissions
-                  .filter((permission) =>
-                    definition.permissionNames.includes(permission.name),
-                  )
-                  .map((permission) => ({
-                    permissionId: permission.id,
-                    isActive: true,
-                  })),
-              },
-            },
-          });
-          if (definition.name === "Admin") adminRoleId = role.id;
-        }
-        if (!adminRoleId) throw new Error("Default Admin role is missing");
+        const adminRoleId = await createDefaultTenantRoles(db, organizationId);
         const user = await db.user.create({
           data: {
             email: application.email,

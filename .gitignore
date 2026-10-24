@@ -18,6 +18,7 @@ scripts/*
 !scripts/dev.sh
 !scripts/prod.sh
 !scripts/run-platform-mysql-tests.mjs
+!scripts/test-provisioning-isolated.mjs
 !scripts/predeploy*.mjs
 !scripts/PREDEPLOY.md
 .predeploy/

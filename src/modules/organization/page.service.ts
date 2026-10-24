@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { assertDemoActionAllowed } from "@/lib/demo-guard";
 import { Prisma } from "@/generated/prisma/client";
 import { auditService } from "@/modules/audit/audit.service";
 import { tenantTransaction } from "@/utils/tenant-transaction";
@@ -30,6 +31,7 @@ export const organizationPageService = {
       if (issues.length) throw new AppError(400, issues.join(". ") + ".");
     }
     await tenantTransaction(async (db) => {
+      if (publication === "publish") await assertDemoActionAllowed(db, organizationId, "publish public business pages");
       const organization = await db.organization.findUnique({ where: { id: organizationId, status: "ACTIVE" }, select: { id: true } });
       if (!organization) throw new AppError(404, "Organization not found");
       const before = await db.organizationPage.findUnique({ where: { organizationId } });
@@ -56,15 +58,15 @@ export const organizationPageService = {
     // Availability and publication are live reads: unpublish/suspension takes effect immediately.
     // Explicit projection excludes draft content, tenant IDs, users and operational records.
     const organization = await prisma.organization.findUnique({
-      where: { slug, status: "ACTIVE" },
+      where: { slug, status: "ACTIVE", isDemo: false },
       select: {
-        name: true, slug: true,
+        name: true, slug: true, isDemo: true,
         settings: { select: { displayName: true, primaryColor: true, logoUrl: true } },
         page: { select: { published: true, publishedAt: true } },
       },
     });
     const parsed = pageContentSchema.safeParse(organization?.page?.published);
-    if (!organization?.page?.publishedAt || !parsed.success) throw new AppError(404, "Page not found");
+    if (organization?.isDemo || !organization?.page?.publishedAt || !parsed.success) throw new AppError(404, "Page not found");
     return {
       name: organization.settings?.displayName ?? organization.name,
       slug: organization.slug,

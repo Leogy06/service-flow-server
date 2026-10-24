@@ -11,6 +11,7 @@ type CustomerRow = {
 let customers: CustomerRow[];
 let denied: string[];
 let failAudit = false;
+let demoOrganization = false;
 const record = jest.fn(async (_event: unknown) => {});
 const invalidateCache = jest.fn(async (_key: string) => {});
 const cacheKeys: string[] = [];
@@ -43,6 +44,7 @@ function matches(row: CustomerRow, where: any): boolean {
   });
 }
 const db = {
+  organization: { findUnique: jest.fn(async ({ where }: { where: { id: string } }): Promise<{ isDemo: boolean } | null> => ({ isDemo: where.id === "org-a" && demoOrganization })) },
   user: { findUnique: jest.fn(async ({ where }: any) => {
     if (!["admin-a", "admin-b", "reader-a", "no-access-a"].includes(where.id)) return null;
     const organizationId = where.id === "admin-b" ? "org-b" : "org-a";
@@ -109,13 +111,48 @@ app.use(express.json(), withRequestContext);
 app.use("/customers", authenticate, customerRoutes);
 const errors: ErrorRequestHandler = (error, _req, res, _next) => { res.status(error.statusCode ?? 500).json({ error: error.message }); };
 app.use(errors);
-beforeEach(() => { jest.clearAllMocks(); resetData(); failAudit = false; });
+beforeEach(() => { jest.clearAllMocks(); resetData(); failAudit = false; demoOrganization = false; });
 const get = (path: string, actor = "admin-a") => request(app).get(path).set("Authorization", "Bearer " + actor);
 const update = (id: string, body: object, actor = "admin-a") => request(app).put("/customers/" + id).set("Authorization", "Bearer " + actor).send(body);
 const remove = (id: string, actor = "admin-a") => request(app).delete("/customers/" + id).set("Authorization", "Bearer " + actor);
 const restore = (id: string, actor = "admin-a") => request(app).patch(`/customers/${id}/restore`).set("Authorization", "Bearer " + actor);
 
 describe("Customer table API", () => {
+  it("allows demo customers to retain their safe reserved phone when editing other fields", async () => {
+    demoOrganization = true;
+    customers[0]!.phoneNumber = "+12025550101";
+    const response = await update("alice-a", { name: "Updated demo customer", phoneNumber: "+12025550101" });
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ name: "Updated demo customer", phoneNumber: "+12025550101" });
+    expect(db.organization.findUnique).toHaveBeenCalledWith({ where: { id: "org-a" }, select: { isDemo: true } });
+  });
+
+  it("accepts only the exact reserved sample range in a persisted demo workspace", async () => {
+    demoOrganization = true;
+    const response = await request(app).post("/customers").auth("admin-a", { type: "bearer" }).send({ name: "Demo Sample", email: "demo@example.test", phoneNumber: "+12025550103" });
+    expect(response.status).toBe(201);
+    expect((await update("alice-a", { phoneNumber: "+12025550104" })).status).toBe(400);
+  });
+
+  it.each(["create", "update"])("rejects reserved demo phone on real %s even with forged tenant mode", async (operation) => {
+    const body = { name: "Reserved Contact", email: "reserved@example.test", phoneNumber: "+12025550102", isDemo: true, organizationId: "demo-org" };
+    const response = operation === "create"
+      ? await request(app).post("/customers").auth("admin-a", { type: "bearer" }).send(body)
+      : await update("alice-a", body);
+    expect(response.status).toBe(400);
+    expect(db.customer.create).not.toHaveBeenCalled();
+    expect(db.customer.update).not.toHaveBeenCalled();
+    expect(record).not.toHaveBeenCalled();
+    expect(invalidateCache).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the persisted demo phone authorization cannot be loaded", async () => {
+    db.organization.findUnique.mockRejectedValueOnce(new Error("Mode lookup unavailable"));
+    expect((await update("alice-a", { phoneNumber: "+12025550101" })).status).toBe(500);
+    expect(db.customer.update).not.toHaveBeenCalled();
+    expect(record).not.toHaveBeenCalled();
+  });
+
   it("allows the same customer identifiers in two tenants and scopes update conflicts", async () => {
     const foreign = customers.find(row => row.id === "alice-b")!;
     const body = { name: foreign.name, email: foreign.email, phoneNumber: foreign.phoneNumber };

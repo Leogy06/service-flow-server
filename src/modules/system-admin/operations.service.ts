@@ -116,10 +116,10 @@ export const operationsService = {
           >`SELECT DATE_FORMAT(DATE_ADD(createdAt, INTERVAL 8 HOUR), '%Y-%m-%d') AS date, COUNT(*) AS count FROM Organization WHERE createdAt >= ${window.start} AND createdAt < ${window.end} GROUP BY DATE_FORMAT(DATE_ADD(createdAt, INTERVAL 8 HOUR), '%Y-%m-%d') ORDER BY date`,
           db.$queryRaw<
             RevenueRow[]
-          >`SELECT DATE_FORMAT(DATE_ADD(verifiedAt, INTERVAL 8 HOUR), '%Y-%m-%d') AS date, currency, SUM(amount) AS amount FROM SubscriptionPayment WHERE verifiedAt >= ${window.start} AND verifiedAt < ${window.end} AND status IN ('PAID', 'REFUNDED') GROUP BY DATE_FORMAT(DATE_ADD(verifiedAt, INTERVAL 8 HOUR), '%Y-%m-%d'), currency ORDER BY date`,
+          >`SELECT DATE_FORMAT(DATE_ADD(verifiedAt, INTERVAL 8 HOUR), '%Y-%m-%d') AS date, currency, SUM(amount) AS amount FROM SubscriptionPayment WHERE verifiedAt >= ${window.start} AND verifiedAt < ${window.end} AND status IN ('PAID', 'REFUNDED') AND organizationId IN (SELECT id FROM Organization WHERE isDemo = FALSE) GROUP BY DATE_FORMAT(DATE_ADD(verifiedAt, INTERVAL 8 HOUR), '%Y-%m-%d'), currency ORDER BY date`,
           db.$queryRaw<
             RevenueRow[]
-          >`SELECT DATE_FORMAT(DATE_ADD(createdAt, INTERVAL 8 HOUR), '%Y-%m-%d') AS date, currency, SUM(amount) AS amount FROM SubscriptionRefund WHERE createdAt >= ${window.start} AND createdAt < ${window.end} GROUP BY DATE_FORMAT(DATE_ADD(createdAt, INTERVAL 8 HOUR), '%Y-%m-%d'), currency ORDER BY date`,
+          >`SELECT DATE_FORMAT(DATE_ADD(createdAt, INTERVAL 8 HOUR), '%Y-%m-%d') AS date, currency, SUM(amount) AS amount FROM SubscriptionRefund WHERE createdAt >= ${window.start} AND createdAt < ${window.end} AND paymentId IN (SELECT id FROM SubscriptionPayment WHERE organizationId IN (SELECT id FROM Organization WHERE isDemo = FALSE)) GROUP BY DATE_FORMAT(DATE_ADD(createdAt, INTERVAL 8 HOUR), '%Y-%m-%d'), currency ORDER BY date`,
           db.subscription.groupBy({ by: ["status"], _count: { _all: true } }),
           db.auditLog.findMany({
             where: {
@@ -267,13 +267,14 @@ export const operationsService = {
             where: {
               status: { in: ["PAID", "REFUNDED"] },
               verifiedAt: { gte: window.start, lt: window.end },
+              organization: { isDemo: false },
             },
             take: 10001,
             orderBy: [{ verifiedAt: "asc" }, { id: "asc" }],
             include: { organization: { select: { name: true } } },
           }),
           db.subscriptionRefund.findMany({
-            where: { createdAt: { gte: window.start, lt: window.end } },
+            where: { createdAt: { gte: window.start, lt: window.end }, payment: { organization: { isDemo: false } } },
             take: 10001,
             orderBy: [{ createdAt: "asc" }, { id: "asc" }],
             include: {

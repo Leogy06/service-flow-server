@@ -1,5 +1,10 @@
 # Tenant users
 
+Persisted demo organizations cannot add staff directly or send staff invitations.
+The mode guard runs before account creation and again inside its transaction.
+The provisioned demo owner's invitation acceptance and mandatory email login
+verification retain the normal authentication flow.
+
 User routes/controller, schema, `user.service.ts`, password service and platform
 creation service manage accounts, invitations, profiles, archive/restore and
 password reset. Tenant access policy and entitlement helpers enforce role scope,

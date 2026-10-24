@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Prisma, FeedbackStatus } from "@/generated/prisma/client";
 import { env } from "@/config/env";
 import { requestContext } from "@/lib/requestContext";
+import { assertDemoActionAllowed } from "@/lib/demo-guard";
 import { requirePlatformAuthority } from "@/modules/role/tenant-access-policy";
 import { AppError } from "@/utils/AppError";
 import { pagination, tenantOrganization, tenantTransaction } from "@/utils/tenant-transaction";
@@ -99,14 +100,14 @@ async function invitation(db: Prisma.TransactionClient, token: string) {
   const row = await db.feedbackInvitation.findUnique({
     where: { tokenHash: tokenHash(token) },
     include: {
-      organization: { select: { name: true, status: true } },
+      organization: { select: { name: true, status: true, isDemo: true } },
       serviceRequest: { select: {
         status: true, customer: { select: { deletedAt: true } }, jobs: { select: { status: true } },
       } },
       feedback: true,
     },
   });
-  if (!row) throw invalidLink();
+  if (!row || row.organization.isDemo) throw invalidLink();
   return row;
 }
 type Invitation = Awaited<ReturnType<typeof invitation>>;
@@ -121,6 +122,7 @@ export const feedbackService = {
   async submitProduct(input: ProductInput) {
     const actor = author();
     return tenantTransaction(async (db) => {
+      await assertDemoActionAllowed(db, actor.organizationId, "submit product feedback");
       const previous = await db.productFeedback.findFirst({ where: { ...actor, submissionKey: input.submissionKey }, select: fields });
       if (previous) { checkReplay(previous, input); return previous; }
       const row = await db.productFeedback.create({ data: { ...actor, submissionKey: input.submissionKey, ...content(input) }, select: fields });
@@ -160,6 +162,7 @@ export const feedbackService = {
       await requirePlatformAuthority(db);
       const row = await db.productFeedback.findUnique({ where: { id } });
       if (!row) throw new AppError(404, "Feedback not found");
+      if (input.testimonialApproved) await assertDemoActionAllowed(db, row.organizationId, "publish testimonials");
       const result = await db.productFeedback.update({ where: { id }, data: reviewData(row, input), select: fields });
       await audit(db, row.organizationId, "PLATFORM", "feedback.product.reviewed", "ProductFeedback", id, input);
       return result;
@@ -170,6 +173,7 @@ export const feedbackService = {
     return tenantTransaction(async (db) => {
       const row = await db.customerFeedback.findFirst({ where: { id, organizationId } });
       if (!row) throw new AppError(404, "Feedback not found");
+      if (input.testimonialApproved) await assertDemoActionAllowed(db, organizationId, "publish testimonials");
       const result = await db.customerFeedback.update({ where: { id, organizationId }, data: reviewData(row, input), select: fields });
       await audit(db, organizationId, "TENANT", "feedback.customer.reviewed", "CustomerFeedback", id, input);
       return result;
@@ -189,6 +193,7 @@ export const feedbackService = {
   async createInvitation(serviceRequestId: string) {
     const organizationId = tenantOrganization();
     return tenantTransaction(async (db) => {
+      await assertDemoActionAllowed(db, organizationId, "invite customers to submit feedback");
       const request = await db.serviceRequest.findFirst({ where: { id: serviceRequestId, organizationId, customer: { organizationId, deletedAt: null } }, select: { id: true, status: true, jobs: { where: { organizationId }, select: { status: true } } } });
       if (!request) throw new AppError(404, "Service request not found");
       if (request.status !== "COMPLETED" || !request.jobs.length || request.jobs.some((job) => job.status !== "COMPLETED")) {

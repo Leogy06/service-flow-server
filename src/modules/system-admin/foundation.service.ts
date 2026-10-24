@@ -25,6 +25,16 @@ const tenantSelect = {
   slug: true,
   status: true,
   billingEnabled: true,
+  isDemo: true,
+  provisioning: {
+    select: {
+      id: true,
+      templateId: true,
+      templateVersion: true,
+      mode: true,
+      invitationStatus: true,
+    },
+  },
   createdAt: true,
   updatedAt: true,
   statusReason: true,
