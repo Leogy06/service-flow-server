@@ -1,7 +1,8 @@
 # Tenant provisioning
 
-Platform operators create a new, isolated workspace from one of five versioned
-industry templates: AIRCON, AUTO_REPAIR, APPLIANCE_REPAIR, CLEANING or GENERAL.
+Platform operators create a new, isolated workspace from one of six versioned
+industry templates: AIRCON, AUTO_REPAIR, APPLIANCE_REPAIR, CLEANING, GENERAL or
+GIFTS_SURPRISE_DELIVERY (Gifts & Surprise Delivery).
 Public signup approval remains a separate legal-evidence review workflow.
 
 ## API and ownership

@@ -1,4 +1,4 @@
-export const industryIds = ["AIRCON", "AUTO_REPAIR", "APPLIANCE_REPAIR", "CLEANING", "GENERAL"] as const;
+export const industryIds = ["AIRCON", "AUTO_REPAIR", "APPLIANCE_REPAIR", "CLEANING", "GENERAL", "GIFTS_SURPRISE_DELIVERY"] as const;
 export type IndustryId = (typeof industryIds)[number];
 export type IndustryTemplate = {
   id: IndustryId;
@@ -100,6 +100,27 @@ export const industryTemplates = [
       { title: "Common-area site inspection", description: "Fictional property representative requests an inspection of a shared entrance and maintenance concerns. Record findings and confirm the proposed work scope.", completionNote: "Site inspection completed and demonstration findings documented for the sample customer." },
       { title: "Small office maintenance visit", description: "Fictional office requests completion of an agreed basic maintenance checklist. Confirm access and the tasks within the team's competence.", completionNote: "Approved maintenance checklist completed and demonstration handover notes recorded." },
       { title: "Minor fitting repair assessment", description: "Fictional resident requests an assessment of a loose non-structural fitting. Inspect the condition and confirm whether repair is within scope.", completionNote: "Inspection findings and sample repair recommendation recorded for the demonstration." },
+    ],
+  },
+  {
+    id: "GIFTS_SURPRISE_DELIVERY", version: 1, name: "Gifts & Surprise Delivery",
+    description: "Flowers, chocolates, gift packages and coordinated romantic or celebration surprises.",
+    services: [
+      { name: "Flower bouquet delivery", description: "Agree on bouquet preferences, availability, recipient instructions and the delivery scope before confirming an order." },
+      { name: "Chocolate and gift-box delivery", description: "Coordinate gift contents, dietary or allergy information, packaging and recipient handover instructions." },
+      { name: "Romantic surprise package", description: "Plan an agreed combination of flowers, gifts and presentation details with the buyer; confirm access and recipient arrangements." },
+      { name: "Birthday surprise delivery", description: "Arrange a birthday gift presentation with an agreed message, delivery location and preferred schedule." },
+      { name: "Anniversary gift delivery", description: "Coordinate an anniversary gift selection and personal message, subject to availability and agreed delivery arrangements." },
+      { name: "Venue decoration and setup", description: "Assess venue permission, access, decoration scope, setup time and cleanup responsibilities before agreeing the work." },
+    ],
+    website: {
+      headline: "Thoughtful gifts and surprises for meaningful moments",
+      about: "We help arrange flowers, chocolates and personalized gift packages for romantic gestures, birthdays and anniversaries. Discuss your preferences, gift message, recipient arrangements and delivery location with our team. Contents, availability, delivery timing and the quotation are confirmed before the order is accepted.",
+    },
+    scenarios: [
+      { title: "Anniversary bouquet surprise", description: "Fictional buyer requests a bouquet for an anniversary at a demonstration residence. Confirm the sample gift message, access instructions and recipient handover arrangements in the request notes.", completionNote: "Sample bouquet prepared, fictional handover recorded and demonstration completion notes added. No actual gift or customer communication was sent." },
+      { title: "Birthday chocolate gift box", description: "Fictional buyer requests a chocolate gift box for a birthday at a demonstration office. Review sample contents, dietary notes, packaging and the agreed reception handover.", completionNote: "Sample gift box preparation and fictional reception handover recorded. No actual delivery or money collection occurred." },
+      { title: "Romantic surprise package planning", description: "Fictional buyer requests a flowers-and-gifts surprise at a demonstration venue. Record the proposed presentation, venue permission, preferred schedule and recipient arrangements for review.", completionNote: "Demonstration package scope and venue arrangements documented for the fictional buyer." },
     ],
   },
 ] as const satisfies readonly IndustryTemplate[];

@@ -168,8 +168,8 @@ test("fresh delivery leases reject overlapping retries; stale leases can be reco
   expect((await operator(() => service.resendInvitation(result.id, { reason: "Recover stale delivery", confirm: true }))).invitationStatus).toBe("SENT");
 });
 
-test("demo fixtures stay fictional, scoped, unpaid by real providers, and reset without touching custom records", async () => {
-  const result = await operator(() => service.create({ ...input, mode: "DEMO", planId: undefined, includeDemoData: true }));
+test.each(["AIRCON", "GIFTS_SURPRISE_DELIVERY"] as const)("%s demo fixtures stay fictional, scoped, unpaid by real providers, and reset without touching custom records", async (templateId) => {
+  const result = await operator(() => service.create({ ...input, templateId, mode: "DEMO", planId: undefined, includeDemoData: true }));
   expect(result).toMatchObject({ organization: { isDemo: true, billingEnabled: false }, counts: { customers: 3, requests: 3, jobs: 3, invoices: 2, payments: 2 } });
   expect(rows.subscription).toEqual([]);
   expect(rows.customer.every((customer) => customer.email.endsWith(".example.test") && /demo sample/i.test(customer.name))).toBe(true);

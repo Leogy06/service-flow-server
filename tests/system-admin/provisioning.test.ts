@@ -8,8 +8,8 @@ const input = {
   planId: "plan", reason: "Verified owner onboarding", confirm: true,
 };
 
-test("catalog has exactly five versioned industry templates with relevant services and realistic scenarios", () => {
-  expect(industryTemplates.map((template) => template.id)).toEqual(["AIRCON", "AUTO_REPAIR", "APPLIANCE_REPAIR", "CLEANING", "GENERAL"]);
+test("catalog has six versioned industry templates with relevant services and realistic scenarios", () => {
+  expect(industryTemplates.map((template) => template.id)).toEqual(["AIRCON", "AUTO_REPAIR", "APPLIANCE_REPAIR", "CLEANING", "GENERAL", "GIFTS_SURPRISE_DELIVERY"]);
   for (const template of industryTemplates) {
     expect(template.version).toBe(1);
     expect(template.services.length).toBeGreaterThanOrEqual(5);
@@ -19,6 +19,16 @@ test("catalog has exactly five versioned industry templates with relevant servic
   }
   expect(JSON.stringify(industryTemplates.find((template) => template.id === "AUTO_REPAIR"))).not.toMatch(/aircon|refrigerator/i);
   expect(JSON.stringify(industryTemplates.find((template) => template.id === "CLEANING"))).not.toMatch(/compressor|brake/i);
+});
+
+test("gift delivery provides relevant catalog and draft copy and accepts real and demo provisioning", () => {
+  const template = industryTemplates.find((template) => String(template.id) === "GIFTS_SURPRISE_DELIVERY");
+  expect(template?.name).toBe("Gifts & Surprise Delivery");
+  expect(template?.services.map((service) => service.name)).toEqual(expect.arrayContaining(["Flower bouquet delivery", "Chocolate and gift-box delivery", "Romantic surprise package"]));
+  expect(template?.website.about).toMatch(/recipient|delivery/i);
+  expect(JSON.stringify(template)).not.toMatch(/aircon|brake|refrigerator|live tracking|guaranteed/i);
+  expect(provisioningBody.safeParse({ ...input, templateId: "GIFTS_SURPRISE_DELIVERY" }).success).toBe(true);
+  expect(provisioningBody.safeParse({ ...input, templateId: "GIFTS_SURPRISE_DELIVERY", mode: "DEMO", planId: undefined, includeDemoData: true }).success).toBe(true);
 });
 
 test("provisioning schema normalizes identities and defaults real trials without accepting privileges", () => {

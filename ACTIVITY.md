@@ -1,3 +1,13 @@
+## [2026-10-24 17:09] Codex
+
+- **Task:** Add Gifts & Surprise Delivery to the onboarding template registry.
+- **Summary:** Added GIFTS_SURPRISE_DELIVERY version 1, six services without prices, website draft copy and three fictional scenarios. Extended catalog/schema tests and parameterized demo provisioning/reset regression for the new industry.
+- **Files changed:** src/modules/system-admin/provisioning/{templates.ts,FEATURE.md}; tests/system-admin/{provisioning.test.ts,provisioning.service.test.ts}; backend/root activity and shared guide.
+- **Endpoints / rate limiting:** Existing platform provisioning API/limits unchanged; registry adds one accepted template ID. No database, migration or permission changes.
+- **Verification:** Full Jest 61 suites/1,248 tests, full lint, build and diff check pass. Two new catalog assertions failed before implementation; frontend integration/browser checks also pass.
+- **Status:** Completed locally. **Agent rate limit:** None hit. **Resets at:** unknown.
+- **Next steps / Notes:** No seed, existing tenant mutation, real mail or deployment. Catalog pricing remains inactive pending owner confirmation. This template uses existing request/job/invoice models; delivery-specific fields/tracking are separate work.
+
 ## [2026-10-24 14:34] Codex (root, provisioning, demo-safety and review agents)
 
 - **Task:** Implement secure industry-template tenant provisioning and isolated demo workflows.
